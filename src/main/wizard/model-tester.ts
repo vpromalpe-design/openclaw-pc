@@ -47,6 +47,19 @@ const PROVIDER_CONFIGS: Record<string, ProviderTestConfig> = {
     }),
   },
 
+  deepseek: {
+    url: 'https://api.deepseek.com/chat/completions',
+    headers: (apiKey) => ({
+      authorization: `Bearer ${apiKey}`,
+      'content-type': 'application/json',
+    }),
+    body: (model) => ({
+      model,
+      max_tokens: 1,
+      messages: [{ role: 'user', content: 'hi' }],
+    }),
+  },
+
   'openai-codex': {
     url: 'https://api.openai.com/v1/chat/completions',
     headers: (apiKey) => ({

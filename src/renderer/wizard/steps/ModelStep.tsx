@@ -24,6 +24,7 @@ import { PROVIDER_OPTIONS, MODELS_BY_PROVIDER } from '@/constants/provider-prese
 
 const CUSTOM_MODEL_OPTION = '__custom__'
 const TESTABLE_PROVIDERS = new Set<ModelProvider>([
+  'deepseek',
   'anthropic',
   'openai',
   'google',

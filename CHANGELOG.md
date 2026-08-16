@@ -4,6 +4,13 @@ All notable changes to OpenClaw Desktop will be documented in this file.
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-08-16
+
+### Fixed
+
+- **DeepSeek connection test in the setup wizard:** the wizard's testable-provider list was missing `deepseek`, so the "Test connection" button stayed disabled. It is now enabled.
+- **DeepSeek connection probe in the main process:** `model-tester` had no `deepseek` provider config, so the test would have failed even from the settings screen. Added an OpenAI-compatible probe against `https://api.deepseek.com/chat/completions`.
+
 ## [0.8.0] - 2026-08-16
 
 ### Added
