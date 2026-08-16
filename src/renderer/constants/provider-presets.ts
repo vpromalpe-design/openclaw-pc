@@ -19,6 +19,7 @@ export interface ModelPreset {
 
 /** 顺序大致对应 openclaw onboard 常见选项与文档推荐顺序 */
 export const PROVIDER_OPTIONS: readonly ProviderOption[] = [
+  { id: 'deepseek', label: 'DeepSeek', placeholder: 'sk-...' },
   { id: 'anthropic', label: 'Anthropic', placeholder: 'sk-ant-api03-...' },
   { id: 'openai', label: 'OpenAI', placeholder: 'sk-proj-...' },
   { id: 'openai-codex', label: 'OpenAI Codex (OAuth)', placeholder: 'OAuth via CLI' },
@@ -68,6 +69,12 @@ export const PROVIDER_OPTIONS: readonly ProviderOption[] = [
  * 与 OpenClaw 当前默认/目录一致；无预设的供应商将直接进入自定义模型 ID 输入。
  */
 export const MODELS_BY_PROVIDER: Partial<Record<ModelProvider, readonly ModelPreset[]>> = {
+  deepseek: [
+    { id: 'deepseek-v4-flash', label: 'DeepSeek V4 Flash' },
+    { id: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro' },
+    { id: 'deepseek-chat', label: 'DeepSeek Chat (V3)' },
+    { id: 'deepseek-reasoner', label: 'DeepSeek Reasoner (R1)' },
+  ],
   anthropic: [
     { id: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
     { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },

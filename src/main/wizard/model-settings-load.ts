@@ -5,6 +5,7 @@
 import type { ModelConfig, ModelProvider, OpenClawConfig } from '../../shared/types.js'
 
 const KNOWN_PROVIDERS = new Set<ModelProvider>([
+  'deepseek',
   'anthropic',
   'openai',
   'openai-codex',

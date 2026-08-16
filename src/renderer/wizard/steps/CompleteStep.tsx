@@ -17,6 +17,7 @@ import type { ModelProvider } from '../../../shared/types'
 // ─── Display Helpers ──────────────────────────────────────────────────────────
 
 const PROVIDER_LABELS: Record<ModelProvider, string> = {
+  deepseek: 'DeepSeek',
   anthropic: 'Anthropic',
   openai: 'OpenAI',
   'openai-codex': 'OpenAI Codex',

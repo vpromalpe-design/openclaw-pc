@@ -3,6 +3,7 @@ import type { ModelProvider } from '../../shared/types'
 export type ProviderAuthMode = 'api_key' | 'oauth' | 'none' | 'optional'
 
 const AUTH_MODE_BY_PROVIDER: Record<ModelProvider, ProviderAuthMode> = {
+  deepseek: 'api_key',
   anthropic: 'api_key',
   openai: 'api_key',
   'openai-codex': 'oauth',

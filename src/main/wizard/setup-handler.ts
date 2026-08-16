@@ -78,6 +78,11 @@ type ProviderSeed = {
 
 const PROVIDER_SEEDS: Partial<Record<ModelProvider, ProviderSeed>> = {
   /** First-party / common API-key providers (wizard must emit `models.providers` + model aliases). */
+  deepseek: {
+    providerId: 'deepseek',
+    baseUrl: 'https://api.deepseek.com',
+    api: 'openai-completions',
+  },
   anthropic: {
     providerId: 'anthropic',
     baseUrl: 'https://api.anthropic.com',
@@ -253,6 +258,7 @@ const PROVIDER_SEEDS: Partial<Record<ModelProvider, ProviderSeed>> = {
 
 /** Providers that use API key auth profiles in wizard / model settings (exported for IPC). */
 export const API_KEY_PROVIDER_SET = new Set<ModelProvider>([
+  'deepseek',
   'anthropic',
   'openai',
   'google',

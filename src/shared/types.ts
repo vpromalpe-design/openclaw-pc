@@ -256,6 +256,7 @@ export interface ModelsConfig {
 
 /** Model provider id */
 export type ModelProvider =
+  | 'deepseek'
   | 'anthropic'
   | 'openai'
   | 'openai-codex'
