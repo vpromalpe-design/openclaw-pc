@@ -4,6 +4,21 @@ All notable changes to OpenClaw Desktop will be documented in this file.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-08-16
+
+### Added
+
+- **DeepSeek API provider** in the setup wizard and provider presets: `deepseek` model family (`deepseek-chat`, `deepseek-reasoner`, `deepseek-v4-flash`, …), `sk-` API key input with connection test.
+- **Multiple model providers** supported side by side in the wizard/shell — switch the active model in real time.
+
+### Changed
+
+- **Bundled OpenClaw:** npm `2026.4.2` → **`2026.7.1`** (built from the `v2026.7.1` GitHub tag sources for the Electron Control UI).
+- **Bundled Node.js:** `22.16.0` → **`22.23.2`** (OpenClaw 2026.7.1 requires Node ≥22.22.3).
+- **Release:** Shell **`0.8.0+openclaw.2026.7.1`**; Git release tag **`v0.8.0+openclaw.2026.7.1`**.
+- **Bundle pipeline adapted to the 2026.7.1 pnpm monorepo:** workspace packages (`@openclaw/media-core`, `@openclaw/normalization-core`, `@openclaw/ai`, `gateway-protocol`, …) are vendored and built with tsdown, `workspace:*` refs are rewritten to `file:`, hoisted root deps (`@lit/context`, …) are mirrored into `ui` devDependencies, and `@openclaw/uirouter` / `@openclaw/libterminal` are installed into the bundle root for the Vite aliases.
+- **Verify:** `verify-bundle` prefers the Linux node binary on non-Windows hosts; CLI checks (`doctor`/`config`/`backup`/`plugins`/`gateway run`) pass against 2026.7.1.
+
 ## [0.7.0] - 2026-04-03
 
 ### Changed
