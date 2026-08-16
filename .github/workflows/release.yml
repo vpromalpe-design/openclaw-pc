@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  NODE_VERSION_CI: '22.16.0'
+  NODE_VERSION_CI: '22.23.2'
   # check-openclaw-versions: validate pin vs bundle-manifest only (no npm registry query / latest warn).
   OPENCLAW_SKIP_NPM_LATEST_CHECK: '1'
   # workflow_dispatch: must checkout the release tag, not the branch that triggered the run (avoids shell/OpenClaw pin vs artifact mismatch → Control UI black screen).
