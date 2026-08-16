@@ -4,6 +4,12 @@ All notable changes to OpenClaw Desktop will be documented in this file.
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-08-16
+
+### Fixed
+
+- **API keys now persist into `openclaw.json` static auth profiles.** Previously the wizard and the provider settings screen stored keys only in the per-agent `auth-profiles.json`, which subagents cannot see — creating a subagent failed with `No API key found for provider …` (`missing-provider-auth`). The key is now written into `auth.profiles.<id>.apiKey` in the config as well, so subagents inherit it (portable static auth profiles).
+
 ## [0.8.1] - 2026-08-16
 
 ### Fixed

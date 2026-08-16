@@ -514,19 +514,36 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
         throw new Error('profileId and provider are required')
       }
       const canonicalProfileId = normalizeAuthOrderEntry(provider, profileId)
+      let secret: string
+      let mode: 'api_key' | 'token'
       if (credType === 'token') {
         const token = String(raw.token ?? '')
         if (!token) throw new Error('token is required for type: token')
         saveAuthProfileToken(canonicalProfileId, provider, token)
+        secret = token
+        mode = 'token'
       } else {
         const apiKey = String(raw.apiKey ?? '').trim()
         if (!apiKey) throw new Error('apiKey is required for type: api_key')
         // Must match OpenClaw auth.order (full ids like openai:default); shorthand "default" alone
         // would leave credentials under the wrong key while order points at provider:default → HTTP 401.
         saveAuthProfile(canonicalProfileId, provider, apiKey)
+        secret = apiKey
+        mode = 'api_key'
       }
       const config = deps.readOpenClawConfig()
       const next = addProfileToAuthOrder(config, provider, canonicalProfileId)
+      // Persist the secret in the static profile (openclaw.json) as well:
+      // subagents only inherit portable static auth profiles from the main agentDir;
+      // keys kept solely in auth-profiles.json are invisible to them (missing-provider-auth).
+      next.auth = next.auth ?? {}
+      next.auth.profiles = next.auth.profiles ?? {}
+      next.auth.profiles[canonicalProfileId] = {
+        ...(next.auth.profiles[canonicalProfileId] ?? {}),
+        provider,
+        mode,
+        ...(mode === 'token' ? { token: secret } : { apiKey: secret }),
+      }
       deps.writeOpenClawConfig(next)
     }),
   )

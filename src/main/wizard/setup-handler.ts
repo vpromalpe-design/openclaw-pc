@@ -564,6 +564,13 @@ function buildOpenClawConfig(state: WizardState): OpenClawConfig {
     /** MiniMax: auth.order uses shorthand `["global"]` (onboard / working configs); others use full profile ids. */
     const orderEntries =
       providerForAuth === 'minimax' ? [profileName] : [profileId]
+    /**
+     * Persist the apiKey directly in the static profile (openclaw.json):
+     * subagents only inherit portable static auth profiles from the main agentDir;
+     * keys kept solely in auth-profiles.json/sqlite are invisible to them
+     * ("No API key found for provider …" / missing-provider-auth).
+     */
+    const apiKeyTrim = state.modelConfig.apiKey.trim()
     config.auth = {
       ...(config.auth ?? {}),
       profiles: {
@@ -571,6 +578,7 @@ function buildOpenClawConfig(state: WizardState): OpenClawConfig {
         [profileId]: {
           provider: authProviderId,
           mode: 'api_key',
+          ...(apiKeyTrim ? { apiKey: apiKeyTrim } : {}),
         },
       },
       order: {
