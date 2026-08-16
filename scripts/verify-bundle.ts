@@ -82,7 +82,8 @@ async function main(): Promise<void> {
 
   // DEPLOY-P55: verify bundled openclaw supports doctor/config/backup/plugins CLI
   const nodeUnix = join(BUILD_DIR, 'node', 'node')
-  const nodeBin = (await fileExists(NODE_EXE)) ? NODE_EXE : nodeUnix
+  const useUnixNode = process.platform !== 'win32' && (await fileExists(nodeUnix))
+  const nodeBin = useUnixNode ? nodeUnix : NODE_EXE
   if (!(await fileExists(nodeBin))) {
     throw new Error('build/node/node or node.exe not found.')
   }

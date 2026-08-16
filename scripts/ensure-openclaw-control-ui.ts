@@ -214,11 +214,20 @@ async function ensureOpenclawRootDepsForBundledSrc(
   if (Object.keys(dependencies).length === 0) {
     throw new Error(`[control-ui] OpenClaw package.json has no dependencies: ${upstreamPath}`)
   }
+  // OpenClaw 2026.7.1+ root manifest uses pnpm `workspace:*` refs (@openclaw/ai); npm cannot
+  // resolve them, so point at the vendored packages (prepared by prepareWorkspaceUiPackages).
+  const normalizedDependencies: Record<string, string> = {}
+  for (const [dep, ver] of Object.entries(dependencies)) {
+    normalizedDependencies[dep] =
+      typeof ver === 'string' && ver.startsWith('workspace:')
+        ? `file:../packages/${dep.replace(/^@[^/]+\//, '')}`
+        : ver
+  }
   const stub: Record<string, unknown> = {
     name: 'openclaw-desktop-control-ui-openclawroot',
     private: true,
     version: '0.0.0',
-    dependencies,
+    dependencies: normalizedDependencies,
   }
   const optional = upstream.optionalDependencies
   if (optional && Object.keys(optional).length > 0) {
@@ -230,6 +239,22 @@ async function ensureOpenclawRootDepsForBundledSrc(
     stdio: 'inherit',
     env: { ...process.env, NODE_ENV: '' },
   })
+  // ui/vite.config.ts aliases @openclaw/uirouter and @openclaw/libterminal into the
+  // repo-root node_modules (pnpm hoisting); npm installs them under ui/node_modules, so
+  // install the ui-pinned versions here too (--no-save keeps the stub manifest clean).
+  const uiManifest = JSON.parse(await readFile(join(openclawRoot, 'ui', 'package.json'), 'utf8'))
+  const uiAliasDeps: string[] = []
+  for (const dep of ['@openclaw/uirouter', '@openclaw/libterminal']) {
+    const ver = uiManifest.dependencies?.[dep]
+    if (ver) uiAliasDeps.push(`${dep}@${ver}`)
+  }
+  if (uiAliasDeps.length > 0) {
+    execSync(`npm install --no-audit --no-fund --no-save ${uiAliasDeps.join(' ')}`, {
+      cwd: openclawRoot,
+      stdio: 'inherit',
+      env: { ...process.env, NODE_ENV: '' },
+    })
+  }
   // Restore the real OpenClaw manifest (name/version/bin/files). The stub uses 0.0.0 and breaks
   // version checks and tooling; node_modules already matches upstream dependency keys.
   const upstreamPkgRaw = await readFile(upstreamPath, 'utf8')
@@ -335,6 +360,161 @@ async function downloadToFile(url: string, dest: string): Promise<void> {
 }
 
 /**
+ * Vendor pnpm `workspace:*` packages referenced by `ui/package.json` (OpenClaw 2026.7.1+):
+ * copies them from the fetched tag sources into `<openclawRoot>/packages`, rewrites
+ * `workspace:*` refs to npm-compatible `file:` refs (both in ui/package.json and inside
+ * the vendored packages), and builds each package so `dist` exists for the ui build.
+ */
+async function prepareWorkspaceUiPackages(openclawRoot: string, srcRoot: string): Promise<void> {
+  const uiPkgPath = join(openclawRoot, 'ui', 'package.json')
+  const uiPkg = JSON.parse(await readFile(uiPkgPath, 'utf8'))
+  const rootPkg = JSON.parse(await readFile(join(srcRoot, 'package.json'), 'utf8'))
+
+  // 1) pnpm `workspace:*` refs from ui/package.json and the repo-root package.json
+  const workspaceRefs = new Map<string, string>()
+  for (const pkg of [uiPkg, rootPkg]) {
+    for (const section of ['dependencies', 'devDependencies', 'optionalDependencies']) {
+      for (const [name, ver] of Object.entries(pkg[section] ?? {})) {
+        if (typeof ver === 'string' && ver.startsWith('workspace:')) {
+          workspaceRefs.set(name, ver)
+        }
+      }
+    }
+  }
+
+  // 2) packages referenced by relative import paths from ui/src or the repo-root src copy
+  const uiSrcRoot = join(openclawRoot, 'ui', 'src')
+  const relativePkgNames = new Set<string>()
+  for (const scanRoot of [uiSrcRoot, join(openclawRoot, 'src')]) {
+    for (const f of await walkFiles(scanRoot)) {
+      if (!/\.[cm]?[jt]sx?$/.test(f)) continue
+      const raw = await readFile(f, 'utf8')
+      for (const m of raw.matchAll(/['"](?:[^'"]*\/)?packages\/([a-z0-9-]+)\/src/g)) {
+        relativePkgNames.add(m[1])
+      }
+    }
+  }
+
+  const allNames = new Set([...workspaceRefs.keys()].map((n) => n.replace(/^@[^/]+\//, '')))
+  for (const n of relativePkgNames) allNames.add(n)
+  if (allNames.size === 0) return
+
+  const pkgRoot = join(openclawRoot, 'packages')
+  await mkdir(pkgRoot, { recursive: true })
+
+  for (const short of allNames) {
+    const srcPkg = join(srcRoot, 'packages', short)
+    const destPkg = join(pkgRoot, short)
+    if (!(await fileExists(srcPkg))) {
+      console.warn(`  [control-ui] workspace package ${short} not found in sources — skipping`)
+      continue
+    }
+    if (await fileExists(destPkg)) {
+      await rm(destPkg, { recursive: true, force: true })
+    }
+    await cp(srcPkg, destPkg, { recursive: true })
+    const pkgJsonPath = join(destPkg, 'package.json')
+    const pkgJson = JSON.parse(await readFile(pkgJsonPath, 'utf8'))
+    console.log(`  [control-ui] vendoring workspace package ${short} → packages/${short}`)
+
+    if (workspaceRefs.has(`@openclaw/${short}`)) {
+      for (const section of ['dependencies', 'devDependencies']) {
+        for (const [dep, ver] of Object.entries(pkgJson[section] ?? {})) {
+          if (typeof ver === 'string' && ver.startsWith('workspace:')) {
+            pkgJson[section][dep] = `file:../${dep.replace(/^@[^/]+\//, '')}`
+          }
+        }
+      }
+      await writeFile(pkgJsonPath, JSON.stringify(pkgJson, null, 2) + '\n', 'utf8')
+      execSync('npm install --no-audit --no-fund', {
+        cwd: destPkg,
+        stdio: 'inherit',
+        env: { ...process.env, NODE_ENV: '' },
+      })
+      if (pkgJson.scripts?.build) {
+        // Monorepo packages rely on hoisted root devDeps (tsdown); npm installs are isolated,
+        // so install the root tsdown version into the vendored package when the build needs it.
+        const rootTsdown = rootPkg.devDependencies?.tsdown as string | undefined
+        if (rootTsdown && pkgJson.devDependencies?.tsdown === undefined) {
+          console.log(`  [control-ui] adding tsdown@${rootTsdown} to ${short} devDeps`)
+          execSync(`npm install --no-audit --no-fund -D tsdown@${rootTsdown}`, {
+            cwd: destPkg,
+            stdio: 'inherit',
+            env: { ...process.env, NODE_ENV: '' },
+          })
+        }
+        execSync('npm run build', {
+          cwd: destPkg,
+          stdio: 'inherit',
+          env: { ...process.env, NODE_ENV: '' },
+        })
+      }
+    }
+  }
+
+  for (const [name] of workspaceRefs) {
+    const rel = `file:../packages/${name.replace(/^@[^/]+\//, '')}`
+    if (uiPkg.dependencies?.[name]) uiPkg.dependencies[name] = rel
+    if (uiPkg.devDependencies?.[name]) uiPkg.devDependencies[name] = rel
+  }
+
+  // 3) npm packages that ui/src or the src copy imports but that are only present in the
+  // repo-root manifest (pnpm hoisting, e.g. @lit/context) — mirror them into ui devDeps.
+  const rootDepVersions: Record<string, string> = {
+    ...(rootPkg.dependencies ?? {}),
+    ...(rootPkg.devDependencies ?? {}),
+    ...(rootPkg.optionalDependencies ?? {}),
+  }
+  const uiDepVersions: Record<string, string> = {
+    ...(uiPkg.dependencies ?? {}),
+    ...(uiPkg.devDependencies ?? {}),
+    ...(uiPkg.optionalDependencies ?? {}),
+  }
+  const hoistedNeeded = new Set<string>()
+  for (const scanRoot of [uiSrcRoot, join(openclawRoot, 'src')]) {
+    for (const f of await walkFiles(scanRoot)) {
+      if (!/\.[cm]?[jt]sx?$/.test(f)) continue
+      const raw = await readFile(f, 'utf8')
+      for (const m of raw.matchAll(/from ['"](@[^'"]+|[a-z0-9][^'"]*?)['"]/g)) {
+        const spec = m[1]
+        if (spec.startsWith('.') || spec.startsWith('#')) continue
+        const name = spec.startsWith('@') ? spec.split('/').slice(0, 2).join('/') : spec.split('/')[0]
+        if (!(name in rootDepVersions) || name in uiDepVersions) continue
+        hoistedNeeded.add(name)
+      }
+    }
+  }
+  if (hoistedNeeded.size > 0) {
+    const added: string[] = []
+    for (const name of hoistedNeeded) {
+      uiPkg.devDependencies ??= {}
+      const ver = rootDepVersions[name]
+      uiPkg.devDependencies[name] =
+        typeof ver === 'string' && ver.startsWith('workspace:')
+          ? `file:../packages/${name.replace(/^@[^/]+\//, '')}`
+          : ver
+      added.push(`${name}@${uiPkg.devDependencies[name]}`)
+    }
+    console.log(`  [control-ui] mirroring hoisted root deps into ui devDeps: ${added.join(', ')}`)
+  }
+  await writeFile(uiPkgPath, JSON.stringify(uiPkg, null, 2) + '\n', 'utf8')
+}
+
+async function walkFiles(dir: string): Promise<string[]> {
+  const out: string[] = []
+  const entries = await readdir(dir, { withFileTypes: true }).catch(() => [])
+  for (const e of entries) {
+    const full = join(dir, e.name)
+    if (e.isDirectory()) {
+      out.push(...(await walkFiles(full)))
+    } else {
+      out.push(full)
+    }
+  }
+  return out
+}
+
+/**
  * Fetch OpenClaw `ui/` from GitHub tag matching `npmPackageVersion` and run `vite build`
  * into `openclawRoot/dist/control-ui`. Does not delete sources (caller may clean up).
  */
@@ -382,10 +562,24 @@ export async function downloadAndBuildOpenClawControlUiAt(
       await cp(appsSrc, appsDest, { recursive: true })
     }
 
+    // ui/vite.config.ts reads repo-root tsconfig.json for path aliases
+    const rootTsconfigSrc = join(srcRoot, 'tsconfig.json')
+    const rootTsconfigDest = join(openclawRoot, 'tsconfig.json')
+    if (await fileExists(rootTsconfigSrc)) {
+      await cp(rootTsconfigSrc, rootTsconfigDest)
+    }
+
     await mkdir(scriptDestDir, { recursive: true })
     await cp(scriptSrc, scriptDest)
 
     await applyOpenClawUiLitDecoratorCompatPatches(uiDest)
+
+    // OpenClaw 2026.7.1+ ui/ depends on workspace packages (@openclaw/media-core,
+    // @openclaw/normalization-core) via pnpm `workspace:*` and imports repo packages by
+    // relative path (packages/gateway-protocol). npm cannot resolve `workspace:*`, so
+    // vendor the packages from the same tag, rewrite refs to `file:` and build them
+    // (tsdown) before the ui install/build.
+    await prepareWorkspaceUiPackages(openclawRoot, srcRoot)
 
     console.log('  [control-ui] npm install in ui/ (Vite + deps)...')
     execSync('npm install --no-audit --no-fund', {
@@ -428,11 +622,13 @@ async function removeBundledUiSources(openclawDir: string): Promise<void> {
   const uiDest = join(openclawDir, 'ui')
   const sharedDest = join(openclawDir, 'src')
   const appsDest = join(openclawDir, 'apps')
+  const packagesDest = join(openclawDir, 'packages')
   const scriptDest = join(openclawDir, 'scripts', 'ui.js')
   const scriptDestDir = join(openclawDir, 'scripts')
   await rm(uiDest, { recursive: true, force: true })
   await rm(sharedDest, { recursive: true, force: true })
   await rm(appsDest, { recursive: true, force: true })
+  await rm(packagesDest, { recursive: true, force: true })
   await rm(scriptDest, { force: true })
   try {
     const rest = await readdir(scriptDestDir)

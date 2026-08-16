@@ -4,7 +4,7 @@
  */
 
 import { execSync } from 'node:child_process'
-import { access, readFile } from 'node:fs/promises'
+import { access, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 const PROJECT_ROOT = process.cwd()
@@ -49,12 +49,48 @@ export async function ensureOpenClawFeishuLarkSdk(openclawRoot: string): Promise
   const pkgArg = `@larksuiteoapi/node-sdk@${spec}`
   console.log(`  [feishu-sdk] npm install ${pkgArg} (cwd=${openclawRoot})...`)
 
+  // The restored root manifest (OpenClaw 2026.7.1+) contains pnpm `workspace:*` refs that npm
+  // cannot resolve; swap in a manifest that mirrors the real root dependencies (with
+  // workspace refs rewritten to the vendored packages) so `npm install` re-prunes nothing.
+  const manifestPath = join(openclawRoot, 'package.json')
+  const hadManifest = await fileExists(manifestPath)
+  const savedManifest = hadManifest ? await readFile(manifestPath, 'utf8') : null
+  if (hadManifest) {
+    const real = JSON.parse(savedManifest as string) as {
+      dependencies?: Record<string, string>
+      optionalDependencies?: Record<string, string>
+    }
+    const stubDeps: Record<string, string> = {}
+    for (const [dep, ver] of Object.entries(real.dependencies ?? {})) {
+      stubDeps[dep] =
+        typeof ver === 'string' && ver.startsWith('workspace:')
+          ? `file:../packages/${dep.replace(/^@[^/]+\//, '')}`
+          : ver
+    }
+    const stub: Record<string, unknown> = {
+      name: 'openclaw-desktop-feishu-install',
+      private: true,
+      version: '0.0.0',
+      dependencies: stubDeps,
+    }
+    if (real.optionalDependencies && Object.keys(real.optionalDependencies).length > 0) {
+      stub.optionalDependencies = real.optionalDependencies
+    }
+    await writeFile(manifestPath, `${JSON.stringify(stub, null, 2)}\n`, 'utf8')
+  }
+
   // Use execSync (shell on Windows) so `npm` resolves to npm.cmd; execFileSync('npm') → ENOENT.
-  execSync(`npm install ${pkgArg} --no-save --no-audit --no-fund`, {
-    cwd: openclawRoot,
-    stdio: 'inherit',
-    env: { ...process.env, NODE_ENV: '' },
-  })
+  try {
+    execSync(`npm install ${pkgArg} --no-save --no-audit --no-fund`, {
+      cwd: openclawRoot,
+      stdio: 'inherit',
+      env: { ...process.env, NODE_ENV: '' },
+    })
+  } finally {
+    if (savedManifest !== null) {
+      await writeFile(manifestPath, savedManifest, 'utf8')
+    }
+  }
 
   if (!(await fileExists(marker))) {
     throw new Error(`[feishu-sdk] install failed — missing ${marker}`)
