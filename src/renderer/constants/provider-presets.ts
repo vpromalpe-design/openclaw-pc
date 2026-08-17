@@ -17,8 +17,9 @@ export interface ModelPreset {
   label: string
 }
 
-/** 顺序大致对应 openclaw onboard 常见选项与文档推荐顺序 */
+/** 顺序大致对应 openclaw onboard 常见选项与文档推荐顺序。local 置顶（产品重点，v0.8.7 内建本地引擎）。 */
 export const PROVIDER_OPTIONS: readonly ProviderOption[] = [
+  { id: 'local', label: 'Local Model (offline, coming soon)', placeholder: '—' },
   { id: 'anthropic', label: 'Anthropic', placeholder: 'sk-ant-api03-...' },
   { id: 'openai', label: 'OpenAI', placeholder: 'sk-proj-...' },
   { id: 'deepseek', label: 'DeepSeek', placeholder: 'sk-...' },
@@ -61,7 +62,6 @@ export const PROVIDER_OPTIONS: readonly ProviderOption[] = [
   { id: 'lmstudio', label: 'LM Studio (Local)', placeholder: 'your-model-id' },
   { id: 'xiaomi', label: 'Xiaomi MiMo', placeholder: 'xiaomi-...' },
   { id: 'kuae', label: 'Kuae (Coding Plan)', placeholder: 'your_api_key' },
-  { id: 'local', label: 'Local Model (offline, coming soon)', placeholder: '—' },
   { id: 'custom', label: 'Custom (OpenAI/Anthropic Compatible)', placeholder: 'Enter API Key' },
 ] as const
 

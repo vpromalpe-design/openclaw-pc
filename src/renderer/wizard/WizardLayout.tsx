@@ -121,43 +121,43 @@ export function WizardLayout() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
           <div>
             {!isFirstStep && (
-              <Button variant="outline" size="sm" onClick={store.prevStep}>
-                <ChevronLeft className="w-4 h-4" />
+              <Button variant="outline" size="lg" onClick={store.prevStep}>
+                <ChevronLeft className="w-5 h-5" />
                 {t('wizard.nav.previous')}
               </Button>
             )}
           </div>
           <div className="flex items-center gap-3">
             {stepDef.skippable && !isLastStep && (
-              <Button variant="ghost" size="sm" onClick={store.nextStep}>
+              <Button variant="ghost" size="lg" onClick={store.nextStep}>
                 {t('wizard.nav.skip')}
-                <SkipForward className="w-4 h-4" />
+                <SkipForward className="w-5 h-5" />
               </Button>
             )}
             {isLastStep ? (
               deployPhase === 'idle' || deployPhase === 'error' ? (
                 <Button
-                  size="sm"
+                  size="lg"
                   onClick={() => void store.triggerDeploy(t)}
                   disabled={isDeploying}
                 >
-                  <Rocket className="w-4 h-4" />
+                  <Rocket className="w-5 h-5" />
                   {deployPhase === 'error' ? t('wizard.complete.retry') : t('wizard.complete.confirmStart')}
                 </Button>
               ) : isDeploying ? (
-                <Button size="sm" disabled>
-                  <Rocket className="w-4 h-4" />
+                <Button size="lg" disabled>
+                  <Rocket className="w-5 h-5" />
                   {t('shell.status.starting')}
                 </Button>
               ) : null
             ) : (
               <Button
-                size="sm"
+                size="lg"
                 onClick={store.nextStep}
                 disabled={!canAdvance}
               >
                 {isFirstStep ? t('wizard.nav.startSetup') : t('wizard.nav.next')}
-                {!isFirstStep && <ChevronRight className="w-4 h-4" />}
+                {!isFirstStep && <ChevronRight className="w-5 h-5" />}
               </Button>
             )}
           </div>

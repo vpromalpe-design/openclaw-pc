@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { getProviderAuthMode, requiresApiKey } from '@/utils/provider-auth'
+import { ProviderLogo } from '@/components/ProviderLogo'
 import {
   Eye,
   EyeOff,
@@ -385,7 +386,15 @@ export function ModelSettingsSection() {
             <SelectContent className="max-h-[min(60vh,320px)]">
               {PROVIDER_OPTIONS.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
-                  {getProviderOptionLabel(p)}
+                  <span className="flex w-full items-center gap-2.5">
+                    <ProviderLogo providerId={p.id} className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="flex-1 truncate">{getProviderOptionLabel(p)}</span>
+                    {p.id === 'local' && (
+                      <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
+                        {t('wizard.model.providerNames.localBadge', { defaultValue: 'Local' })}
+                      </span>
+                    )}
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>

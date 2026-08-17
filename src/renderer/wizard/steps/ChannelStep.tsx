@@ -525,15 +525,15 @@ function TelegramTokenTest({
       <Button
         type="button"
         variant="outline"
-        size="sm"
+        size="lg"
         className="w-fit"
         onClick={handleTest}
         disabled={disabled || status === 'testing' || !token.trim()}
       >
         {status === 'testing' ? (
-          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          <Loader2 className="w-5 h-5 animate-spin" />
         ) : (
-          <ShieldCheck className="w-3.5 h-3.5" />
+          <ShieldCheck className="w-5 h-5" />
         )}
         {status === 'testing' ? t('wizard.channel.telegram.testing') : t('wizard.channel.telegram.test')}
       </Button>
