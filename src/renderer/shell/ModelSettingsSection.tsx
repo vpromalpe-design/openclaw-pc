@@ -21,10 +21,13 @@ import {
   Cpu,
   ExternalLink,
 } from 'lucide-react'
-import type { ModelConfig, ModelProvider, ModelSettingsLoadResult } from '../../shared/types'
+import type { ModelConfig, ModelProvider, ModelSettingsLoadResult, ReasoningLevel } from '../../shared/types'
 import { PROVIDER_OPTIONS, MODELS_BY_PROVIDER } from '@/constants/provider-presets'
 
 const CUSTOM_MODEL_OPTION = '__custom__'
+
+/** Sentinel option in the reasoning select: keep whatever openclaw.json has. */
+const REASONING_DEFAULT_OPTION = '__default__'
 
 const TESTABLE_PROVIDERS = new Set<ModelProvider>([
   'deepseek',
@@ -506,6 +509,36 @@ export function ModelSettingsSection() {
           </fieldset>
         </div>
       )}
+
+      <fieldset className="space-y-1.5">
+        <label htmlFor="settings-reasoning-level" className="text-sm font-medium">
+          {t('shell.settings.reasoningLevel')}
+        </label>
+        <Select
+          value={modelConfig.reasoningLevel ?? REASONING_DEFAULT_OPTION}
+          onValueChange={(v) => {
+            setModelConfig((m) => ({
+              ...m,
+              reasoningLevel: v === REASONING_DEFAULT_OPTION ? undefined : (v as ReasoningLevel),
+            }))
+            setSaveBanner(null)
+          }}
+        >
+          <SelectTrigger id="settings-reasoning-level" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={REASONING_DEFAULT_OPTION}>
+              {t('shell.settings.reasoningDefault')}
+            </SelectItem>
+            <SelectItem value="off">{t('shell.settings.reasoningOff')}</SelectItem>
+            <SelectItem value="minimum">{t('shell.settings.reasoningMinimum')}</SelectItem>
+            <SelectItem value="medium">{t('shell.settings.reasoningMedium')}</SelectItem>
+            <SelectItem value="high">{t('shell.settings.reasoningHigh')}</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">{t('shell.settings.reasoningLevelDesc')}</p>
+      </fieldset>
 
       <fieldset className="space-y-1.5">
         <label htmlFor="settings-api-key" className="text-sm font-medium">

@@ -10,6 +10,8 @@ import type {
   ModelProviderConfig,
   ModelProvider,
   AgentListEntry,
+  OpenClawThinkingLevel,
+  ReasoningLevel,
 } from '../../shared/types.js'
 import type { GatewayProcessManager } from '../gateway/index.js'
 import { writeAuthProfile, writeAuthProfileToken } from './auth-profile-writer.js'
@@ -329,6 +331,33 @@ function buildMoonshotProvider(baseUrl: string): ModelProviderConfig {
 export function resolveAuthProviderId(provider: ModelProvider): string {
   if (provider === 'moonshot-cn') return 'moonshot'
   return PROVIDER_SEEDS[provider]?.authProviderId ?? provider
+}
+
+/** Map UI reasoning level → OpenClaw `thinkingDefault` value. */
+export function reasoningLevelToThinking(level: ReasoningLevel | undefined): OpenClawThinkingLevel | undefined {
+  switch (level) {
+    case 'off':
+      return 'off'
+    case 'minimum':
+      return 'minimal'
+    case 'medium':
+      return 'medium'
+    case 'high':
+      return 'high'
+    default:
+      return undefined
+  }
+}
+
+/** Map OpenClaw `thinkingDefault` value → UI reasoning level. */
+export function thinkingToReasoningLevel(value: unknown): ReasoningLevel | undefined {
+  if (typeof value !== 'string') return undefined
+  const v = value.toLowerCase()
+  if (v === 'off' || v === 'none') return 'off'
+  if (v === 'minimal' || v === 'low') return 'minimum'
+  if (v === 'medium') return 'medium'
+  if (v === 'high' || v === 'xhigh' || v === 'adaptive' || v === 'max') return 'high'
+  return undefined
 }
 
 function ensureProviderSeedConfig(config: OpenClawConfig, state: WizardState): void {
@@ -750,6 +779,8 @@ export function mergeModelIntoOpenClawConfig(
   const modelRef = `${providerId}/${modelId}`
   const primaryModelRef = providerId === 'minimax' ? modelId : modelRef
 
+  const thinkingOverride = reasoningLevelToThinking(sanitized.modelConfig.reasoningLevel)
+
   let config = JSON.parse(JSON.stringify(base)) as OpenClawConfig
 
   if (sanitized.modelConfig.provider === 'custom') {
@@ -801,6 +832,11 @@ export function mergeModelIntoOpenClawConfig(
       primary: primaryModelRef,
       ...(Array.isArray(fallbacks) && fallbacks.length ? { fallbacks } : {}),
     }
+    if (thinkingOverride !== undefined) {
+      config.agents.defaults.thinkingDefault = thinkingOverride
+    } else {
+      delete config.agents.defaults.thinkingDefault
+    }
   } else {
     const agents = config.agents ?? {}
     const list = Array.isArray((agents as { list?: unknown[] }).list)
@@ -814,7 +850,11 @@ export function mergeModelIntoOpenClawConfig(
       throw new Error(`Agent not found: ${target.agentId}`)
     }
     const prev = list[idx] as Record<string, unknown>
-    list[idx] = { ...prev, model: primaryModelRef }
+    list[idx] = {
+      ...prev,
+      model: primaryModelRef,
+      ...(thinkingOverride !== undefined ? { thinkingDefault: thinkingOverride } : {}),
+    }
     config.agents = { ...agents, list: list as AgentListEntry[] }
   }
 

@@ -75,7 +75,13 @@
       "testHint": "Нажмите «Проверить подключение», чтобы убедиться в корректности API-ключа и модели.",
       "noTestHint": "Этот провайдер не поддерживает автоматическую проверку в мастере. Можно продолжить и проверить позже через CLI.",
       "showApiKey": "Показать API-ключ",
-      "hideApiKey": "Скрыть API-ключ"
+      "hideApiKey": "Скрыть API-ключ",
+      "reasoningLevel": "Уровень рассуждений",
+      "reasoningLevelDesc": "Применяется к моделям с режимом рассуждений (например, DeepSeek R1, Kimi K2 Thinking). Выше — глубже внутреннее обдумывание, но медленнее ответ.",
+      "reasoningOff": "Выкл",
+      "reasoningMinimum": "Минимум",
+      "reasoningMedium": "Средне",
+      "reasoningHigh": "Высоко"
     },
     "channel": {
       "title": "Настройка каналов",
@@ -280,7 +286,14 @@
       "modelApiKeyHint": "Оставьте пустым, чтобы сохранить текущий ключ; введите значение, чтобы сменить учётные данные.",
       "modelOpenLlmApi": "Дополнительно: LLM API и учётные данные",
       "modelCurrentPrimary": "Текущая основная модель: {{primary}}",
-      "modelLoadFailed": "Не удалось загрузить настройки модели"
+      "modelLoadFailed": "Не удалось загрузить настройки модели",
+      "reasoningLevel": "Уровень рассуждений",
+      "reasoningLevelDesc": "Применяется к моделям с режимом рассуждений (например, DeepSeek R1, Kimi K2 Thinking). Выше — глубже внутреннее обдумывание, но медленнее ответ.",
+      "reasoningDefault": "Не менять (оставить как есть)",
+      "reasoningOff": "Выкл",
+      "reasoningMinimum": "Минимум",
+      "reasoningMedium": "Средне",
+      "reasoningHigh": "Высоко"
     },
     "feishu": {
       "title": "Настройки Feishu",

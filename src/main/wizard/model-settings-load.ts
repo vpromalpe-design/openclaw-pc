@@ -3,6 +3,7 @@
  */
 
 import type { ModelConfig, ModelProvider, OpenClawConfig } from '../../shared/types.js'
+import { thinkingToReasoningLevel } from './setup-handler.js'
 
 const KNOWN_PROVIDERS = new Set<ModelProvider>([
   'deepseek',
@@ -91,6 +92,7 @@ export function inferModelConfigFromOpenClaw(config: OpenClawConfig): ModelConfi
       ...emptyModelConfig(),
       provider: 'minimax',
       modelId: primary,
+      reasoningLevel: thinkingToReasoningLevel(config.agents?.defaults?.thinkingDefault),
     }
   }
 
@@ -118,6 +120,7 @@ export function inferModelConfigFromOpenClaw(config: OpenClawConfig): ModelConfi
       customProviderId: providerPart,
       customBaseUrl: typeof customP?.baseUrl === 'string' ? customP.baseUrl : '',
       customCompatibility: customP?.api === 'anthropic-messages' ? 'anthropic' : 'openai',
+      reasoningLevel: thinkingToReasoningLevel(config.agents?.defaults?.thinkingDefault),
     }
   }
 
@@ -141,6 +144,7 @@ export function inferModelConfigFromOpenClaw(config: OpenClawConfig): ModelConfi
     moonshotRegion,
     ...(cloudflareAccountId ? { cloudflareAccountId } : {}),
     ...(cloudflareGatewayId ? { cloudflareGatewayId } : {}),
+    reasoningLevel: thinkingToReasoningLevel(config.agents?.defaults?.thinkingDefault),
   }
 }
 

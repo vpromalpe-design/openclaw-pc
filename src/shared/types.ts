@@ -120,6 +120,8 @@ export interface AgentDefaultsConfig {
   /** Optional model alias map (e.g. moonshot/kimi-k2.5) */
   models?: Record<string, AgentModelAlias>
   workspace?: string
+  /** Default thinking level for reasoning-capable models (off | minimal | low | medium | high | xhigh | adaptive | max) */
+  thinkingDefault?: string
 }
 
 /** Single agent entry (OpenClaw `agents.list[]`; multi-agent routing) */
@@ -322,7 +324,23 @@ export interface ModelConfig {
   cloudflareAccountId?: string
   /** Cloudflare AI Gateway: Gateway ID */
   cloudflareGatewayId?: string
+  /** Reasoning level for reasoning-capable models (UI naming) */
+  reasoningLevel?: ReasoningLevel
 }
+
+/** Reasoning level shown in the UI; mapped to OpenClaw `thinkingDefault` on write. */
+export type ReasoningLevel = 'off' | 'minimum' | 'medium' | 'high'
+
+/** OpenClaw `agents.*.thinkingDefault` values we map to/from. */
+export type OpenClawThinkingLevel =
+  | 'off'
+  | 'minimal'
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'xhigh'
+  | 'adaptive'
+  | 'max'
 
 /** Wizard channel step data */
 export interface ChannelConfig {

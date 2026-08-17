@@ -20,7 +20,7 @@ import {
   Loader2,
   Zap,
 } from 'lucide-react'
-import type { ModelProvider } from '../../../shared/types'
+import type { ModelProvider, ReasoningLevel } from '../../../shared/types'
 import { PROVIDER_OPTIONS, MODELS_BY_PROVIDER } from '@/constants/provider-presets'
 
 const CUSTOM_MODEL_OPTION = '__custom__'
@@ -324,6 +324,33 @@ export function ModelStep() {
               />
             </div>
           </div>
+        </fieldset>
+      )}
+
+      {/* Reasoning level */}
+      {modelConfig.provider !== 'local' && (
+        <fieldset className="space-y-1.5">
+          <label htmlFor="reasoning-level-select" className="text-sm font-medium">
+            {t('wizard.model.reasoningLevel')}
+          </label>
+          <Select
+            value={modelConfig.reasoningLevel ?? 'medium'}
+            onValueChange={(v) => {
+              setModelConfig({ reasoningLevel: v as ReasoningLevel })
+              setTestState({ status: 'idle', message: '' })
+            }}
+          >
+            <SelectTrigger id="reasoning-level-select" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="off">{t('wizard.model.reasoningOff')}</SelectItem>
+              <SelectItem value="minimum">{t('wizard.model.reasoningMinimum')}</SelectItem>
+              <SelectItem value="medium">{t('wizard.model.reasoningMedium')}</SelectItem>
+              <SelectItem value="high">{t('wizard.model.reasoningHigh')}</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">{t('wizard.model.reasoningLevelDesc')}</p>
         </fieldset>
       )}
 

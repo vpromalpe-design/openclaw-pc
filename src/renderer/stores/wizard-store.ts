@@ -43,6 +43,7 @@ const DEFAULT_MODEL_CONFIG: ModelConfig = {
   customProviderId: '',
   customBaseUrl: '',
   customCompatibility: 'openai',
+  reasoningLevel: 'medium',
 }
 
 const DEFAULT_CHANNEL_CONFIG: ChannelConfig = {

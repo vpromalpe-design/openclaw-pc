@@ -75,7 +75,13 @@
       "testHint": "Click \"Test Connection\" to verify API Key and model configuration.",
       "noTestHint": "This provider does not support automated testing in the wizard. You can continue and validate later using the CLI.",
       "showApiKey": "Show API Key",
-      "hideApiKey": "Hide API Key"
+      "hideApiKey": "Hide API Key",
+      "reasoningLevel": "Reasoning level",
+      "reasoningLevelDesc": "Applies to reasoning-capable models (e.g. DeepSeek R1, Kimi K2 Thinking). Higher = deeper internal thinking, slower replies.",
+      "reasoningOff": "Off",
+      "reasoningMinimum": "Minimum",
+      "reasoningMedium": "Medium",
+      "reasoningHigh": "High"
     },
     "channel": {
       "title": "Channel Configuration",
@@ -280,7 +286,14 @@
       "modelApiKeyHint": "Leave empty to keep the existing key; enter a value to rotate credentials.",
       "modelOpenLlmApi": "Advanced: LLM API & credentials",
       "modelCurrentPrimary": "Current default primary: {{primary}}",
-      "modelLoadFailed": "Could not load model settings"
+      "modelLoadFailed": "Could not load model settings",
+      "reasoningLevel": "Reasoning level",
+      "reasoningLevelDesc": "Applies to reasoning-capable models (e.g. DeepSeek R1, Kimi K2 Thinking). Higher = deeper internal thinking, slower replies.",
+      "reasoningDefault": "Keep current (don't change)",
+      "reasoningOff": "Off",
+      "reasoningMinimum": "Minimum",
+      "reasoningMedium": "Medium",
+      "reasoningHigh": "High"
     },
     "feishu": {
       "title": "Feishu Settings",

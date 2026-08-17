@@ -16,6 +16,7 @@ import {
   handleWizardCompleteSetup,
   mergeModelIntoOpenClawConfig,
   sanitizeWizardState,
+  thinkingToReasoningLevel,
   writeAuthCredentialsForModelState,
   type ModelSettingsTarget,
 } from '../wizard/setup-handler.js'
@@ -235,6 +236,13 @@ function parseModelConfigPayload(raw: Record<string, unknown>): ModelConfig {
         : raw.customCompatibility === 'openai'
           ? 'openai'
           : undefined,
+    reasoningLevel:
+      raw.reasoningLevel === 'off' ||
+      raw.reasoningLevel === 'minimum' ||
+      raw.reasoningLevel === 'medium' ||
+      raw.reasoningLevel === 'high'
+        ? raw.reasoningLevel
+        : undefined,
   }
 }
 
