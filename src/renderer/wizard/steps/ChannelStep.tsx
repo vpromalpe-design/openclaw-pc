@@ -1,8 +1,9 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ExternalLink, MessageSquareText } from 'lucide-react'
+import { ExternalLink, Loader2, MessageSquareText, ShieldCheck } from 'lucide-react'
 import { useWizardStore } from '@/stores/wizard-store'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Select,
@@ -58,6 +59,7 @@ export function ChannelStep() {
   const hasFeishuRequired =
     !!channelConfig.feishu?.appId?.trim() && !!channelConfig.feishu?.appSecret?.trim()
   const hasTelegramRequired = !!channelConfig.telegram?.botToken?.trim()
+  const hasTelegramUserId = !!channelConfig.telegram?.userId?.trim()
   const hasDiscordRequired = !!channelConfig.discord?.token?.trim()
   const hasSlackRequired =
     !!channelConfig.slack?.botToken?.trim() &&
@@ -72,9 +74,11 @@ export function ChannelStep() {
         ? t('wizard.channel.feishu.requiredDone')
         : t('wizard.channel.feishu.requiredMissing')
     if (showTelegramValidation)
-      return hasTelegramRequired
+      return hasTelegramRequired && hasTelegramUserId
         ? t('wizard.channel.telegram.configDone')
-        : t('wizard.channel.telegram.configMissing')
+        : hasTelegramRequired
+          ? t('wizard.channel.telegram.userIdMissing')
+          : t('wizard.channel.telegram.configMissing')
     if (showDiscordValidation)
       return hasDiscordRequired
         ? t('wizard.channel.discord.configDone')
@@ -87,6 +91,7 @@ export function ChannelStep() {
   }, [
     hasFeishuRequired,
     hasTelegramRequired,
+    hasTelegramUserId,
     hasDiscordRequired,
     hasSlackRequired,
     showFeishuValidation,
@@ -115,7 +120,7 @@ export function ChannelStep() {
     setChannelConfig({ feishu: nextFeishu })
   }
 
-  const updateTelegramField = (key: 'botToken', value: string) => {
+  const updateTelegramField = (key: 'botToken' | 'userId' | 'proxy', value: string) => {
     setChannelConfig({
       telegram: { ...(channelConfig.telegram ?? {}), [key]: value },
     })
@@ -284,10 +289,23 @@ export function ChannelStep() {
           </div>
         ) : activeTab === 'telegram' ? (
           <div className="rounded-md border border-primary/20 bg-primary/5 p-3 sm:p-4 space-y-3 sm:space-y-4">
-            <p className="text-sm font-medium text-foreground">{t('wizard.channel.telegram.title')}</p>
-            <p className="text-xs text-muted-foreground">
-              {t('wizard.channel.telegram.description')}
-            </p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-foreground">{t('wizard.channel.telegram.title')}</p>
+                <p className="text-xs text-muted-foreground">
+                  {t('wizard.channel.telegram.description')}
+                </p>
+              </div>
+              <a
+                href="https://t.me/BotFather"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-primary hover:underline shrink-0"
+              >
+                @BotFather
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
             <fieldset className="space-y-1.5">
               <label htmlFor="telegram-bot-token" className="text-sm font-medium">
                 {t('wizard.channel.telegram.botToken')} <span className="text-destructive">*</span>
@@ -297,11 +315,44 @@ export function ChannelStep() {
                 type="password"
                 value={channelConfig.telegram?.botToken ?? ''}
                 onChange={(e) => updateTelegramField('botToken', e.target.value)}
-                placeholder="telegram-bot-token"
+                placeholder="123456789:AAH..."
                 className="font-mono"
                 disabled={channelConfig.skipChannels}
               />
             </fieldset>
+            <fieldset className="space-y-1.5">
+              <label htmlFor="telegram-user-id" className="text-sm font-medium">
+                {t('wizard.channel.telegram.userId')} <span className="text-destructive">*</span>
+              </label>
+              <Input
+                id="telegram-user-id"
+                type="text"
+                inputMode="numeric"
+                value={channelConfig.telegram?.userId ?? ''}
+                onChange={(e) => updateTelegramField('userId', e.target.value)}
+                placeholder="123456789"
+                className="font-mono"
+                disabled={channelConfig.skipChannels}
+              />
+              <p className="text-xs text-muted-foreground">{t('wizard.channel.telegram.userIdHint')}</p>
+            </fieldset>
+            <fieldset className="space-y-1.5">
+              <label htmlFor="telegram-proxy" className="text-sm font-medium">
+                {t('wizard.channel.telegram.proxy')}{" "}
+                <span className="text-muted-foreground font-normal">({t('wizard.channel.telegram.optional')})</span>
+              </label>
+              <Input
+                id="telegram-proxy"
+                type="text"
+                value={channelConfig.telegram?.proxy ?? ''}
+                onChange={(e) => updateTelegramField('proxy', e.target.value)}
+                placeholder="http://127.0.0.1:7890"
+                className="font-mono"
+                disabled={channelConfig.skipChannels}
+              />
+              <p className="text-xs text-muted-foreground">{t('wizard.channel.telegram.proxyHint')}</p>
+            </fieldset>
+            <TelegramTokenTest token={channelConfig.telegram?.botToken ?? ''} proxy={channelConfig.telegram?.proxy ?? ''} disabled={channelConfig.skipChannels} />
             {validationMessage && (
               <p className={['text-xs inline-flex items-center gap-1.5', hasTelegramRequired ? 'text-emerald-600' : 'text-amber-600'].join(' ')}>
                 <MessageSquareText className="w-3.5 h-3.5" />
@@ -421,6 +472,80 @@ export function ChannelStep() {
           </div>
         ) : null}
       </section>
+    </div>
+  )
+}
+
+/** Inline token probe — validates the BotFather token via getMe before finishing setup. */
+function TelegramTokenTest({
+  token,
+  proxy,
+  disabled,
+}: {
+  token: string
+  proxy: string
+  disabled: boolean
+}) {
+  const { t } = useTranslation()
+  const [status, setStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle')
+  const [message, setMessage] = useState('')
+
+  const handleTest = async () => {
+    setStatus('testing')
+    setMessage('')
+    try {
+      const result = await window.electronAPI.wizardTestTelegram({ botToken: token, proxy: proxy.trim() || undefined })
+      if (result.ok) {
+        setStatus('success')
+        setMessage(t('wizard.channel.telegram.testOk', { botName: result.botName ?? '' }))
+      } else {
+        setStatus('error')
+        const key =
+          result.message === 'missing-token' || result.message === 'malformed-token'
+            ? 'wizard.channel.telegram.testMalformed'
+            : result.message === 'invalid-token'
+              ? 'wizard.channel.telegram.testInvalidToken'
+              : result.message === 'network-blocked'
+                ? 'wizard.channel.telegram.testNetworkBlocked'
+                : result.message === 'network-through-proxy'
+                  ? 'wizard.channel.telegram.testNetworkViaProxy'
+                  : result.message?.startsWith('proxy-unsupported')
+                    ? 'wizard.channel.telegram.testProxyUnsupported'
+                    : 'wizard.channel.telegram.testGeneric'
+        setMessage(t(key, { message: result.message ?? '' }))
+      }
+    } catch {
+      setStatus('error')
+      setMessage(t('wizard.channel.telegram.testGeneric', { message: 'IPC error' }))
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="w-fit"
+        onClick={handleTest}
+        disabled={disabled || status === 'testing' || !token.trim()}
+      >
+        {status === 'testing' ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        ) : (
+          <ShieldCheck className="w-3.5 h-3.5" />
+        )}
+        {status === 'testing' ? t('wizard.channel.telegram.testing') : t('wizard.channel.telegram.test')}
+      </Button>
+      {status === 'success' && (
+        <p className="text-xs inline-flex items-center gap-1.5 text-emerald-600">
+          <MessageSquareText className="w-3.5 h-3.5" />
+          {message}
+        </p>
+      )}
+      {status === 'error' && (
+        <p className="text-xs inline-flex items-center gap-1.5 text-amber-600">{message}</p>
+      )}
     </div>
   )
 }

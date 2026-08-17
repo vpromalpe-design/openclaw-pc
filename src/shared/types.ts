@@ -190,6 +190,10 @@ export interface PairingApproveResult {
 /** Wizard Telegram channel (aligned with upstream TelegramConfig) */
 export interface TelegramChannelConfig {
   botToken?: string
+  /** Owner Telegram user ID (numeric) — written to allowFrom */
+  userId?: string
+  /** Optional proxy URL (http/https preferred; socks5 experimental) */
+  proxy?: string
 }
 
 /** Wizard Discord channel (aligned with upstream DiscordConfig) */
@@ -354,6 +358,15 @@ export interface WizardCompleteResult {
   port?: number
   error?: string
   phase?: 'config' | 'auth' | 'gateway'
+}
+
+/** Result of wizard Telegram token probe (getMe) */
+export interface WizardTestTelegramResult {
+  ok: boolean
+  botName?: string
+  botId?: string
+  /** Friendly error/status message for the UI */
+  message?: string
 }
 
 /** Settings → model editor: load snapshot */

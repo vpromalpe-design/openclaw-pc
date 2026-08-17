@@ -4,6 +4,24 @@ All notable changes to OpenClaw Desktop will be documented in this file.
 
 ## [Unreleased]
 
+## [0.8.6] - 2026-08-17
+
+### Fixed
+
+- **A Telegram bot configured through the wizard stayed silent** (field report 2026-08-17: the bot never answered; the token was valid and the channel looked configured). Two compounding causes, both now handled at setup time:
+  1. The wizard wrote only `botToken` — the channel was **not enabled** and had **no owner allowlist**, so it never started and ignored every message. The wizard now writes a complete, schema-valid channel config: `enabled: true`, `botToken`, `allowFrom: [<your user id>]`, `dmPolicy: "pairing"`.
+  2. **SOCKS5 proxies do not work reliably from the bundled Node runtime** (experimental support; all outbound Telegram calls failed with `Network request failed` while the same proxy worked from curl). The new setup step warns about this and prefers an HTTP(S) proxy or VPN.
+
+### Added
+
+- **Telegram setup in the wizard now asks for your Telegram user ID** (numeric, from @userinfobot) in addition to the bot token — so the bot answers only you, out of the box.
+- **"Test token" button** in the Telegram setup step: validates the token live via Telegram `getMe`, shows the bot name (e.g. `@LocallliPC_bot`) and gives actionable errors: wrong token, Telegram blocked in the current network (→ enable VPN), proxy unreachable, or SOCKS5-unsupported hint.
+- **Optional proxy field** in the Telegram setup step (HTTP/HTTPS only, e.g. `http://127.0.0.1:7890`) — written to `channels.telegram.proxy` (schema-valid location, unlike the old `channels.telegram.network.proxy` that crashed the gateway with InvalidConfig).
+
+### Changed
+
+- Channel step validation requires both the bot token **and** the owner user ID before you can finish the wizard.
+
 ## [0.8.5] - 2026-08-17
 
 ### Fixed

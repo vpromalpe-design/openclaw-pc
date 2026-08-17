@@ -47,6 +47,14 @@ export interface WizardTestModelResult {
   message?: string
 }
 
+/** Wizard Telegram bot token probe result (getMe) */
+export interface WizardTestTelegramResult {
+  ok: boolean
+  botName?: string
+  botId?: string
+  message?: string
+}
+
 /** Gateway log line */
 export interface GatewayLogPayload {
   level: string
@@ -144,6 +152,10 @@ export interface ElectronAPI {
   systemOpenLogDir: () => Promise<void>
   portCheck: (port: number) => Promise<PortCheckResult>
   wizardTestModel: (config: ModelConfig) => Promise<WizardTestModelResult>
+  wizardTestTelegram: (config: {
+    botToken?: string
+    proxy?: string
+  }) => Promise<WizardTestTelegramResult>
   wizardCompleteSetup: (state: WizardState) => Promise<WizardCompleteResult>
   shellGetVersions: () => Promise<AppVersionInfo>
   shellResizeForMainInterface: () => Promise<void>

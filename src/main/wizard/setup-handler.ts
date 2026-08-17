@@ -524,7 +524,23 @@ function buildOpenClawConfig(state: WizardState): OpenClawConfig {
       }
     }
     if (ch.telegram?.botToken?.trim()) {
-      config.channels.telegram = { botToken: ch.telegram.botToken.trim() }
+      const tg: Record<string, unknown> = {
+        // 0.8.6: token alone was not enough — channel must be enabled and
+        // restricted to the owner, otherwise the bot silently ignores
+        // messages (field report 2026-08-17).
+        enabled: true,
+        botToken: ch.telegram.botToken.trim(),
+        dmPolicy: 'pairing',
+      }
+      const uid = ch.telegram.userId?.trim()
+      if (uid && /^\d{4,}$/.test(uid)) {
+        tg.allowFrom = [uid]
+      }
+      const proxy = ch.telegram.proxy?.trim()
+      if (proxy) {
+        tg.proxy = proxy
+      }
+      config.channels.telegram = tg
     }
     if (ch.discord?.token?.trim()) {
       config.channels.discord = { token: ch.discord.token.trim() }

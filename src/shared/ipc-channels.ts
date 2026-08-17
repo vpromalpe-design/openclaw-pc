@@ -50,6 +50,9 @@ export const IPC_PORT_CHECK = 'port:check' as const
 /** Wizard: test model connectivity */
 export const IPC_WIZARD_TEST_MODEL = 'wizard:testModel' as const
 
+/** Test Telegram bot token (getMe) during wizard setup */
+export const IPC_WIZARD_TEST_TELEGRAM = 'wizard:testTelegram' as const
+
 /** Wizard: atomically write config + credentials + start gateway */
 export const IPC_WIZARD_COMPLETE_SETUP = 'wizard:completeSetup' as const
 
