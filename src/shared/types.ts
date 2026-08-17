@@ -298,6 +298,7 @@ export type ModelProvider =
   | 'chutes'
   | 'copilot-proxy'
   | 'kuae' // Kuae Cloud Coding Plan
+  | 'local' // Local model (placeholder for upcoming offline model support)
   | 'custom'
 
 /** Wizard model step data */

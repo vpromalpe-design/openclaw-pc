@@ -77,9 +77,13 @@ type ProviderSeed = {
 }
 
 const PROVIDER_SEEDS: Partial<Record<ModelProvider, ProviderSeed>> = {
-  /** First-party / common API-key providers (wizard must emit `models.providers` + model aliases). */
+  /** First-party / common API-key providers (wizard must emit `models.providers` + model aliases).
+   * NOTE: Desktop bundles map provider id `deepseek` → plugin @openclaw/deepseek-provider, which is NOT
+   * bundled and cannot be auto-installed (no npm on end-user machines). Emit it as a custom OpenAI-compatible
+   * provider id (`deepseek-direct`) with the apiKey inline in `models.providers` — schema-valid and plugin-free. */
   deepseek: {
-    providerId: 'deepseek',
+    providerId: 'deepseek-direct',
+    authProviderId: 'deepseek-direct',
     baseUrl: 'https://api.deepseek.com',
     api: 'openai-completions',
   },
@@ -451,8 +455,13 @@ function ensureProviderSeedConfig(config: OpenClawConfig, state: WizardState): v
       ],
     }
   }
-  // Match working openclaw.json: keep apiKey in models.providers.minimax alongside auth-profiles.
-  if (provider === 'minimax' && state.modelConfig.apiKey.trim()) {
+  // Match working openclaw.json: keep apiKey in models.providers.deepseek-direct alongside auth-profiles.
+  // DeepSeek is emitted as a custom provider id so the desktop bundle never resolves the plugin-backed
+  // `deepseek` catalog id (plugin not bundled; npm unavailable on end-user machines).
+  if (
+    (provider === 'minimax' || provider === 'deepseek') &&
+    state.modelConfig.apiKey.trim()
+  ) {
     config.models.providers[seed.providerId] = {
       ...(config.models.providers[seed.providerId] ?? {}),
       apiKey: state.modelConfig.apiKey.trim(),
@@ -468,7 +477,9 @@ function buildOpenClawConfig(state: WizardState): OpenClawConfig {
       ? (state.modelConfig.customProviderId || 'custom')
       : rawProvider === 'moonshot-cn'
         ? 'moonshot'
-        : rawProvider
+        : rawProvider === 'deepseek'
+          ? 'deepseek-direct'
+          : rawProvider
   const modelRef = `${providerId}/${modelId}`
   /** MiniMax onboard-style configs use bare model id (matches working openclaw.json); other providers use provider/model. */
   const primaryModelRef = providerId === 'minimax' ? modelId : modelRef
@@ -581,12 +592,14 @@ function buildOpenClawConfig(state: WizardState): OpenClawConfig {
     const orderEntries =
       providerForAuth === 'minimax' ? [profileName] : [profileId]
     /**
-     * Persist the apiKey directly in the static profile (openclaw.json):
-     * subagents only inherit portable static auth profiles from the main agentDir;
-     * keys kept solely in auth-profiles.json/sqlite are invisible to them
-     * ("No API key found for provider …" / missing-provider-auth).
+     * Static auth profile in openclaw.json carries provider+mode only — NO inline apiKey.
+     * OpenClaw 2026.7.1 schema rejects `apiKey`/`key` inside `auth.profiles` ("Unrecognized key"),
+     * which made every wizard run with a key produce an invalid config (gateway exit 78).
+     * The key itself is persisted via writeAuthCredentialsForModelState → auth-profiles.json
+     * (portable static auth store in the main agentDir, inherited by subagents).
      */
     const apiKeyTrim = state.modelConfig.apiKey.trim()
+    void apiKeyTrim
     config.auth = {
       ...(config.auth ?? {}),
       profiles: {
@@ -594,7 +607,6 @@ function buildOpenClawConfig(state: WizardState): OpenClawConfig {
         [profileId]: {
           provider: authProviderId,
           mode: 'api_key',
-          ...(apiKeyTrim ? { apiKey: apiKeyTrim } : {}),
         },
       },
       order: {
@@ -715,7 +727,9 @@ export function mergeModelIntoOpenClawConfig(
       ? (sanitized.modelConfig.customProviderId || 'custom').trim() || 'custom'
       : rawProvider === 'moonshot-cn'
         ? 'moonshot'
-        : rawProvider
+        : rawProvider === 'deepseek'
+          ? 'deepseek-direct'
+          : rawProvider
 
   const modelRef = `${providerId}/${modelId}`
   const primaryModelRef = providerId === 'minimax' ? modelId : modelRef

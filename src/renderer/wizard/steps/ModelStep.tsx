@@ -72,7 +72,7 @@ export function ModelStep() {
       const shouldClearApiKey = nextAuthMode === 'oauth' || nextAuthMode === 'none'
       setModelConfig({
         provider,
-        modelId: presets?.[0]?.id ?? '',
+        modelId: provider === 'local' ? '' : (presets?.[0]?.id ?? ''),
         ...(shouldClearApiKey ? { apiKey: '' } : {}),
         moonshotRegion: provider === 'moonshot-cn' ? 'cn' : provider === 'moonshot' ? modelConfig.moonshotRegion ?? 'global' : 'global',
         customProviderId: provider === 'custom' ? modelConfig.customProviderId ?? '' : '',
@@ -190,7 +190,11 @@ export function ModelStep() {
             {t('wizard.model.defaultModel')} <span className="text-destructive">*</span>
           </label>
 
-          {hasPresets && !useCustomModel ? (
+          {modelConfig.provider === 'local' ? (
+            <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+              {t('wizard.model.localComingSoon', { defaultValue: 'Offline local models are coming in a future version. Pick a cloud provider for now.' })}
+            </div>
+          ) : hasPresets && !useCustomModel ? (
             <Select
               value={modelConfig.modelId}
               onValueChange={handleModelSelect}
@@ -308,6 +312,7 @@ export function ModelStep() {
       )}
 
       {/* API Key */}
+      {modelConfig.provider !== 'local' && (
       <fieldset className="space-y-1.5">
         <label htmlFor="api-key-input" className="text-sm font-medium">
           {t('wizard.model.apiKey')} {apiKeyRequired && <span className="text-destructive">*</span>}
@@ -355,6 +360,7 @@ export function ModelStep() {
           </p>
         )}
       </fieldset>
+      )}
 
       {/* Custom Provider Settings */}
       {modelConfig.provider === 'custom' && (

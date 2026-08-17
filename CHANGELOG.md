@@ -4,6 +4,19 @@ All notable changes to OpenClaw Desktop will be documented in this file.
 
 ## [Unreleased]
 
+## [0.8.5] - 2026-08-17
+
+### Fixed
+
+- **Setup wizard produced an invalid config on every run** (regression from 0.8.2). The wizard persisted the API key *inline* inside `auth.profiles.<id>` in `openclaw.json`; the bundled OpenClaw 2026.7.1 schema rejects `apiKey`/`key` in auth profiles (`Unrecognized key`), so any wizard run with a key entered produced an invalid config and the gateway crashed on startup with `Invalid input` (exit 78). The static profile now carries `provider` + `mode` only; the key lives in the portable `auth-profiles.json` store (main agentDir), which subagents also inherit.
+- **DeepSeek no longer works on a fresh install.** The desktop bundle maps provider id `deepseek` to the `@openclaw/deepseek-provider` plugin, which is not bundled and cannot be auto-installed on end-user machines (no npm) — the gateway failed to start with `Failed to install missing configured plugin "deepseek"`. The wizard now emits DeepSeek as a **custom OpenAI-compatible provider** (`deepseek-direct`) with `baseUrl https://api.deepseek.com`, `api: openai-completions` and the apiKey inline in `models.providers` — schema-valid and plugin-free, so a new user can select DeepSeek, paste a key and chat.
+- **Settings editor now recognizes the `deepseek-direct` provider id** and shows it back as DeepSeek.
+
+### Changed
+
+- **Provider order in the wizard:** DeepSeek now appears **after Anthropic and OpenAI** (previously first), matching the common choice order.
+- **New "Local Model" placeholder item** in the provider list — reserved for offline local models (coming in a future version). Selecting it shows a "coming soon" note and blocks advancing; no functional model yet.
+
 ## [0.8.3] - 2026-08-17
 
 ### Fixed

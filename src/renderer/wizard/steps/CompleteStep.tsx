@@ -59,6 +59,7 @@ const PROVIDER_LABELS: Record<ModelProvider, string> = {
   chutes: 'Chutes (OAuth)',
   'copilot-proxy': 'Copilot Proxy (Local)',
   kuae: 'Kuae (Coding Plan)',
+  local: 'Local Model (offline)',
   custom: 'Custom',
 }
 

@@ -45,6 +45,7 @@ const AUTH_MODE_BY_PROVIDER: Record<ModelProvider, ProviderAuthMode> = {
   chutes: 'oauth',
   'copilot-proxy': 'none',
   kuae: 'api_key',
+  local: 'none', // placeholder item; offline model support is not implemented yet
   custom: 'api_key',
 }
 
