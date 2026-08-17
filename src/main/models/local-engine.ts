@@ -361,14 +361,14 @@ function findLlamaServerExe(dir: string): string | null {
 function extractZip(zipPath: string, destDir: string): Promise<void> {
   return new Promise((resolve, reject) => {
     // Windows PowerShell Expand-Archive — always available on Windows.
+    // Paths are passed via -EncodedCommand (UTF-16LE base64) so non-ASCII
+    // user paths (e.g. C:\Users\Дамир\) survive the round-trip intact.
+    const script =
+      `Expand-Archive -LiteralPath '${zipPath.replace(/'/g, "''")}' ` +
+      `-DestinationPath '${destDir.replace(/'/g, "''")}' -Force`
     const ps = spawn(
       'powershell.exe',
-      [
-        '-NoProfile',
-        '-NonInteractive',
-        '-Command',
-        `Expand-Archive -LiteralPath '${zipPath}' -DestinationPath '${destDir}' -Force`,
-      ],
+      ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
       { windowsHide: true, stdio: 'ignore' },
     )
     ps.on('error', reject)
