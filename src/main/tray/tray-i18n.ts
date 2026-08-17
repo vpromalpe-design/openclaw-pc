@@ -137,6 +137,22 @@ const ES: TrayMenuStrings = {
   quit: 'Salir',
 }
 
+const RU: TrayMenuStrings = {
+  openApp: 'Открыть OpenClaw',
+  updateAvailable: 'Доступно обновление',
+  gatewayRunning: 'Шлюз: запущен',
+  gatewayStarting: 'Шлюз: запускается',
+  gatewayError: 'Шлюз: ошибка',
+  gatewayStopped: 'Шлюз: остановлен',
+  restartGateway: 'Перезапустить шлюз',
+  openConfigDir: 'Открыть папку конфигурации',
+  settings: 'Настройки',
+  settingsGeneral: 'Общие',
+  settingsFeishu: 'Настройки Feishu',
+  about: 'О приложении',
+  quit: 'Выход',
+}
+
 const BY_LOCALE: Record<ShellLocale, TrayMenuStrings> = {
   en: EN,
   'zh-CN': ZH_CN,
@@ -145,6 +161,7 @@ const BY_LOCALE: Record<ShellLocale, TrayMenuStrings> = {
   ja: JA,
   ko: KO,
   es: ES,
+  ru: RU,
 }
 
 export function getTrayMenuStrings(locale: ShellLocale): TrayMenuStrings {

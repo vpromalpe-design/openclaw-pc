@@ -12,6 +12,7 @@ import fr from './locales/fr.json'
 import ja from './locales/ja.json'
 import ko from './locales/ko.json'
 import es from './locales/es.json'
+import ru from './locales/ru.json'
 
 import {
   normalizeToShellLocale,
@@ -33,6 +34,7 @@ export const SHELL_LOCALE_LABELS: Record<ShellLocale, string> = {
   ja: '日本語',
   ko: '한국어',
   es: 'Español',
+  ru: 'Русский',
 }
 
 const IPC_LOCALE_TIMEOUT_MS = 8000
@@ -119,6 +121,7 @@ export async function initI18n(): Promise<void> {
       ja: { translation: ja },
       ko: { translation: ko },
       es: { translation: es },
+      ru: { translation: ru },
     },
     lng,
     /** zh-TW 翻譯未覆蓋的鍵回退到 zh-CN，再回退到英文 */
