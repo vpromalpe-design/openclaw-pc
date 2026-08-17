@@ -170,8 +170,8 @@ export const useWizardStore = create<WizardStore>((set, get) => ({
         return true
       case 1:
         if (state.modelConfig.provider === 'local') {
-          // Placeholder item: offline model support is not implemented yet.
-          return false
+          // Local engine: a model id (preset or custom) is enough; no API key.
+          return Boolean(state.modelConfig.modelId.trim())
         }
         if (!state.modelConfig.provider || !state.modelConfig.modelId.trim()) {
           return false

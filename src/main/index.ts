@@ -317,6 +317,12 @@ app.whenReady().then(() => {
     refreshTrayMenu: () => {
       trayManager.refreshMenu()
     },
+    sendToRenderer: (channel: string, ...args: unknown[]) => {
+      const win = windowManager.getMainWindow()
+      if (win && !win.isDestroyed()) {
+        win.webContents.send(channel, ...args)
+      }
+    },
   })
 
   // 4. Main window (packaged: loadFile from asar.unpacked renderer to avoid blank screen)

@@ -571,3 +571,55 @@ export interface DiagnosticReport {
   items: DiagnosticItem[]
   runAt: string
 }
+
+// ─── Models page (v0.8.7) ─────────────────────────────────────────────────────
+
+/** One row in the Models table */
+export interface ModelTableEntry {
+  providerId: string
+  label: string
+  /** Model id currently configured for this provider (primary candidate) */
+  modelId: string
+  /** Whether models.providers[providerId] exists */
+  hasConfig: boolean
+  hasApiKey: boolean
+  status: 'primary' | 'fallback' | 'available' | 'local'
+  /** Index in primary+fallbacks order, null when not in the chain */
+  priority: number | null
+  isLocal: boolean
+}
+
+/** Local GGUF model */
+export interface LocalModelInfo {
+  id: string
+  fileName: string
+  path: string
+  sizeBytes: number
+  downloaded: boolean
+  status: 'none' | 'downloading' | 'ready'
+  progress: number
+}
+
+/** llama.cpp engine state */
+export interface LocalEngineState {
+  running: boolean
+  port: number
+  modelId: string | null
+  error?: string
+}
+
+/** Full Models page payload */
+export interface ModelsViewResult {
+  entries: ModelTableEntry[]
+  primary: string | null
+  fallbacks: string[]
+  localModels: LocalModelInfo[]
+  engineState: LocalEngineState
+}
+
+/** Models page: apply priority request */
+export interface ModelsViewApplyRequest {
+  primary: string | null
+  fallbacks: string[]
+  restart: boolean
+}

@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/select'
 import { getProviderAuthMode, requiresApiKey } from '@/utils/provider-auth'
 import { ProviderLogo } from '@/components/ProviderLogo'
+import { LocalModelPicker } from '../LocalModelPicker'
 import {
   Eye,
   EyeOff,
@@ -60,6 +61,7 @@ export function ModelStep() {
     if (!presets) return true
     return !presets.some((m) => m.id === modelConfig.modelId) && modelConfig.modelId !== ''
   })
+  const [customLocalUrl, setCustomLocalUrl] = useState('')
 
   const providerPresets = MODELS_BY_PROVIDER[modelConfig.provider]
   const hasPresets = Boolean(providerPresets)
@@ -207,9 +209,16 @@ export function ModelStep() {
           </label>
 
           {modelConfig.provider === 'local' ? (
-            <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
-              {t('wizard.model.localComingSoon', { defaultValue: 'Offline local models are coming in a future version. Pick a cloud provider for now.' })}
-            </div>
+            <LocalModelPicker
+              modelId={modelConfig.modelId}
+              customUrl={customLocalUrl}
+              onModelId={(id) => {
+                setModelConfig({ modelId: id })
+                setTestState({ status: 'idle', message: '' })
+              }}
+              onCustomUrl={(url) => setCustomLocalUrl(url)}
+              onError={(msg) => setTestState({ status: 'error', message: msg })}
+            />
           ) : hasPresets && !useCustomModel ? (
             <Select
               value={modelConfig.modelId}

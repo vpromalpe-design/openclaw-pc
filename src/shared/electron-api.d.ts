@@ -13,6 +13,10 @@ import type {
   ModelSettingsLoadResult,
   ModelSettingsApplyPayload,
   ModelSettingsApplyResult,
+  ModelsViewResult,
+  ModelsViewApplyRequest,
+  LocalModelInfo,
+  LocalEngineState,
   AppVersionInfo,
   SkillRegistryItem,
   ExtensionRegistryItem,
@@ -133,6 +137,17 @@ export interface ProvidersListResult {
 /** IPC event unsubscribe handle */
 export type Unsubscribe = () => void
 
+/** Local download/engine progress payload (local:progress event) */
+export interface LocalProgressPayload {
+  modelId?: string
+  fileName?: string
+  received?: number
+  total?: number
+  progress?: number
+  stage?: 'downloading' | 'done' | 'error' | 'engine-download'
+  tag?: string
+}
+
 /** Preload `electronAPI` surface */
 export interface ElectronAPI {
   // ─── Invoke channels ───────────────────────────────────────────────────────
@@ -173,6 +188,17 @@ export interface ElectronAPI {
 
   modelSettingsLoad: () => Promise<ModelSettingsLoadResult>
   modelSettingsApply: (payload: ModelSettingsApplyPayload) => Promise<ModelSettingsApplyResult>
+
+  modelsViewList: () => Promise<ModelsViewResult>
+  modelsViewApply: (payload: ModelsViewApplyRequest) => Promise<{ ok: boolean; restarted: boolean; backupPath: string | null }>
+  localList: () => Promise<{ localModels: LocalModelInfo[]; engineState: LocalEngineState }>
+  localAdd: (payload: { presetId?: string; url?: string }) => Promise<unknown>
+  localRemove: (payload: { id: string }) => Promise<{ ok: boolean }>
+  localDownloadStart: (payload: { modelId: string }) => Promise<{ ok: boolean }>
+  localDownloadCancel: () => Promise<{ ok: boolean }>
+  localEngineStart: (payload: { modelId: string }) => Promise<{ ok: boolean; engineState: LocalEngineState }>
+  localEngineStop: () => Promise<{ ok: boolean; wasRunning: boolean }>
+  onLocalProgress: (callback: (payload: LocalProgressPayload) => void) => Unsubscribe
 
   skillsList: (opts?: { source?: 'all' | 'bundled' | 'user' }) => Promise<SkillRegistryItem[]>
   skillsToggle: (opts: { skillKey: string; enabled: boolean }) => Promise<{ ok: boolean }>

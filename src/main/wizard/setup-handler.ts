@@ -363,6 +363,31 @@ export function thinkingToReasoningLevel(value: unknown): ReasoningLevel | undef
 function ensureProviderSeedConfig(config: OpenClawConfig, state: WizardState): void {
   const rawProvider = state.modelConfig.provider
   const provider = rawProvider === 'moonshot-cn' ? 'moonshot' : rawProvider
+  if (provider === 'local') {
+    // Local engine (llama.cpp server on 127.0.0.1:18788) — registered like any provider.
+    const modelId = state.modelConfig.modelId.trim()
+    if (!modelId) return
+    const modelRef = `local/${modelId}`
+    config.agents = config.agents ?? {}
+    config.agents.defaults = config.agents.defaults ?? {}
+    config.agents.defaults.models = {
+      ...(config.agents.defaults.models ?? {}),
+      [modelRef]: {
+        alias: modelId,
+      },
+    }
+    config.models = config.models ?? {}
+    config.models.mode = config.models.mode ?? 'merge'
+    config.models.providers = config.models.providers ?? {}
+    config.models.providers['local'] = {
+      ...(config.models.providers['local'] ?? {}),
+      baseUrl: 'http://127.0.0.1:18788/v1',
+      api: 'openai-completions',
+      apiKey: '',
+      models: [buildDefaultProviderModel(modelId)],
+    }
+    return
+  }
   if (provider === 'cloudflare-ai-gateway') {
     const accountId = state.modelConfig.cloudflareAccountId?.trim()
     const gatewayId = state.modelConfig.cloudflareGatewayId?.trim()

@@ -8,6 +8,7 @@ import {
   RefreshCw,
   LayoutDashboard,
   ChevronLeft,
+  Cpu,
 } from 'lucide-react'
 import { LoadingView } from './LoadingView'
 import { ErrorView, type ErrorType } from './ErrorView'
@@ -15,6 +16,7 @@ import { SettingsView } from './SettingsView'
 import { AboutView } from './AboutView'
 import { DashboardView } from './DashboardView'
 import { ProviderView } from './ProviderView'
+import { ModelsView } from './ModelsView'
 import { SkillsView } from './SkillsView'
 import { UpdateView } from './UpdateView'
 import { FeishuAccessView } from './FeishuAccessView'
@@ -41,6 +43,7 @@ export type EmbeddedPanel =
   | 'settings'
   | 'about'
   | 'dashboard'
+  | 'models'
   | 'llm-api'
   | 'skills'
   | 'updates'
@@ -61,6 +64,7 @@ function buildControlUIUrl(port: number, token?: string): string {
 
 const DESKTOP_NAV_ITEMS: { id: EmbeddedPanel; label: string; icon: React.ReactNode; description: string }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" />, description: 'Gateway status & versions' },
+  { id: 'models', label: 'Models', icon: <Cpu className="w-4 h-4" />, description: 'Providers, priority & local models' },
   { id: 'llm-api', label: 'LLM API', icon: <Key className="w-4 h-4" />, description: 'Providers & auth profiles' },
   { id: 'skills', label: 'Skills', icon: <Puzzle className="w-4 h-4" />, description: 'Skills & extensions' },
   { id: 'updates', label: 'Updates', icon: <RefreshCw className="w-4 h-4" />, description: 'Check for updates' },
@@ -300,6 +304,8 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
         )
       case 'llm-api':
         return <ProviderView onBack={() => onPanelChange('')} />
+      case 'models':
+        return <ModelsView onBack={() => onPanelChange('')} />
       case 'skills':
         return <SkillsView onBack={() => onPanelChange('')} />
       case 'updates':

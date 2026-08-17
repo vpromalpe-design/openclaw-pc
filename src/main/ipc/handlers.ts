@@ -16,11 +16,13 @@ import {
   handleWizardCompleteSetup,
   mergeModelIntoOpenClawConfig,
   sanitizeWizardState,
-  thinkingToReasoningLevel,
   writeAuthCredentialsForModelState,
   type ModelSettingsTarget,
 } from '../wizard/setup-handler.js'
 import { inferModelConfigFromOpenClaw, listAgentSummariesFromConfig } from '../wizard/model-settings-load.js'
+import fs from 'node:fs'
+import type { ModelsViewResult } from '../../shared/types.js'
+import { LOCAL_MODEL_PRESETS } from '../models/local-engine.js'
 import { DEFAULT_GATEWAY_PORT } from '../../shared/constants.js'
 import {
   IPC_GATEWAY_START,
@@ -55,6 +57,15 @@ import {
   IPC_PROVIDERS_SET_MODEL_DEFAULTS,
   IPC_MODEL_SETTINGS_LOAD,
   IPC_MODEL_SETTINGS_APPLY,
+  IPC_MODELS_VIEW_LIST,
+  IPC_MODELS_VIEW_APPLY,
+  IPC_LOCAL_LIST,
+  IPC_LOCAL_ADD,
+  IPC_LOCAL_REMOVE,
+  IPC_LOCAL_DOWNLOAD_START,
+  IPC_LOCAL_DOWNLOAD_CANCEL,
+  IPC_LOCAL_ENGINE_START,
+  IPC_LOCAL_ENGINE_STOP,
   IPC_SKILLS_LIST,
   IPC_SKILLS_TOGGLE,
   IPC_SKILLS_RELOAD,
@@ -141,6 +152,20 @@ import {
   listPendingFeishuPairing,
   removeApprovedFeishuSender,
 } from '../pairing/index.js'
+import {
+  buildModelsView,
+  applyModelsPriority,
+  restoreConfigBackup,
+} from '../models/models-view.js'
+import {
+  listLocalModels,
+  getEngineState,
+  startLocalEngine,
+  stopLocalEngine,
+  downloadLocalModel,
+  cancelLocalDownload,
+  setLocalProgressSender,
+} from '../models/local-engine.js'
 export interface IpcResult<T = unknown> {
   success: boolean
   data?: T
@@ -165,6 +190,8 @@ export interface IpcHandlerDeps {
   setMainWindowTitle?: (title: string) => void
   /** Rebuild tray menu (e.g. after ShellConfig.locale change) */
   refreshTrayMenu?: () => void
+  /** Send an event to the renderer (progress events etc.) */
+  sendToRenderer?: (channel: string, ...args: unknown[]) => void
 }
 
 function ok<T>(data: T): IpcResult<T> {
@@ -766,6 +793,151 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
         restarted,
         ...(validationIssues && validationIssues.length ? { validationIssues } : {}),
       }
+    }),
+  )
+
+  // ─── Models page (v0.8.7) ────────────────────────────────────────────────
+  setLocalProgressSender(deps.sendToRenderer ?? null)
+
+  ipcMain.handle(
+    IPC_MODELS_VIEW_LIST,
+    wrapHandler('MODELS_VIEW_LIST', (): ModelsViewResult => {
+      const config = deps.openclawConfigExists() ? (deps.readOpenClawConfig() ?? {}) : {}
+      const view = buildModelsView(config)
+      view.localModels = listLocalModels()
+      view.engineState = getEngineState()
+      return view
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_MODELS_VIEW_APPLY,
+    wrapHandler('MODELS_VIEW_APPLY', async (payload: unknown) => {
+      const raw = validatePlainObject(payload, 'models:viewApply')
+      const primary = raw.primary === null || raw.primary === undefined ? null : String(raw.primary)
+      const fallbacks = Array.isArray(raw.fallbacks)
+        ? (raw.fallbacks as unknown[]).filter((x): x is string => typeof x === 'string')
+        : []
+      const restart = raw.restart === true
+      const base = deps.openclawConfigExists() ? (deps.readOpenClawConfig() ?? {}) : {}
+      const { config: merged, backupPath } = applyModelsPriority(base, primary, fallbacks)
+      deps.writeOpenClawConfig(merged)
+      readOpenClawConfig()
+
+      let restarted = false
+      if (restart && deps.openclawConfigExists()) {
+        const gwCfg = deps.readOpenClawConfig()
+        const gw = gwCfg?.gateway
+        const port = gw?.port ?? DEFAULT_GATEWAY_PORT
+        const bind = gw?.bind ?? 'loopback'
+        const token = gw?.auth?.token?.trim()
+        const force = Boolean(gw?.forcePortOnConflict)
+        try {
+          await gatewayManager.restart({ port, bind, token: token || undefined, force })
+          restarted = true
+        } catch (err) {
+          // Crash-loop protection: restore the pre-change backup so the app still boots.
+          if (backupPath) restoreConfigBackup(backupPath)
+          throw err
+        }
+      }
+      return { ok: true, restarted, backupPath }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_LOCAL_LIST,
+    wrapHandler('LOCAL_LIST', () => ({
+      localModels: listLocalModels(),
+      engineState: getEngineState(),
+    })),
+  )
+
+  ipcMain.handle(
+    IPC_LOCAL_ADD,
+    wrapHandler('LOCAL_ADD', (payload: unknown) => {
+      const raw = validatePlainObject(payload, 'local:add')
+      const presetId = typeof raw.presetId === 'string' ? raw.presetId : undefined
+      const url = typeof raw.url === 'string' && raw.url.trim() ? raw.url.trim() : undefined
+      if (presetId) {
+        const preset = LOCAL_MODEL_PRESETS.find((p) => p.id === presetId)
+        if (!preset) throw new Error(`Unknown local preset: ${presetId}`)
+        return { preset }
+      }
+      if (url) {
+        const fileName = url.split('/').pop()?.split('?')[0] ?? ''
+        if (!fileName.toLowerCase().endsWith('.gguf')) {
+          throw new Error('Custom model URL must point to a .gguf file')
+        }
+        return {
+          custom: {
+            id: fileName.replace(/\.gguf$/i, ''),
+            fileName,
+            url,
+            sizeBytes: 0,
+            description: 'Custom GGUF',
+          },
+        }
+      }
+      throw new Error('Provide presetId or url')
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_LOCAL_REMOVE,
+    wrapHandler('LOCAL_REMOVE', (payload: unknown) => {
+      const raw = validatePlainObject(payload, 'local:remove')
+      const id = String(raw.id ?? '')
+      if (!id) throw new Error('id is required')
+      const model = listLocalModels().find(
+        (m) => m.id === id || m.fileName.replace(/\.gguf$/i, '') === id,
+      )
+      if (!model) throw new Error(`Local model not found: ${id}`)
+      try {
+        fs.unlinkSync(model.path)
+      } catch (err) {
+        throw new Error(`Failed to delete model file: ${err instanceof Error ? err.message : String(err)}`)
+      }
+      return { ok: true }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_LOCAL_DOWNLOAD_START,
+    wrapHandler('LOCAL_DOWNLOAD_START', async (payload: unknown) => {
+      const raw = validatePlainObject(payload, 'local:downloadStart')
+      const modelId = String(raw.modelId ?? '')
+      if (!modelId) throw new Error('modelId is required')
+      await downloadLocalModel(modelId)
+      return { ok: true }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_LOCAL_DOWNLOAD_CANCEL,
+    wrapHandler('LOCAL_DOWNLOAD_CANCEL', () => ({ ok: cancelLocalDownload() })),
+  )
+
+  ipcMain.handle(
+    IPC_LOCAL_ENGINE_START,
+    wrapHandler('LOCAL_ENGINE_START', async (payload: unknown) => {
+      const raw = validatePlainObject(payload, 'local:engineStart')
+      const modelId = String(raw.modelId ?? '')
+      if (!modelId) throw new Error('modelId is required')
+      const config = deps.openclawConfigExists() ? (deps.readOpenClawConfig() ?? {}) : {}
+      const state = await startLocalEngine(modelId, config, (c) => {
+        deps.writeOpenClawConfig(c)
+        readOpenClawConfig()
+      })
+      return { ok: true, engineState: state }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_LOCAL_ENGINE_STOP,
+    wrapHandler('LOCAL_ENGINE_STOP', () => {
+      const wasRunning = stopLocalEngine()
+      return { ok: true, wasRunning }
     }),
   )
 

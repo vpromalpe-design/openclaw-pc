@@ -167,6 +167,36 @@ export const IPC_MODELS_SET_FALLBACKS = 'models:setFallbacks' as const
 /** Models: set aliases */
 export const IPC_MODELS_SET_ALIASES = 'models:setAliases' as const
 
+/** Models page: full table view (providers + priority + local) */
+export const IPC_MODELS_VIEW_LIST = 'models:viewList' as const
+
+/** Models page: apply priority (primary + fallbacks) with backup + restart */
+export const IPC_MODELS_VIEW_APPLY = 'models:viewApply' as const
+
+/** Local models: list downloaded GGUF + engine state */
+export const IPC_LOCAL_LIST = 'local:list' as const
+
+/** Local models: add (preset or custom URL) */
+export const IPC_LOCAL_ADD = 'local:add' as const
+
+/** Local models: remove */
+export const IPC_LOCAL_REMOVE = 'local:remove' as const
+
+/** Local models: start download */
+export const IPC_LOCAL_DOWNLOAD_START = 'local:downloadStart' as const
+
+/** Local models: cancel download */
+export const IPC_LOCAL_DOWNLOAD_CANCEL = 'local:downloadCancel' as const
+
+/** Local engine: start llama-server with a model */
+export const IPC_LOCAL_ENGINE_START = 'local:engineStart' as const
+
+/** Local engine: stop */
+export const IPC_LOCAL_ENGINE_STOP = 'local:engineStop' as const
+
+/** Local download progress event (main → renderer) */
+export const IPC_LOCAL_PROGRESS = 'local:progress' as const
+
 /** Plugins list (CLI proxy) */
 export const IPC_PLUGINS_LIST = 'plugins:list' as const
 
@@ -272,6 +302,15 @@ export const IPC_INVOKE_CHANNELS = [
   IPC_MODELS_SET_DEFAULT,
   IPC_MODELS_SET_FALLBACKS,
   IPC_MODELS_SET_ALIASES,
+  IPC_MODELS_VIEW_LIST,
+  IPC_MODELS_VIEW_APPLY,
+  IPC_LOCAL_LIST,
+  IPC_LOCAL_ADD,
+  IPC_LOCAL_REMOVE,
+  IPC_LOCAL_DOWNLOAD_START,
+  IPC_LOCAL_DOWNLOAD_CANCEL,
+  IPC_LOCAL_ENGINE_START,
+  IPC_LOCAL_ENGINE_STOP,
   IPC_PLUGINS_LIST,
   IPC_PLUGINS_TOGGLE,
   IPC_PLUGINS_INSTALL,
@@ -292,4 +331,5 @@ export const IPC_EVENT_CHANNELS = [
   IPC_STREAM_GATEWAY_LOGS,
   IPC_UPDATE_AVAILABLE,
   IPC_UPDATE_PROGRESS,
+  IPC_LOCAL_PROGRESS,
 ] as const

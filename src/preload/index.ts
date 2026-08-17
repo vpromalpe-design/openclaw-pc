@@ -37,6 +37,16 @@ import {
   IPC_PROVIDERS_SET_MODEL_DEFAULTS,
   IPC_MODEL_SETTINGS_LOAD,
   IPC_MODEL_SETTINGS_APPLY,
+  IPC_MODELS_VIEW_LIST,
+  IPC_MODELS_VIEW_APPLY,
+  IPC_LOCAL_LIST,
+  IPC_LOCAL_ADD,
+  IPC_LOCAL_REMOVE,
+  IPC_LOCAL_DOWNLOAD_START,
+  IPC_LOCAL_DOWNLOAD_CANCEL,
+  IPC_LOCAL_ENGINE_START,
+  IPC_LOCAL_ENGINE_STOP,
+  IPC_LOCAL_PROGRESS,
   IPC_SKILLS_LIST,
   IPC_SKILLS_TOGGLE,
   IPC_SKILLS_RELOAD,
@@ -155,6 +165,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   modelSettingsLoad: () => invoke(IPC_MODEL_SETTINGS_LOAD),
   modelSettingsApply: (payload: unknown) => invoke(IPC_MODEL_SETTINGS_APPLY, payload),
+
+  modelsViewList: () => invoke(IPC_MODELS_VIEW_LIST),
+  modelsViewApply: (payload: { primary: string | null; fallbacks: string[]; restart: boolean }) =>
+    invoke(IPC_MODELS_VIEW_APPLY, payload),
+  localList: () => invoke(IPC_LOCAL_LIST),
+  localAdd: (payload: { presetId?: string; url?: string }) => invoke(IPC_LOCAL_ADD, payload),
+  localRemove: (payload: { id: string }) => invoke(IPC_LOCAL_REMOVE, payload),
+  localDownloadStart: (payload: { modelId: string }) => invoke(IPC_LOCAL_DOWNLOAD_START, payload),
+  localDownloadCancel: () => invoke(IPC_LOCAL_DOWNLOAD_CANCEL),
+  localEngineStart: (payload: { modelId: string }) => invoke(IPC_LOCAL_ENGINE_START, payload),
+  localEngineStop: () => invoke(IPC_LOCAL_ENGINE_STOP),
+  onLocalProgress: (cb: (payload: unknown) => void) => on(IPC_LOCAL_PROGRESS, cb),
 
   skillsList: (opts?: { source?: 'all' | 'bundled' | 'user' }) =>
     invoke(IPC_SKILLS_LIST, opts ?? {}),
