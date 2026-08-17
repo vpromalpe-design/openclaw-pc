@@ -95,7 +95,10 @@ const PROVIDER_SEEDS: Partial<Record<ModelProvider, ProviderSeed>> = {
   },
   google: {
     providerId: 'google',
-    baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+    // OpenClaw talks to Gemini via its OpenAI-compatible endpoint; without `/openai` + `api`
+    // the provider is treated as plugin-native, models resolve to an empty list and chat is silent.
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    api: 'openai-completions',
   },
   groq: {
     providerId: 'groq',
@@ -434,6 +437,19 @@ function ensureProviderSeedConfig(config: OpenClawConfig, state: WizardState): v
     ...(seed.api ? { api: seed.api } : {}),
     ...(seed.authHeader !== undefined ? { authHeader: seed.authHeader } : {}),
     models: [buildDefaultProviderModel(modelId)],
+  }
+  // Match the known-working Gemini config: per-model `api` + vision input for google models.
+  if (provider === 'google') {
+    config.models.providers[seed.providerId] = {
+      ...(config.models.providers[seed.providerId] ?? {}),
+      models: [
+        {
+          ...buildDefaultProviderModel(modelId),
+          api: 'openai-completions',
+          input: ['text', 'image'],
+        },
+      ],
+    }
   }
   // Match working openclaw.json: keep apiKey in models.providers.minimax alongside auth-profiles.
   if (provider === 'minimax' && state.modelConfig.apiKey.trim()) {

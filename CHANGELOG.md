@@ -4,6 +4,12 @@ All notable changes to OpenClaw Desktop will be documented in this file.
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-08-17
+
+### Fixed
+
+- **Gemini/Google provider broken after every setup-wizard run.** The wizard wrote `baseUrl: https://generativelanguage.googleapis.com/v1beta` without the OpenAI-compatible suffix and without `api`, so OpenClaw treated the provider as plugin-native, resolved an empty model list and the chat stayed silent. The seed now emits `…/v1beta/openai` + `api: openai-completions` and tags each Gemini model with `api: openai-completions` and vision input — mirroring the known-working config. Reinstalling and re-running the wizard no longer regresses the Google provider.
+
 ## [0.8.2] - 2026-08-16
 
 ### Fixed
