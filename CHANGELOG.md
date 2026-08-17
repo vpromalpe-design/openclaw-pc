@@ -4,6 +4,25 @@ All notable changes to OpenClaw Desktop will be documented in this file.
 
 ## [Unreleased]
 
+## [0.8.7] - 2026-08-17
+
+### Added
+
+- **Models page** in the desktop sidebar: a full table of every configured provider/model with its priority chain, reorder controls (↑/↓), and a **Connect** action that writes `agents.defaults.model = { primary, fallbacks[] }` — OpenClaw automatically falls back down the chain on rate limits, 5xx or timeouts. Changing the chain applies the config with a backup + atomic write + crash-loop rollback, then restarts the gateway safely.
+- **Local models (offline, Windows)**: three one-click presets (Qwen 2.5 0.5B / 1.5B / 3B GGUF) plus a custom GGUF URL field, background downloads with live progress, and a built-in **llama.cpp engine** (`llama-server` on `127.0.0.1:18788`) with start/stop controls. The engine registers the `local` provider automatically.
+- **Setup wizard: real local-model picker** — local is the first provider option and now offers the three GGUF presets (or your own GGUF URL) with a download button instead of the old "coming soon" placeholder.
+- **Russian language**: the whole desktop UI (wizard, dashboard, settings, tray menu) is fully translated; `ru`/`be`/`uk` system locales are detected automatically.
+- **Working Reasoning level control** (off / minimum / medium / high) in the wizard and model settings — writes `agents.defaults.thinkingDefault` (previously the control was cosmetic and never persisted).
+
+### Changed
+
+- Wizard buttons enlarged; provider list reordered with **Local first** (badge); 22 monochrome provider logos (simple-icons) in wizard and models table.
+- Archive extraction (llama.cpp install) now goes through PowerShell `-EncodedCommand` (UTF-16LE) so non-ASCII user paths such as `C:\Users\Дамир\` survive intact.
+
+### Fixed
+
+- Vite dev dependency pinned to a non-broken build (vite@6.4.1).
+
 ## [0.8.6] - 2026-08-17
 
 ### Fixed
