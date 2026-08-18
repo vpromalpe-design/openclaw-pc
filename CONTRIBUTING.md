@@ -1,6 +1,6 @@
-# Contributing to OpenClaw Desktop
+# Contributing to OpenClaw PC
 
-Thank you for considering contributing to OpenClaw Desktop. This repository is a community-maintained Windows desktop distribution for OpenClaw.
+Thank you for considering contributing to OpenClaw PC. This repository is a community-maintained Windows desktop distribution for OpenClaw.
 
 ## Development Setup
 
@@ -11,8 +11,8 @@ Thank you for considering contributing to OpenClaw Desktop. This repository is a
 
 ### Quick Start
 ```bash
-git clone https://github.com/agentkernel/openclaw-desktop.git
-cd openclaw-desktop
+git clone https://github.com/vpromalpe-design/openclaw-pc.git
+cd openclaw-pc
 pnpm install
 pnpm dev
 ```
@@ -70,7 +70,7 @@ pnpm run package:win
 ## Release Notes
 
 - Release assets are published through GitHub Actions.
-- The primary downloadable asset is `OpenClaw-Setup-<version>.exe`.
+- The primary downloadable asset is `OpenClaw-PC-Setup-<version>.exe`.
 - For the first public versions, unsigned Windows builds may trigger SmartScreen warnings.
 - **Bundled OpenClaw** version is stored in `resources/bundle-manifest.json` as `bundledOpenClawVersion` (updated by `pnpm run prepare-bundle` from `build/openclaw`). The pin lives in root `package.json` as `openclawBundleVersion`. Desktop **v0.7.0** ships OpenClaw **2026.4.2** alongside shell semver `0.7.0+openclaw.2026.4.2`. **Release Git tags** use `v` + that semver, e.g. **`v0.7.0+openclaw.2026.4.2`** (bundled OpenClaw version is visible in the tag).
 

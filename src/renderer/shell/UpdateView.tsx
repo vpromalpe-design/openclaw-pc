@@ -26,7 +26,7 @@ import type {
 import type { UpdateProgressPayload } from '../../shared/electron-api'
 import { formatMainVersion } from '@/utils/version-format'
 
-const RELEASES_URL = 'https://github.com/agentkernel/openclaw-desktop/releases'
+const RELEASES_URL = 'https://github.com/vpromalpe-design/openclaw-pc/releases'
 
 export interface UpdateViewProps {
   onBack?: () => void

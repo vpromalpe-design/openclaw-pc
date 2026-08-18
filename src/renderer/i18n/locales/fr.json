@@ -1,9 +1,9 @@
 {
   "app": {
-    "name": "OpenClaw Desktop"
+    "name": "OpenClaw PC"
   },
   "wizard": {
-    "appName": "OpenClaw Desktop",
+    "appName": "OpenClaw PC",
     "setupWizard": "Assistant de configuration",
     "steps": {
       "welcome": "Bienvenue",
@@ -19,8 +19,8 @@
       "next": "Suivant"
     },
     "welcome": {
-      "title": "Bienvenue sur OpenClaw Desktop",
-      "subtitle": "OpenClaw Desktop intègre l'assistant IA dans une application Windows native avec installation et configuration intégrées. Cet assistant vous guidera pour la configuration initiale.",
+      "title": "Bienvenue sur OpenClaw PC",
+      "subtitle": "OpenClaw PC intègre l'assistant IA dans une application Windows native avec installation et configuration intégrées. Cet assistant vous guidera pour la configuration initiale.",
       "startHint": "Cliquez sur « Démarrer la configuration » ci-dessous pour commencer",
       "features": {
         "model": {
@@ -243,7 +243,7 @@
     "updates": {
       "title": "Mises à jour et maintenance",
       "checkForUpdates": "Vérifier les mises à jour",
-      "checkHint": "Vérifier si une version plus récente d'OpenClaw Desktop est disponible sur GitHub.",
+      "checkHint": "Vérifier si une version plus récente d'OpenClaw PC est disponible sur GitHub.",
       "checkNow": "Vérifier maintenant",
       "checking": "Recherche de mises à jour…",
       "checkFailed": "Impossible de vérifier les mises à jour",
@@ -289,14 +289,14 @@
       "viewAllReleases": "Voir toutes les versions"
     },
     "loading": {
-      "appName": "OpenClaw Desktop",
+      "appName": "OpenClaw PC",
       "checkingConfig": "Vérification de la configuration…",
       "timeout": "Délai de démarrage de la passerelle",
       "retry": "Réessayer"
     },
     "error": {
-      "appName": "OpenClaw Desktop",
-      "preloadTitle": "OpenClaw Desktop",
+      "appName": "OpenClaw PC",
+      "preloadTitle": "OpenClaw PC",
       "preloadBody": "Le script de préchargement n'a pas pu se charger ; la communication interne est indisponible. Réinstallez ou reconditionnez l'application.",
       "preloadHint": "En débogage, vérifiez que `index.cjs` existe dans `resources/app.asar(.unpacked)/out/preload/`.",
       "retry": "Réessayer",

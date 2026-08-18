@@ -1,9 +1,9 @@
 {
   "app": {
-    "name": "OpenClaw Desktop"
+    "name": "OpenClaw PC"
   },
   "wizard": {
-    "appName": "OpenClaw Desktop",
+    "appName": "OpenClaw PC",
     "setupWizard": "Setup Wizard",
     "steps": {
       "welcome": "Welcome",
@@ -19,8 +19,8 @@
       "next": "Next"
     },
     "welcome": {
-      "title": "Welcome to OpenClaw Desktop",
-      "subtitle": "OpenClaw Desktop packages AI assistant as a native Windows desktop app with integrated installation and setup. This wizard will guide you through initial configuration.",
+      "title": "Welcome to OpenClaw PC",
+      "subtitle": "OpenClaw PC packages AI assistant as a native Windows desktop app with integrated installation and setup. This wizard will guide you through initial configuration.",
       "startHint": "Click \"Start Setup\" below to begin",
       "features": {
         "model": {
@@ -406,7 +406,7 @@
       "electronLabel": "Electron",
       "nodeLabel": "Node.js",
       "openclawLabel": "OpenClaw",
-      "appNameTitle": "OpenClaw Desktop",
+      "appNameTitle": "OpenClaw PC",
       "mainVersionAria": "Main version",
       "viewOnGithub": "View project on GitHub",
       "fetchingVersions": "Fetching version info…"
@@ -516,7 +516,7 @@
     "updates": {
       "title": "Updates & Maintenance",
       "checkForUpdates": "Check for Updates",
-      "checkHint": "Check if a newer version of OpenClaw Desktop is available on GitHub.",
+      "checkHint": "Check if a newer version of OpenClaw PC is available on GitHub.",
       "checkNow": "Check now",
       "checking": "Checking for updates…",
       "checkFailed": "Unable to check for updates",
@@ -597,14 +597,14 @@
       }
     },
     "loading": {
-      "appName": "OpenClaw Desktop",
+      "appName": "OpenClaw PC",
       "checkingConfig": "Checking configuration…",
       "timeout": "Gateway startup timeout",
       "retry": "Retry"
     },
     "error": {
-      "appName": "OpenClaw Desktop",
-      "preloadTitle": "OpenClaw Desktop",
+      "appName": "OpenClaw PC",
+      "preloadTitle": "OpenClaw PC",
       "preloadBody": "Preload script failed to load, internal communication is unavailable. Please try reinstalling or repackaging the app.",
       "preloadHint": "If debugging, check that `index.cjs` exists in `resources/app.asar(.unpacked)/out/preload/`.",
       "retry": "Retry",

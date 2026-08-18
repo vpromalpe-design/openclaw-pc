@@ -1,9 +1,9 @@
 {
   "app": {
-    "name": "OpenClaw Desktop"
+    "name": "OpenClaw PC"
   },
   "wizard": {
-    "appName": "OpenClaw Desktop",
+    "appName": "OpenClaw PC",
     "setupWizard": "セットアップウィザード",
     "steps": {
       "welcome": "ようこそ",
@@ -19,8 +19,8 @@
       "next": "次へ"
     },
     "welcome": {
-      "title": "OpenClaw Desktop へようこそ",
-      "subtitle": "OpenClaw Desktop は AI アシスタントをネイティブ Windows アプリとしてパッケージし、インストールと設定を統合しています。このウィザードが初期設定を案内します。",
+      "title": "OpenClaw PC へようこそ",
+      "subtitle": "OpenClaw PC は AI アシスタントをネイティブ Windows アプリとしてパッケージし、インストールと設定を統合しています。このウィザードが初期設定を案内します。",
       "startHint": "以下の「セットアップを開始」をクリックして開始",
       "features": {
         "model": {
@@ -243,7 +243,7 @@
     "updates": {
       "title": "更新とメンテナンス",
       "checkForUpdates": "更新を確認",
-      "checkHint": "GitHub で OpenClaw Desktop の新しいバージョンが利用可能か確認します。",
+      "checkHint": "GitHub で OpenClaw PC の新しいバージョンが利用可能か確認します。",
       "checkNow": "今すぐ確認",
       "checking": "更新を確認中…",
       "checkFailed": "更新を確認できません",
@@ -289,14 +289,14 @@
       "viewAllReleases": "すべてのリリースを表示"
     },
     "loading": {
-      "appName": "OpenClaw Desktop",
+      "appName": "OpenClaw PC",
       "checkingConfig": "設定を確認しています…",
       "timeout": "ゲートウェイ起動タイムアウト",
       "retry": "再試行"
     },
     "error": {
-      "appName": "OpenClaw Desktop",
-      "preloadTitle": "OpenClaw Desktop",
+      "appName": "OpenClaw PC",
+      "preloadTitle": "OpenClaw PC",
       "preloadBody": "プリロードスクリプトを読み込めませんでした。内部通信が利用できません。再インストールまたは再パッケージ化を試してください。",
       "preloadHint": "デバッグ時は `resources/app.asar(.unpacked)/out/preload/` に `index.cjs` があるか確認してください。",
       "retry": "再試行",

@@ -382,7 +382,7 @@
       "electronLabel": "Electron",
       "nodeLabel": "Node.js",
       "openclawLabel": "OpenClaw",
-      "appNameTitle": "OpenClaw Desktop",
+      "appNameTitle": "OpenClaw PC",
       "mainVersionAria": "主版本",
       "viewOnGithub": "在 GitHub 上查看項目",
       "fetchingVersions": "正在獲取版本信息…"
@@ -492,7 +492,7 @@
     "updates": {
       "title": "更新與維護",
       "checkForUpdates": "檢查更新",
-      "checkHint": "檢查 GitHub 上是否有 OpenClaw Desktop 新版本。",
+      "checkHint": "檢查 GitHub 上是否有 OpenClaw PC 新版本。",
       "checkNow": "立即檢查",
       "checking": "正在檢查更新…",
       "checkFailed": "無法檢查更新",

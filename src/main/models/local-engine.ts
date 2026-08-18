@@ -151,7 +151,7 @@ function httpGetFollowRedirect(
     const mod = url.startsWith('https:') ? https : http
     const req = mod.get(
       url,
-      { headers: { 'User-Agent': 'OpenClaw-Desktop/0.8.7' } },
+      { headers: { 'User-Agent': 'OpenClaw-PC/0.8.7' } },
       (res) => {
         if (
           res.statusCode &&

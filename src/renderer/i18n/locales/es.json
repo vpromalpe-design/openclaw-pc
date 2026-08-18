@@ -1,9 +1,9 @@
 {
   "app": {
-    "name": "OpenClaw Desktop"
+    "name": "OpenClaw PC"
   },
   "wizard": {
-    "appName": "OpenClaw Desktop",
+    "appName": "OpenClaw PC",
     "setupWizard": "Asistente de configuración",
     "steps": {
       "welcome": "Bienvenida",
@@ -19,8 +19,8 @@
       "next": "Siguiente"
     },
     "welcome": {
-      "title": "Bienvenido a OpenClaw Desktop",
-      "subtitle": "OpenClaw Desktop empaqueta el asistente de IA como aplicación nativa de Windows con instalación y configuración integradas. Este asistente te guiará en la configuración inicial.",
+      "title": "Bienvenido a OpenClaw PC",
+      "subtitle": "OpenClaw PC empaqueta el asistente de IA como aplicación nativa de Windows con instalación y configuración integradas. Este asistente te guiará en la configuración inicial.",
       "startHint": "Haz clic en \"Iniciar configuración\" abajo para comenzar",
       "features": {
         "model": {
@@ -243,7 +243,7 @@
     "updates": {
       "title": "Actualizaciones y mantenimiento",
       "checkForUpdates": "Buscar actualizaciones",
-      "checkHint": "Verifica si hay una versión más nueva de OpenClaw Desktop en GitHub.",
+      "checkHint": "Verifica si hay una versión más nueva de OpenClaw PC en GitHub.",
       "checkNow": "Verificar ahora",
       "checking": "Buscando actualizaciones…",
       "checkFailed": "No se pudieron buscar actualizaciones",
@@ -289,14 +289,14 @@
       "viewAllReleases": "Ver todas las versiones"
     },
     "loading": {
-      "appName": "OpenClaw Desktop",
+      "appName": "OpenClaw PC",
       "checkingConfig": "Comprobando configuración…",
       "timeout": "Tiempo de espera del inicio de la puerta de enlace",
       "retry": "Reintentar"
     },
     "error": {
-      "appName": "OpenClaw Desktop",
-      "preloadTitle": "OpenClaw Desktop",
+      "appName": "OpenClaw PC",
+      "preloadTitle": "OpenClaw PC",
       "preloadBody": "No se pudo cargar el script de precarga; la comunicación interna no está disponible. Reinstala o vuelve a empaquetar la aplicación.",
       "preloadHint": "Al depurar, comprueba que exista `index.cjs` en `resources/app.asar(.unpacked)/out/preload/`.",
       "retry": "Reintentar",

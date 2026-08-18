@@ -1,5 +1,5 @@
 {
-  "name": "openclaw-desktop",
+  "name": "openclaw-pc",
   "version": "0.8.7+openclaw.2026.7.1",
   "openclawBundleVersion": "2026.7.1",
   "openclawFeishuLarkSdkVersion": "^1.60.0",
@@ -90,21 +90,21 @@
   },
   "keywords": [
     "openclaw",
-    "openclaw-desktop",
+    "openclaw-pc",
     "openclaw-windows",
     "openclaw-installer",
     "electron",
     "windows",
     "ai-agent"
   ],
-  "homepage": "https://github.com/agentkernel/openclaw-desktop",
+  "homepage": "https://github.com/vpromalpe-design/openclaw-pc",
   "author": "wurongzhao@AgentKernel",
   "repository": {
     "type": "git",
-    "url": "https://github.com/agentkernel/openclaw-desktop.git"
+    "url": "https://github.com/vpromalpe-design/openclaw-pc.git"
   },
   "bugs": {
-    "url": "https://github.com/agentkernel/openclaw-desktop/issues"
+    "url": "https://github.com/vpromalpe-design/openclaw-pc/issues"
   },
   "license": "GPL-3.0",
   "engines": {

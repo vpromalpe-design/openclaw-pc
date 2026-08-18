@@ -24,7 +24,7 @@ export type UpdateChannel = 'stable' | 'beta'
 
 export type { ShellLocale }
 
-/** Desktop shell settings stored in %APPDATA%\OpenClaw Desktop\config.json */
+/** Desktop shell settings stored in %APPDATA%\OpenClaw PC\config.json */
 export interface ShellConfig {
   closeToTray: boolean
   autoStart: boolean
@@ -57,7 +57,7 @@ export interface GatewayControlUiConfig {
   /**
    * When true, loopback Control UI may connect with token/password only if device identity
    * is unavailable (e.g. Electron sandboxed iframe without `crypto.subtle`).
-   * Required for embedded dashboard in OpenClaw Desktop.
+   * Required for embedded dashboard in OpenClaw PC.
    */
   allowInsecureAuth?: boolean
   /**

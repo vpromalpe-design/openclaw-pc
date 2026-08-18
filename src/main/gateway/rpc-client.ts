@@ -8,7 +8,7 @@ import { DEFAULT_GATEWAY_PORT } from '../../shared/constants.js'
 import { readShellConfig, readOpenClawConfig } from '../config/index.js'
 
 const PROTOCOL_VERSION = 3
-const CLIENT_ID = 'openclaw-desktop'
+const CLIENT_ID = 'openclaw-pc'
 const CLIENT_VERSION = '0.1.2'
 
 // ─── Errors ────────────────────────────────────────────────────────────────

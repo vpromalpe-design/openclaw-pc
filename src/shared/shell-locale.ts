@@ -31,7 +31,7 @@ export function getLocalizedShellWindowTitle(locale: ShellLocale): string {
     return 'OpenClaw 桌面版'
   }
   if (locale === 'ru') {
-    return 'OpenClaw Desktop'
+    return 'OpenClaw PC'
   }
   return APP_NAME
 }

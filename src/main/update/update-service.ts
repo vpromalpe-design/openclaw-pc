@@ -28,7 +28,7 @@ import { runBackupCreateCli } from '../backup/index.js'
 import { getUserDataDir } from '../utils/paths.js'
 import { writePostUpdateMarker } from './post-update-validation.js'
 
-const GITHUB_REPO = 'agentkernel/openclaw-desktop'
+const GITHUB_REPO = 'vpromalpe-design/openclaw-pc'
 const MAX_BACKUPS_KEEP = 1
 const GITHUB_API_BASE = 'https://api.github.com'
 
@@ -103,7 +103,7 @@ function pickWindowsSetupAsset(
 function githubApiHeaders(): HeadersInit {
   const headers: Record<string, string> = {
     Accept: 'application/vnd.github.v3+json',
-    'User-Agent': 'openclaw-desktop-updater (https://github.com/agentkernel/openclaw-desktop)',
+    'User-Agent': 'openclaw-pc-updater (https://github.com/vpromalpe-design/openclaw-pc)',
   }
   const token = process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN
   if (token) {
@@ -231,7 +231,7 @@ export async function downloadUpdate(readShellConfig: ReadShellConfig): Promise<
 async function downloadInstallerFromGithubUrl(url: string): Promise<void> {
   standaloneDownloadAbort = new AbortController()
   const signal = standaloneDownloadAbort.signal
-  const dest = path.join(app.getPath('temp'), `OpenClaw-Setup-update-${Date.now()}.exe`)
+  const dest = path.join(app.getPath('temp'), `OpenClaw-PC-Setup-update-${Date.now()}.exe`)
   try {
     sendUpdateProgressPayload({ percent: 0, transferred: 0 })
     const res = await fetch(url, {

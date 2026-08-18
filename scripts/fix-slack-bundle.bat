@@ -3,7 +3,7 @@ REM fix-slack-bundle.bat — removes Slack extension and patches chat-meta
 REM Double-click or run: fix-slack-bundle.bat
 cd /d "%~dp0.."
 
-echo === OpenClaw Desktop: Removing Slack extension and patching chat-meta ===
+echo === OpenClaw PC: Removing Slack extension and patching chat-meta ===
 
 rmdir /s /q "resources\openclaw\dist\extensions\slack" 2>nul
 echo [1/3] Removed resources\openclaw\dist\extensions\slack (if existed)

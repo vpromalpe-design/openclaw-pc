@@ -10,7 +10,7 @@ export const DEFAULT_GATEWAY_PORT = 18789
 export const OPENCLAW_USER_DIR = '.openclaw'
 
 /** Shell product name (under %APPDATA%) */
-export const APP_NAME = 'OpenClaw Desktop'
+export const APP_NAME = 'OpenClaw PC'
 
 /** Main OpenClaw config filename */
 export const OPENCLAW_CONFIG_FILE = 'openclaw.json'

@@ -171,7 +171,7 @@ async function downloadTarballWithCurl(url: string, dest: string, timeoutMs: num
         '--max-time',
         String(maxTimeSec),
         '-A',
-        'openclaw-desktop-bundle/ensure-control-ui',
+        'openclaw-pc-bundle/ensure-control-ui',
         '-o',
         out,
         url,
@@ -224,7 +224,7 @@ async function ensureOpenclawRootDepsForBundledSrc(
         : ver
   }
   const stub: Record<string, unknown> = {
-    name: 'openclaw-desktop-control-ui-openclawroot',
+    name: 'openclaw-pc-control-ui-openclawroot',
     private: true,
     version: '0.0.0',
     dependencies: normalizedDependencies,
@@ -284,7 +284,7 @@ async function downloadTarballToFileOnce(url: string, dest: string, timeoutMs: n
     const res = await fetch(url, {
       redirect: 'follow',
       signal: ac.signal,
-      headers: { 'User-Agent': 'openclaw-desktop-bundle/ensure-control-ui' },
+      headers: { 'User-Agent': 'openclaw-pc-bundle/ensure-control-ui' },
     })
     if (!res.ok) {
       throw new Error(`HTTP ${res.status} ${res.statusText}`)

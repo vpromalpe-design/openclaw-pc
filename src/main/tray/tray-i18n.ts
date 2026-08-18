@@ -218,7 +218,7 @@ export function getFeishuPairingNotificationStrings(locale: ShellLocale): Feishu
       }
     default:
       return {
-        title: 'OpenClaw Desktop',
+        title: 'OpenClaw PC',
         bodyTemplate: 'New Feishu DM pairing request, code: {{code}}',
       }
   }

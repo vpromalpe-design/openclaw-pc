@@ -68,7 +68,7 @@ export async function ensureOpenClawFeishuLarkSdk(openclawRoot: string): Promise
           : ver
     }
     const stub: Record<string, unknown> = {
-      name: 'openclaw-desktop-feishu-install',
+      name: 'openclaw-pc-feishu-install',
       private: true,
       version: '0.0.0',
       dependencies: stubDeps,

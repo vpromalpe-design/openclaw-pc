@@ -22,7 +22,7 @@ distinguished_name = dn
 x509_extensions = v3_req
 
 [ dn ]
-CN = OpenClaw Desktop (Dev)
+CN = OpenClaw PC (Dev)
 O = wurongzhao@AgentKernel
 
 [ v3_req ]
@@ -79,7 +79,7 @@ function genWithOpenSSL() {
 }
 
 function genWithPowerShell() {
-  const ps = `$cert = New-SelfSignedCertificate -CertStoreLocation cert:\\currentuser\\my -Subject "CN=OpenClaw Desktop (Dev)" -KeyAlgorithm RSA -KeyLength 2048 -KeyExportPolicy Exportable -KeyUsage DigitalSignature -Type CodeSigningCert -NotAfter (Get-Date).AddYears(1)
+  const ps = `$cert = New-SelfSignedCertificate -CertStoreLocation cert:\\currentuser\\my -Subject "CN=OpenClaw PC (Dev)" -KeyAlgorithm RSA -KeyLength 2048 -KeyExportPolicy Exportable -KeyUsage DigitalSignature -Type CodeSigningCert -NotAfter (Get-Date).AddYears(1)
 Export-PfxCertificate -Cert $cert -FilePath "${certPath.replace(/\\/g, '\\\\')}" -Password (ConvertTo-SecureString -String "${password}" -Force -AsPlainText)
 Remove-Item -Path "cert:\\currentuser\\my\\$($cert.Thumbprint)" -Force`
   const r = spawnSync('powershell', ['-ExecutionPolicy', 'Bypass', '-Command', ps], {

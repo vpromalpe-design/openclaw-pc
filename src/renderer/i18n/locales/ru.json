@@ -1,9 +1,9 @@
 {
   "app": {
-    "name": "OpenClaw Desktop"
+    "name": "OpenClaw PC"
   },
   "wizard": {
-    "appName": "OpenClaw Desktop",
+    "appName": "OpenClaw PC",
     "setupWizard": "Мастер настройки",
     "steps": {
       "welcome": "Добро пожаловать",
@@ -19,8 +19,8 @@
       "next": "Далее"
     },
     "welcome": {
-      "title": "Добро пожаловать в OpenClaw Desktop",
-      "subtitle": "OpenClaw Desktop — это ИИ-ассистент в виде нативного Windows-приложения со встроенной установкой и настройкой. Этот мастер проведёт вас через начальную конфигурацию.",
+      "title": "Добро пожаловать в OpenClaw PC",
+      "subtitle": "OpenClaw PC — это ИИ-ассистент в виде нативного Windows-приложения со встроенной установкой и настройкой. Этот мастер проведёт вас через начальную конфигурацию.",
       "startHint": "Нажмите «Начать настройку» ниже",
       "features": {
         "model": {
@@ -406,7 +406,7 @@
       "electronLabel": "Electron",
       "nodeLabel": "Node.js",
       "openclawLabel": "OpenClaw",
-      "appNameTitle": "OpenClaw Desktop",
+      "appNameTitle": "OpenClaw PC",
       "mainVersionAria": "Основная версия",
       "viewOnGithub": "Открыть проект на GitHub",
       "fetchingVersions": "Загрузка информации о версиях…"
@@ -516,7 +516,7 @@
     "updates": {
       "title": "Обновления и обслуживание",
       "checkForUpdates": "Проверка обновлений",
-      "checkHint": "Проверить, доступна ли новая версия OpenClaw Desktop на GitHub.",
+      "checkHint": "Проверить, доступна ли новая версия OpenClaw PC на GitHub.",
       "checkNow": "Проверить сейчас",
       "checking": "Проверка обновлений…",
       "checkFailed": "Не удалось проверить обновления",
@@ -597,14 +597,14 @@
       }
     },
     "loading": {
-      "appName": "OpenClaw Desktop",
+      "appName": "OpenClaw PC",
       "checkingConfig": "Проверка конфигурации…",
       "timeout": "Таймаут запуска шлюза",
       "retry": "Повторить"
     },
     "error": {
-      "appName": "OpenClaw Desktop",
-      "preloadTitle": "OpenClaw Desktop",
+      "appName": "OpenClaw PC",
+      "preloadTitle": "OpenClaw PC",
       "preloadBody": "Не удалось загрузить preload-скрипт, внутренняя связь недоступна. Попробуйте переустановить или пересобрать приложение.",
       "preloadHint": "При отладке проверьте, что `index.cjs` существует в `resources/app.asar(.unpacked)/out/preload/`.",
       "retry": "Повторить",

@@ -1,5 +1,5 @@
-appId: com.openclaw.desktop
-productName: OpenClaw Desktop
+appId: com.openclaw.pc
+productName: OpenClaw PC
 copyright: Copyright © 2026 wurongzhao@AgentKernel
 
 directories:
@@ -27,7 +27,7 @@ win:
       arch:
         - x64
   icon: resources/icon.ico
-  artifactName: "OpenClaw-Setup-${version}.${ext}"
+  artifactName: "OpenClaw-PC-Setup-${version}.${ext}"
   # 在 CI 中设置 CSC_LINK + CSC_KEY_PASSWORD 时进行代码签名
   signAndEditExecutable: true
 
@@ -47,7 +47,7 @@ nsis:
   installerSidebar: resources/installer/installer-sidebar.bmp
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: OpenClaw Desktop
+  shortcutName: OpenClaw PC
   runAfterFinish: true
   deleteAppDataOnUninstall: false
 

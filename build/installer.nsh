@@ -3,7 +3,7 @@
 ; 1) 卸载前若主程序仍存在，则执行 --clear-login-item
 ; 2) 在「安装目录」与「正在安装」之间增加一页：校验最终安装路径的最后一级文件夹名是否含空格。
 ;    与 assistedInstaller.nsh 中 instFilesPre 行为一致：若 INSTDIR 未含 APP_FILENAME 子目录则先拼接再校验。
-;    这样可拦截 ...\OpenClaw Desktop，且不拒绝父级为 Program Files（空格在上一级）。
+;    这样可拦截 ...\OpenClaw PC，且不拒绝父级为 Program Files（空格在上一级）。
 ;
 ; electron-builder 在生成卸载程序时会单独跑一次 makensis 并定义 BUILD_UNINSTALLER；该 pass 不会插入
 ; Page custom，若仍定义 PathValidate* 会触发 warning 6010，且 -WX 下视为错误。故安装页与相关函数仅参与正式安装编译。
@@ -11,8 +11,8 @@
 ; 不要 !include "StrContains.nsh"：assistedInstaller.nsh 已包含，再包含会报 STR_HAYSTACK already declared。
 
 !macro customUnInit
-  IfFileExists "$INSTDIR\OpenClaw Desktop.exe" 0 +2
-  ExecWait '"$INSTDIR\OpenClaw Desktop.exe" --clear-login-item' $0
+  IfFileExists "$INSTDIR\OpenClaw PC.exe" 0 +2
+  ExecWait '"$INSTDIR\OpenClaw PC.exe" --clear-login-item' $0
 !macroend
 
 !macro customPageAfterChangeDir
@@ -68,7 +68,7 @@ after_append_app_subdir:
   Call StrHasSpace
   Pop $R1
   IntCmp $R1 0 path_validate_ok
-  MessageBox MB_OK|MB_ICONEXCLAMATION "The install folder name cannot contain spaces.$\n$\nUse e.g. OpenClawDesktop instead of OpenClaw Desktop.$\n$\n安装文件夹名称不能包含空格，请使用例如 OpenClawDesktop。"
+  MessageBox MB_OK|MB_ICONEXCLAMATION "The install folder name cannot contain spaces.$\n$\nUse e.g. OpenClawPC instead of OpenClaw PC.$\n$\n安装文件夹名称不能包含空格，请使用例如 OpenClawPC。"
   Abort
 path_validate_ok:
 FunctionEnd

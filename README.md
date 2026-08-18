@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="resources/apple-touch-icon.png" alt="OpenClaw Desktop" width="128" height="128" />
+  <img src="resources/apple-touch-icon.png" alt="OpenClaw PC" width="128" height="128" />
 </p>
 
-<h1 align="center">OpenClaw Desktop</h1>
+<h1 align="center">OpenClaw PC</h1>
 <p align="center">龙虾智能体官方中文桌面版一键安装部署EXE程序</p>
 
 <p align="center">
@@ -11,22 +11,22 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/agentkernel/openclaw-desktop/releases/latest">
-    <img src="https://img.shields.io/github/v/release/agentkernel/openclaw-desktop?style=flat-square&color=2563eb&label=latest+release" alt="Latest release" />
+  <a href="https://github.com/vpromalpe-design/openclaw-pc/releases/latest">
+    <img src="https://img.shields.io/github/v/release/vpromalpe-design/openclaw-pc?style=flat-square&color=2563eb&label=latest+release" alt="Latest release" />
   </a>
-  <a href="https://github.com/agentkernel/openclaw-desktop/actions/workflows/ci.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/agentkernel/openclaw-desktop/ci.yml?style=flat-square&label=ci" alt="CI" />
+  <a href="https://github.com/vpromalpe-design/openclaw-pc/actions/workflows/ci.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/vpromalpe-design/openclaw-pc/ci.yml?style=flat-square&label=ci" alt="CI" />
   </a>
-  <a href="https://github.com/agentkernel/openclaw-desktop/releases">
-    <img src="https://img.shields.io/github/downloads/agentkernel/openclaw-desktop/total?style=flat-square&color=16a34a&label=downloads" alt="Downloads" />
+  <a href="https://github.com/vpromalpe-design/openclaw-pc/releases">
+    <img src="https://img.shields.io/github/downloads/vpromalpe-design/openclaw-pc/total?style=flat-square&color=16a34a&label=downloads" alt="Downloads" />
   </a>
   <a href="LICENSE">
-    <img src="https://img.shields.io/github/license/agentkernel/openclaw-desktop?style=flat-square" alt="License" />
+    <img src="https://img.shields.io/github/license/vpromalpe-design/openclaw-pc?style=flat-square" alt="License" />
   </a>
 </p>
 
 <p align="center">
-  <img src="resources/demo.gif" alt="OpenClaw Desktop Demo running on Windows" width="720" />
+  <img src="resources/demo.gif" alt="OpenClaw PC Demo running on Windows" width="720" />
 </p>
 
 <p align="center">
@@ -41,20 +41,20 @@
 
 ## What is this?
 
-**OpenClaw Desktop** packages the OpenClaw runtime into a standard Windows install experience. Download one `.exe`, finish a setup wizard, and run OpenClaw from a native desktop shell — no manual wiring, no terminal required.
+**OpenClaw PC** packages the OpenClaw runtime into a standard Windows install experience. Download one `.exe`, finish a setup wizard, and run OpenClaw from a native desktop shell — no manual wiring, no terminal required.
 
 If you've been searching for *how to install OpenClaw on Windows*, *how to run OpenClaw locally*, or an **OpenClaw Windows installer** with a GUI, this is it.
 
 ## Quick Start
 
-1. Download the latest installer from [Releases](https://github.com/agentkernel/openclaw-desktop/releases/latest)
-2. Run the Windows setup (filename follows `package.json`, e.g. `OpenClaw-Setup-0.7.0+openclaw.2026.4.2.exe`)
+1. Download the latest installer from [Releases](https://github.com/vpromalpe-design/openclaw-pc/releases/latest)
+2. Run the Windows setup (filename follows `package.json`, e.g. `OpenClaw-PC-Setup-0.7.0+openclaw.2026.4.2.exe`)
 3. Finish the setup wizard (provider → channel → gateway)
 4. Launch from Start Menu or Desktop shortcut
 
 **System:** Windows 10/11 x64 · ~350 MB free space · Internet for API calls
 
-## OpenClaw Desktop v0.7.0
+## OpenClaw PC v0.7.0
 
 - **Shell version:** `0.7.0+openclaw.2026.4.2` (semver + bundled OpenClaw pin in build metadata).
 - **Git release tag:** `v0.7.0+openclaw.2026.4.2` — same as `package.json` `version` with a `v` prefix (OpenClaw pin visible in the tag).
@@ -125,19 +125,19 @@ Each release **pins** the bundled OpenClaw npm version in root [`package.json`](
 Installer          ...
 ```
 
-OpenClaw Desktop is a **community-maintained Windows distribution** for the OpenClaw ecosystem. Part of the OpenClaw ecosystem — not affiliated with the core project.
+OpenClaw PC is a **community-maintained Windows distribution** for the OpenClaw ecosystem. Part of the OpenClaw ecosystem — not affiliated with the core project.
 
 ## Download
 
 | | |
 |---|---|
 | **Release tag** | `v0.7.0+openclaw.2026.4.2` (equals `v` + `package.json` `version`) |
-| **Installer** | `OpenClaw-Setup-0.7.0+openclaw.2026.4.2.exe` (see [Releases](https://github.com/agentkernel/openclaw-desktop/releases/latest) for exact asset) |
+| **Installer** | `OpenClaw-PC-Setup-0.7.0+openclaw.2026.4.2.exe` (see [Releases](https://github.com/vpromalpe-design/openclaw-pc/releases/latest) for exact asset) |
 | **Platform** | Windows 10/11 x64 |
 | **Includes** | Electron shell, portable Node.js, bundled OpenClaw |
 | **Extras** | SHA-256 checksum, `latest.yml` for in-app updates |
 
-**→ [github.com/agentkernel/openclaw-desktop/releases/latest](https://github.com/agentkernel/openclaw-desktop/releases/latest)**
+**→ [github.com/vpromalpe-design/openclaw-pc/releases/latest](https://github.com/vpromalpe-design/openclaw-pc/releases/latest)**
 
 ## Screenshots
 
@@ -161,7 +161,7 @@ If the pending list is empty but you have a pairing code, use the code-based app
 <details>
 <summary><strong>How do I install OpenClaw on Windows?</strong></summary>
 
-Download the latest `OpenClaw-Setup-*.exe` from the [latest release](https://github.com/agentkernel/openclaw-desktop/releases/latest) and run it. That's it — no `npm`, no system-wide Node.js, no terminal commands needed.
+Download the latest `OpenClaw-PC-Setup-*.exe` from the [latest release](https://github.com/vpromalpe-design/openclaw-pc/releases/latest) and run it. That's it — no `npm`, no system-wide Node.js, no terminal commands needed.
 </details>
 
 <details>
@@ -174,7 +174,7 @@ No. The installer ships with a portable Node.js runtime.
 <summary><strong>Where is user data stored?</strong></summary>
 
 - OpenClaw config: `%USERPROFILE%\.openclaw\openclaw.json`
-- Desktop config: `%APPDATA%\OpenClaw Desktop\config.json`
+- Desktop config: `%APPDATA%\OpenClaw PC\config.json`
 - Logs: `%USERPROFILE%\.openclaw\`
 - Backups: `%USERPROFILE%\.openclaw\backups\`
 
@@ -202,8 +202,8 @@ When the bundled OpenClaw gateway inherits `HTTP(S)_PROXY`, some local proxies b
 ## Development
 
 ```bash
-git clone https://github.com/agentkernel/openclaw-desktop.git
-cd openclaw-desktop
+git clone https://github.com/vpromalpe-design/openclaw-pc.git
+cd openclaw-pc
 pnpm install
 pnpm dev
 ```
@@ -216,7 +216,7 @@ pnpm type-check   # Type check
 pnpm build       # Build
 pnpm run package:prepare-deps   # download-node + download-openclaw (before installer)
 pnpm run prepare-bundle
-pnpm run package:win   # Output: dist/OpenClaw-Setup-<version>.exe
+pnpm run package:win   # Output: dist/OpenClaw-PC-Setup-<version>.exe
 ```
 
 **Bundled OpenClaw:** Pinned in `package.json` (`openclawBundleVersion`). After `prepare-bundle`, see `bundledOpenClawVersion` in [`resources/bundle-manifest.json`](resources/bundle-manifest.json) (currently **2026.4.2** for desktop **v0.7.0**). Local checks: `pnpm run check-openclaw-versions` (omit `OPENCLAW_SKIP_NPM_LATEST_CHECK` to also compare against npm `latest`).
@@ -231,6 +231,6 @@ pnpm run package:win   # Output: dist/OpenClaw-Setup-<version>.exe
 
 ⭐ Star History · Contributors · Community
 
-<!-- SEO: OpenClaw Desktop, OpenClaw Windows, OpenClaw installer, OpenClaw Windows installer, OpenClaw desktop app,
+<!-- SEO: OpenClaw PC, OpenClaw Windows, OpenClaw installer, OpenClaw Windows installer, OpenClaw desktop app,
 OpenClaw setup wizard, OpenClaw GUI, OpenClaw app for Windows, install OpenClaw on Windows, run OpenClaw locally,
 OpenClaw 桌面版, OpenClaw Windows 安装器, OpenClaw デスクトップ, OpenClaw 데스크톱, how to install openclaw, openclaw setup -->

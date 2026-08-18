@@ -80,7 +80,7 @@ async function main() {
   }
 
   const lines = []
-  lines.push(`## OpenClaw Desktop ${args.version}`)
+  lines.push(`## OpenClaw PC ${args.version}`)
   lines.push('')
   lines.push(`**Дата выпуска:** ${current.date}`)
   lines.push('')
@@ -99,7 +99,7 @@ async function main() {
     lines.push(`| ${s.version} | ${s.date} | ${summarize(s.body).replace(/\|/g, '\\|')} |`)
   }
   lines.push('')
-  lines.push('Полный список изменений — в [CHANGELOG.md](https://github.com/vpromalpe-design/openclaw-desktop/blob/main/CHANGELOG.md).')
+  lines.push('Полный список изменений — в [CHANGELOG.md](https://github.com/vpromalpe-design/openclaw-pc/blob/main/CHANGELOG.md).')
   lines.push('')
   const body = lines.join('\n')
 

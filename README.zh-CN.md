@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="resources/apple-touch-icon.png" alt="OpenClaw Desktop" width="128" height="128" />
+  <img src="resources/apple-touch-icon.png" alt="OpenClaw PC" width="128" height="128" />
 </p>
 
-<h1 align="center">OpenClaw Desktop</h1>
+<h1 align="center">OpenClaw PC</h1>
 <p align="center">龙虾智能体官方中文桌面版一键安装部署EXE程序</p>
 
 <p align="center">
@@ -11,22 +11,22 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/agentkernel/openclaw-desktop/releases/latest">
-    <img src="https://img.shields.io/github/v/release/agentkernel/openclaw-desktop?style=flat-square&color=2563eb&label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC" alt="最新版本" />
+  <a href="https://github.com/vpromalpe-design/openclaw-pc/releases/latest">
+    <img src="https://img.shields.io/github/v/release/vpromalpe-design/openclaw-pc?style=flat-square&color=2563eb&label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC" alt="最新版本" />
   </a>
-  <a href="https://github.com/agentkernel/openclaw-desktop/actions/workflows/ci.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/agentkernel/openclaw-desktop/ci.yml?style=flat-square&label=ci" alt="CI" />
+  <a href="https://github.com/vpromalpe-design/openclaw-pc/actions/workflows/ci.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/vpromalpe-design/openclaw-pc/ci.yml?style=flat-square&label=ci" alt="CI" />
   </a>
-  <a href="https://github.com/agentkernel/openclaw-desktop/releases">
-    <img src="https://img.shields.io/github/downloads/agentkernel/openclaw-desktop/total?style=flat-square&color=16a34a&label=%E4%B8%8B%E8%BD%BD%E6%AC%A1%E6%95%B0" alt="下载量" />
+  <a href="https://github.com/vpromalpe-design/openclaw-pc/releases">
+    <img src="https://img.shields.io/github/downloads/vpromalpe-design/openclaw-pc/total?style=flat-square&color=16a34a&label=%E4%B8%8B%E8%BD%BD%E6%AC%A1%E6%95%B0" alt="下载量" />
   </a>
   <a href="LICENSE">
-    <img src="https://img.shields.io/github/license/agentkernel/openclaw-desktop?style=flat-square" alt="许可证" />
+    <img src="https://img.shields.io/github/license/vpromalpe-design/openclaw-pc?style=flat-square" alt="许可证" />
   </a>
 </p>
 
 <p align="center">
-  <img src="resources/demo.gif" alt="OpenClaw Desktop 运行演示（Windows）" width="720" />
+  <img src="resources/demo.gif" alt="OpenClaw PC 运行演示（Windows）" width="720" />
 </p>
 
 <p align="center">
@@ -41,20 +41,20 @@
 
 ## 这是什么？
 
-**OpenClaw Desktop** 把 OpenClaw 的运行环境封装成标准的 Windows 安装体验。下载一个 `.exe`，完成设置向导，即可从原生桌面应用运行 OpenClaw，无需手动配置，无需接触终端。
+**OpenClaw PC** 把 OpenClaw 的运行环境封装成标准的 Windows 安装体验。下载一个 `.exe`，完成设置向导，即可从原生桌面应用运行 OpenClaw，无需手动配置，无需接触终端。
 
 如果你在搜索 **OpenClaw Windows 安装器**、**如何在 Windows 上运行 OpenClaw**，或者找 **OpenClaw 桌面版**，就是这个项目。
 
 ## 快速开始
 
-1. 从 [Releases](https://github.com/agentkernel/openclaw-desktop/releases/latest) 下载最新安装包
-2. 运行安装程序（文件名与 `package.json` 一致，例如 `OpenClaw-Setup-0.7.0+openclaw.2026.4.2.exe`）
+1. 从 [Releases](https://github.com/vpromalpe-design/openclaw-pc/releases/latest) 下载最新安装包
+2. 运行安装程序（文件名与 `package.json` 一致，例如 `OpenClaw-PC-Setup-0.7.0+openclaw.2026.4.2.exe`）
 3. 完成设置向导（模型提供商 → 频道 → 网关）
 4. 从开始菜单或桌面快捷方式启动
 
 **系统要求：** Windows 10/11 x64 · 约 350 MB 可用空间 · 网络连接（用于 API 调用）
 
-## OpenClaw Desktop v0.7.0
+## OpenClaw PC v0.7.0
 
 - **Shell 版本：** `0.7.0+openclaw.2026.4.2`（主版本号 + 构建元数据中的捆绑 OpenClaw 版本）。
 - **Git 发行标签：** `v0.7.0+openclaw.2026.4.2` — 与根目录 `package.json` 的 `version` 加前缀 `v` 一致，标签内可见捆绑 OpenClaw 版本号。
@@ -125,19 +125,19 @@
 Installer          ...
 ```
 
-OpenClaw Desktop 是 OpenClaw 生态的**社区维护 Windows 分发版**，属于 OpenClaw 生态的一部分，非核心项目附属机构。
+OpenClaw PC 是 OpenClaw 生态的**社区维护 Windows 分发版**，属于 OpenClaw 生态的一部分，非核心项目附属机构。
 
 ## 下载
 
 | | |
 |---|---|
 | **Git 标签 / 壳版本** | **`v0.7.0+openclaw.2026.4.2`**（即 `v` + `package.json` 的 `version`） |
-| **安装包** | `OpenClaw-Setup-0.7.0+openclaw.2026.4.2.exe`（见 [Releases](https://github.com/agentkernel/openclaw-desktop/releases/latest) 实际资产名） |
+| **安装包** | `OpenClaw-PC-Setup-0.7.0+openclaw.2026.4.2.exe`（见 [Releases](https://github.com/vpromalpe-design/openclaw-pc/releases/latest) 实际资产名） |
 | **适用系统** | Windows 10/11 x64 |
 | **包含内容** | Electron 外壳、便携 Node.js、捆绑 OpenClaw |
 | **附加产物** | SHA-256 校验文件、`latest.yml`（应用内更新用） |
 
-**→ [github.com/agentkernel/openclaw-desktop/releases/latest](https://github.com/agentkernel/openclaw-desktop/releases/latest)**
+**→ [github.com/vpromalpe-design/openclaw-pc/releases/latest](https://github.com/vpromalpe-design/openclaw-pc/releases/latest)**
 
 ## 界面预览
 
@@ -161,7 +161,7 @@ OpenClaw Desktop 是 OpenClaw 生态的**社区维护 Windows 分发版**，属�
 <details>
 <summary><strong>如何在 Windows 上安装 OpenClaw？</strong></summary>
 
-从[最新发布页](https://github.com/agentkernel/openclaw-desktop/releases/latest)下载最新的 `OpenClaw-Setup-*.exe` 并运行即可。无需 `npm`、无需系统级 Node.js、无需输入任何终端命令。
+从[最新发布页](https://github.com/vpromalpe-design/openclaw-pc/releases/latest)下载最新的 `OpenClaw-PC-Setup-*.exe` 并运行即可。无需 `npm`、无需系统级 Node.js、无需输入任何终端命令。
 </details>
 
 <details>
@@ -174,7 +174,7 @@ OpenClaw Desktop 是 OpenClaw 生态的**社区维护 Windows 分发版**，属�
 <summary><strong>用户数据存在哪里？</strong></summary>
 
 - OpenClaw 配置：`%USERPROFILE%\.openclaw\openclaw.json`
-- 桌面端配置：`%APPDATA%\OpenClaw Desktop\config.json`
+- 桌面端配置：`%APPDATA%\OpenClaw PC\config.json`
 - 日志：`%USERPROFILE%\.openclaw\`
 - 备份：`%USERPROFILE%\.openclaw\backups\`
 
@@ -202,8 +202,8 @@ OpenClaw Desktop 是 OpenClaw 生态的**社区维护 Windows 分发版**，属�
 ## 本地开发
 
 ```bash
-git clone https://github.com/agentkernel/openclaw-desktop.git
-cd openclaw-desktop
+git clone https://github.com/vpromalpe-design/openclaw-pc.git
+cd openclaw-pc
 pnpm install
 pnpm dev
 ```
@@ -216,7 +216,7 @@ pnpm type-check   # 类型检查
 pnpm build       # 构建
 pnpm run package:prepare-deps   # download-node + download-openclaw（打安装包前）
 pnpm run prepare-bundle
-pnpm run package:win   # 输出: dist/OpenClaw-Setup-<version>.exe
+pnpm run package:win   # 输出: dist/OpenClaw-PC-Setup-<version>.exe
 ```
 
 **捆绑 OpenClaw：** 在 `package.json` 中通过 `openclawBundleVersion` 固定；执行 `prepare-bundle` 后查看 [`resources/bundle-manifest.json`](resources/bundle-manifest.json) 中的 `bundledOpenClawVersion`（桌面 **v0.7.0** 当前为 **2026.4.2**）。本地校验：`pnpm run check-openclaw-versions`（不设 `OPENCLAW_SKIP_NPM_LATEST_CHECK` 时还会与 npm `latest` 对比）。
@@ -231,6 +231,6 @@ pnpm run package:win   # 输出: dist/OpenClaw-Setup-<version>.exe
 
 ⭐ 如果这个项目对你有帮助，请给我们一个 Star · 贡献者 · 社区
 
-<!-- SEO: OpenClaw Desktop, OpenClaw Windows, OpenClaw installer, OpenClaw Windows installer, OpenClaw desktop app,
+<!-- SEO: OpenClaw PC, OpenClaw Windows, OpenClaw installer, OpenClaw Windows installer, OpenClaw desktop app,
 OpenClaw setup wizard, OpenClaw GUI, OpenClaw app for Windows, install OpenClaw on Windows, run OpenClaw locally,
 OpenClaw 桌面版, OpenClaw Windows 安装器, OpenClaw デスクトップ, OpenClaw 데스크톱, how to install openclaw, openclaw setup -->

@@ -6,7 +6,7 @@ Security fixes are provided on a best-effort basis for the latest public release
 
 ## Reporting a Vulnerability
 
-If you discover a security issue in `OpenClaw Desktop`, please avoid opening a public issue with exploit details.
+If you discover a security issue in `OpenClaw PC`, please avoid opening a public issue with exploit details.
 
 Instead:
 

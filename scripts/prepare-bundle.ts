@@ -144,7 +144,7 @@ async function openclawDestHasStubPackageJson(destOpenclaw: string): Promise<boo
   if (!(await fileExists(pkgPath))) return false
   try {
     const pkg = await readJson<{ name?: string }>(pkgPath)
-    return pkg.name === 'openclaw-desktop-control-ui-openclawroot'
+    return pkg.name === 'openclaw-pc-control-ui-openclawroot'
   } catch {
     return false
   }

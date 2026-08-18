@@ -1,9 +1,9 @@
 {
   "app": {
-    "name": "OpenClaw Desktop"
+    "name": "OpenClaw PC"
   },
   "wizard": {
-    "appName": "OpenClaw Desktop",
+    "appName": "OpenClaw PC",
     "setupWizard": "설정 마법사",
     "steps": {
       "welcome": "시작",
@@ -19,8 +19,8 @@
       "next": "다음"
     },
     "welcome": {
-      "title": "OpenClaw Desktop에 오신 것을 환영합니다",
-      "subtitle": "OpenClaw Desktop은 AI 어시스턴트를 네이티브 Windows 데스크톱 앱으로 패키지하며, 설치와 설정을 통합합니다. 이 마법사가 초기 구성을 안내합니다.",
+      "title": "OpenClaw PC에 오신 것을 환영합니다",
+      "subtitle": "OpenClaw PC은 AI 어시스턴트를 네이티브 Windows 데스크톱 앱으로 패키지하며, 설치와 설정을 통합합니다. 이 마법사가 초기 구성을 안내합니다.",
       "startHint": "아래의 \"설정 시작\"을 클릭하여 시작하세요",
       "features": {
         "model": {
@@ -243,7 +243,7 @@
     "updates": {
       "title": "업데이트 및 유지보수",
       "checkForUpdates": "업데이트 확인",
-      "checkHint": "GitHub에서 OpenClaw Desktop의 새 버전이 있는지 확인합니다.",
+      "checkHint": "GitHub에서 OpenClaw PC의 새 버전이 있는지 확인합니다.",
       "checkNow": "지금 확인",
       "checking": "업데이트 확인 중…",
       "checkFailed": "업데이트를 확인할 수 없습니다",
@@ -289,14 +289,14 @@
       "viewAllReleases": "모든 릴리스 보기"
     },
     "loading": {
-      "appName": "OpenClaw Desktop",
+      "appName": "OpenClaw PC",
       "checkingConfig": "구성 확인 중…",
       "timeout": "게이트웨이 시작 시간 초과",
       "retry": "재시도"
     },
     "error": {
-      "appName": "OpenClaw Desktop",
-      "preloadTitle": "OpenClaw Desktop",
+      "appName": "OpenClaw PC",
+      "preloadTitle": "OpenClaw PC",
       "preloadBody": "프리로드 스크립트를 로드하지 못했습니다. 내부 통신을 사용할 수 없습니다. 다시 설치하거나 다시 패키징해 보세요.",
       "preloadHint": "디버깅 시 `resources/app.asar(.unpacked)/out/preload/`에 `index.cjs`가 있는지 확인하세요.",
       "retry": "재시도",
