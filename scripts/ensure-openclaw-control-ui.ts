@@ -426,7 +426,7 @@ async function prepareWorkspaceUiPackages(openclawRoot: string, srcRoot: string)
         }
       }
       await writeFile(pkgJsonPath, JSON.stringify(pkgJson, null, 2) + '\n', 'utf8')
-      execSync('npm install --no-audit --no-fund', {
+      execSync('npm install --no-audit --no-fund --legacy-peer-deps', {
         cwd: destPkg,
         stdio: 'inherit',
         env: { ...process.env, NODE_ENV: '' },
@@ -434,10 +434,12 @@ async function prepareWorkspaceUiPackages(openclawRoot: string, srcRoot: string)
       if (pkgJson.scripts?.build) {
         // Monorepo packages rely on hoisted root devDeps (tsdown); npm installs are isolated,
         // so install the root tsdown version into the vendored package when the build needs it.
+        // --legacy-peer-deps: npm 10 arborist crashes (edgesOut null) on tsdown peer set with
+        // external file: deps; legacy mode skips peer resolution.
         const rootTsdown = rootPkg.devDependencies?.tsdown as string | undefined
         if (rootTsdown && pkgJson.devDependencies?.tsdown === undefined) {
           console.log(`  [control-ui] adding tsdown@${rootTsdown} to ${short} devDeps`)
-          execSync(`npm install --no-audit --no-fund -D tsdown@${rootTsdown}`, {
+          execSync(`npm install --no-audit --no-fund --legacy-peer-deps -D tsdown@${rootTsdown}`, {
             cwd: destPkg,
             stdio: 'inherit',
             env: { ...process.env, NODE_ENV: '' },
