@@ -1,4 +1,4 @@
-СТАНДАРТНАЯ ОБЩЕСТВЕННАЯ ЛИЦЕНЗИЯ GNU (GNU GENERAL PUBLIC LICENSE)
+﻿СТАНДАРТНАЯ ОБЩЕСТВЕННАЯ ЛИЦЕНЗИЯ GNU (GNU GENERAL PUBLIC LICENSE)
 
 Версия 3, 29 июня 2007 г.
 
