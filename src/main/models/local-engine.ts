@@ -441,6 +441,17 @@ export async function startLocalEngine(
   const next = JSON.parse(JSON.stringify(currentConfig)) as OpenClawConfig
   next.models = next.models ?? { providers: {} }
   next.models.providers = next.models.providers ?? {}
+  // Small local models cannot afford the default compaction reserve (half the
+  // context window): a 16k window would leave ~6k tokens for the prompt and
+  // overflow as soon as the chat history grows. Cap the reserve explicitly.
+  next.agents = next.agents ?? { defaults: {} }
+  next.agents.defaults = next.agents.defaults ?? {}
+  next.agents.defaults.compaction = next.agents.defaults.compaction ?? {}
+  if (
+    typeof next.agents.defaults.compaction.reserveTokensFloor !== 'number'
+  ) {
+    next.agents.defaults.compaction.reserveTokensFloor = 3072
+  }
   const existing = next.models.providers.local
   const existingModel =
     Array.isArray(existing?.models) && existing.models.length > 0

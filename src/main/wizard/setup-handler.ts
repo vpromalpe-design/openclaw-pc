@@ -374,6 +374,12 @@ function ensureProviderSeedConfig(config: OpenClawConfig, state: WizardState): v
     const modelRef = `local/${modelId}`
     config.agents = config.agents ?? {}
     config.agents.defaults = config.agents.defaults ?? {}
+    // Small local models can't afford the default compaction reserve (half the
+    // context window) — cap it so the chat history fits inside n_ctx.
+    config.agents.defaults.compaction = config.agents.defaults.compaction ?? {}
+    if (typeof config.agents.defaults.compaction.reserveTokensFloor !== 'number') {
+      config.agents.defaults.compaction.reserveTokensFloor = 3072
+    }
     config.agents.defaults.models = {
       ...(config.agents.defaults.models ?? {}),
       [modelRef]: {

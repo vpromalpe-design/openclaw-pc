@@ -122,6 +122,12 @@ export interface AgentDefaultsConfig {
   workspace?: string
   /** Default thinking level for reasoning-capable models (off | minimal | low | medium | high | xhigh | adaptive | max) */
   thinkingDefault?: string
+  /** Auto-compaction tuning (small local models need a low reserve) */
+  compaction?: {
+    /** Minimum token reserve kept after compaction; default is ~half the context window */
+    reserveTokensFloor?: number
+    [key: string]: unknown
+  }
 }
 
 /** Single agent entry (OpenClaw `agents.list[]`; multi-agent routing) */
