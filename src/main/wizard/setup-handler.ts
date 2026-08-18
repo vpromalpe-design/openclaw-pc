@@ -307,7 +307,7 @@ function buildDefaultProviderModel(modelId: string): Record<string, unknown> & {
     reasoning: false,
     input: ['text'],
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    contextWindow: 12288,
+    contextWindow: 30720,
     maxTokens: 2048,
     // llama.cpp rejects OpenAI tool payloads whose JSON schemas use bare
     // regex `pattern` (400: "Pattern must start with '^' and end with '$'").
