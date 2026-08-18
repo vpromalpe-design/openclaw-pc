@@ -154,13 +154,11 @@ module.exports = {
     displayLanguageSelector: true,
     multiLanguageInstaller: true,
     installerLanguages: ['en_US', 'ru_RU', 'zh_CN', 'zh_TW'],
-    // Per-locale license pages (files must be UTF-8; NSIS converts to UTF-16LE)
-    license: {
-      en_US: 'resources/license_en.txt',
-      ru_RU: 'resources/license_ru.txt',
-      zh_CN: 'resources/license_zh_CN.txt',
-      zh_TW: 'resources/license_zh_TW.txt',
-    },
+    // Per-locale license pages (files must be UTF-8; NSIS converts to UTF-16LE).
+    // electron-builder schema: nsis.license is a single string; multilingual
+    // variants are picked automatically by lang postfix in the same dir
+    // (license_ru.txt, license_zh*.txt), see electron-builder NSIS docs.
+    license: 'resources/license_en.txt',
     // Use zip container for faster extraction on large bundled resources.
     useZip: fastInstallerMode,
     // Differential package is not used in our current release flow.
