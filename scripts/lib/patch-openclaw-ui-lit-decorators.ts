@@ -7,7 +7,7 @@
 import { readFile, writeFile, access } from 'node:fs/promises'
 import { join } from 'node:path'
 
-const VITE_PATCH_SENTINEL = 'openclaw-desktop-lit-decorators'
+const VITE_PATCH_SENTINEL = 'openclaw-pc-lit-decorators'
 
 const DEFAULT_UI_TSCONFIG = {
   compilerOptions: {

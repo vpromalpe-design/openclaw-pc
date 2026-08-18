@@ -456,6 +456,11 @@ export async function startLocalEngine(
         ...(existingModel ?? {}),
         id: existingModel?.id ?? model.id,
         name: existingModel?.name ?? model.id,
+        // Real engine limits (-c 16384): context window + max output tokens
+        // must fit inside the server's n_ctx or llama-server answers 400
+        // "Context size has been exceeded" once the chat history grows.
+        contextWindow: 12288,
+        maxTokens: 2048,
         // llama.cpp cannot parse OpenAI tool schemas (bare `pattern` regexes
         // fail JSON-schema→grammar conversion with HTTP 400), so local GGUF
         // models must run without tools.
@@ -476,7 +481,7 @@ export async function startLocalEngine(
       String(LOCAL_ENGINE_PORT),
       '--no-ui',
       '-c',
-      '8192',
+      '16384',
       '--log-file',
       path.join(engineDir(), 'server.log'),
     ],

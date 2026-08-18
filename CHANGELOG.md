@@ -13,6 +13,7 @@ All notable changes to OpenClaw Desktop will be documented in this file.
 
 - **Local agents failed with `provider rejected the request schema or tool payload`** (field report 2026-08-18): llama.cpp rejects OpenAI tool schemas whose regex `pattern` lacks `^`/`$` anchors (HTTP 400 during JSON-schema→grammar conversion). The `local` provider now registers with `compat.supportsTools: false` — local GGUF models run tool-free and reply normally. Applied both in the wizard-generated config and in the engine's provider registration.
 - Engine now starts with `-c 8192` (bounded KV context) and writes `server.log` for diagnostics; deprecated `--no-webui` replaced with `--no-ui`.
+- **Local agents failed with `Context size has been exceeded`** (field report 2026-08-18): the `local` model advertised `contextWindow: 128000` while the engine ran with `-c 8192`, so llama-server rejected chats whose history exceeded the real limit. The engine now starts with `-c 16384` and the provider model is written as `contextWindow: 12288` / `maxTokens: 2048` (input + output fit inside n_ctx) in both the wizard and engine registration.
 - The engine no longer overwrites an existing `local` provider entry: configured model id/name (and any custom fields) are preserved, so a set primary like `local/qwen2.5-1.5b` keeps resolving.
 
 ## [0.8.7] - 2026-08-17

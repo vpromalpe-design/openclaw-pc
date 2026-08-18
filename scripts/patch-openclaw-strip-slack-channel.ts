@@ -26,7 +26,7 @@ import { basename, join } from 'node:path'
  * sending a response (prevents ERR_HTTP_HEADERS_SENT in subsequent stages).
  */
 const NOOP_SURFACE = `
-// /* openclaw-desktop: slack stripped — no-op surface (extension removed from bundle) */
+// /* openclaw-pc: slack stripped — no-op surface (extension removed from bundle) */
 const buildSlackThreadingToolContext=()=>{};
 const createSlackWebClient=()=>({});
 const deleteSlackMessage=async()=>null;
@@ -85,7 +85,7 @@ export async function patchOpenClawStripSlackChannel(openclawRoot: string): Prom
     let raw = await readFile(filePath, 'utf8')
 
     // Skip if already patched
-    const patchedMarker = '/* openclaw-desktop: slack stripped from channel order */'
+    const patchedMarker = '/* openclaw-pc: slack stripped from channel order */'
     if (raw.includes(patchedMarker)) continue
 
     // Match the hardcoded CHAT_CHANNEL_ORDER array and remove "slack"
