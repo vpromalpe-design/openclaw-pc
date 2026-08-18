@@ -39,12 +39,12 @@ nsis:
   multiLanguageInstaller: true
   installerLanguages:
     - en_US
+    - ru_RU
     - zh_CN
     - zh_TW
   installerIcon: resources/icon.ico
   uninstallerIcon: resources/icon.ico
   installerSidebar: resources/installer/installer-sidebar.bmp
-  license: resources/installer/license.txt
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: OpenClaw Desktop
