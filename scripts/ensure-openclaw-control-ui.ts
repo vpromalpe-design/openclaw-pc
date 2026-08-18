@@ -34,6 +34,7 @@ import { promisify } from 'node:util'
 const execFileAsync = promisify(execFile)
 import { transpileControlUiForElectronEmbedded } from './lib/transpile-control-ui-for-electron.ts'
 import { applyOpenClawUiLitDecoratorCompatPatches } from './lib/patch-openclaw-ui-lit-decorators.ts'
+import { applyOpenClawUiSidebarDesktopPatches } from './lib/patch-openclaw-ui-sidebar.ts'
 
 /** Written after GitHub UI build so cached installs can detect pre-npm / legacy bundles. */
 export const CONTROL_UI_ELECTRON_LIT_MARKER = '.electron-lit-compat-v1'
@@ -575,6 +576,9 @@ export async function downloadAndBuildOpenClawControlUiAt(
     await cp(scriptSrc, scriptDest)
 
     await applyOpenClawUiLitDecoratorCompatPatches(uiDest)
+
+    // OpenClaw PC: flat sidebar (no collapsed More), Sessions on top, Models bridge item.
+    await applyOpenClawUiSidebarDesktopPatches(uiDest)
 
     // OpenClaw 2026.7.1+ ui/ depends on workspace packages (@openclaw/media-core,
     // @openclaw/normalization-core) via pnpm `workspace:*` and imports repo packages by

@@ -695,7 +695,8 @@
       "presetSmallDesc": "~1.1 GB · balanced speed/quality",
       "presetMedium": "Qwen 2.5 3B (Medium)",
       "presetMediumDesc": "~1.9 GB · best quality on CPU",
-      "downloading": "Downloading… {{percent}}%"
+      "downloading": "Downloading… {{percent}}%",
+      "title": "Models"
     }
   }
 }

@@ -337,6 +337,9 @@
       "error": "エラー",
       "loadingVersions": "バージョン情報を読み込み中…",
       "comingSoon": "近日公開"
+    },
+    "models": {
+      "title": "モデル"
     }
   }
 }

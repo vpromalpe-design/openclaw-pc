@@ -337,6 +337,9 @@
       "error": "Error",
       "loadingVersions": "Cargando info de versiones…",
       "comingSoon": "Próximamente"
+    },
+    "models": {
+      "title": "Modelos"
     }
   }
 }

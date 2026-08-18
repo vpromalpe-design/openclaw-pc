@@ -337,6 +337,9 @@
       "error": "오류",
       "loadingVersions": "버전 정보 로드 중…",
       "comingSoon": "곧 출시"
+    },
+    "models": {
+      "title": "모델"
     }
   }
 }

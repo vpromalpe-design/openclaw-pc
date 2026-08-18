@@ -13,6 +13,7 @@ const VALID_HASH_PANELS = new Set<string>([
   'settings',
   'about',
   'dashboard',
+  'models',
   'llm-api',
   'skills',
   'updates',
@@ -66,6 +67,21 @@ function App() {
     setRoute(panel)
   }, [])
 
+  // Control UI (iframe) → shell bridge: sidebar "Models" item posts a message,
+  // we open the desktop Models panel on top of the Control UI.
+  useEffect(() => {
+    if (configExists !== true) return
+    const onBridgeMessage = (event: MessageEvent) => {
+      const data = event.data as { type?: string; panel?: string } | undefined
+      if (data?.type !== 'openclaw-pc:open-panel') return
+      const panel = normalizeShellRoute(String(data.panel ?? ''))
+      if (!panel) return
+      handlePanelChange(panel as EmbeddedPanel)
+    }
+    window.addEventListener('message', onBridgeMessage)
+    return () => window.removeEventListener('message', onBridgeMessage)
+  }, [configExists, handlePanelChange])
+
   /** Native title + document.title: wizard uses app name only (no「设置向导」in title bar). */
   useEffect(() => {
     if (route === null || configExists === null) {
@@ -80,6 +96,7 @@ function App() {
       const panelTitles: Record<string, string> = {
         '': t('shell.dashboard.title'),
         dashboard: t('shell.dashboard.title'),
+        models: t('shell.models.title'),
         settings: t('shell.settings.title'),
         about: t('shell.about.title'),
         'llm-api': t('shell.dashboard.llmApi'),
@@ -111,6 +128,7 @@ function App() {
       route === 'settings' ||
       route === 'about' ||
       route === 'dashboard' ||
+      route === 'models' ||
       route === 'llm-api' ||
       route === 'skills' ||
       route === 'updates' ||

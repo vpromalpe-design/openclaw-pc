@@ -623,6 +623,9 @@
       "error": "错误",
       "loadingVersions": "正在加载版本信息…",
       "comingSoon": "即将推出"
+    },
+    "models": {
+      "title": "模型"
     }
   }
 }
