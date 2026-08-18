@@ -4,6 +4,17 @@ All notable changes to OpenClaw Desktop will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Local engine auto-start on app launch**: when the primary agent model is `local/*`, the llama.cpp engine now starts itself (no manual button needed after reboot).
+- **Engine state adoption**: if `llama-server` is already listening on `127.0.0.1:18788` (e.g. started manually), the app adopts it instead of spawning a second server.
+
+### Fixed
+
+- **Local agents failed with `provider rejected the request schema or tool payload`** (field report 2026-08-18): llama.cpp rejects OpenAI tool schemas whose regex `pattern` lacks `^`/`$` anchors (HTTP 400 during JSON-schema→grammar conversion). The `local` provider now registers with `compat.supportsTools: false` — local GGUF models run tool-free and reply normally. Applied both in the wizard-generated config and in the engine's provider registration.
+- Engine now starts with `-c 8192` (bounded KV context) and writes `server.log` for diagnostics; deprecated `--no-webui` replaced with `--no-ui`.
+- The engine no longer overwrites an existing `local` provider entry: configured model id/name (and any custom fields) are preserved, so a set primary like `local/qwen2.5-1.5b` keeps resolving.
+
 ## [0.8.7] - 2026-08-17
 
 ### Added

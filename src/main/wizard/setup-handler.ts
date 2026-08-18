@@ -309,6 +309,10 @@ function buildDefaultProviderModel(modelId: string): Record<string, unknown> & {
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 128000,
     maxTokens: 8192,
+    // llama.cpp rejects OpenAI tool payloads whose JSON schemas use bare
+    // regex `pattern` (400: "Pattern must start with '^' and end with '$'").
+    // Local GGUF models run without tools; the agent replies in plain text.
+    compat: { supportsTools: false },
   }
 }
 

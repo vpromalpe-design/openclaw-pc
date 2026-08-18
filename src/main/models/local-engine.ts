@@ -419,6 +419,13 @@ export async function startLocalEngine(
   if (engineState.running) {
     return { ...engineState }
   }
+  // Already serving on the port? (e.g. started manually, or by a previous
+  // app instance whose state we lost) — adopt it instead of double-spawning.
+  const alreadyUp = await waitForHealth(LOCAL_ENGINE_PORT, 5_000)
+  if (alreadyUp) {
+    engineState = { running: true, port: LOCAL_ENGINE_PORT, modelId }
+    return { ...engineState }
+  }
   const model = listLocalModels().find(
     (m) => m.id === modelId || m.fileName.replace(/\.gguf$/i, '') === modelId,
   )
@@ -429,14 +436,32 @@ export async function startLocalEngine(
   const serverPath = await ensureEngineBinary()
 
   // Register the `local` provider so the gateway can reach the engine.
+  // Merge with an existing provider entry and keep the configured model id,
+  // so a previously set primary (e.g. local/qwen2.5-1.5b) keeps resolving.
   const next = JSON.parse(JSON.stringify(currentConfig)) as OpenClawConfig
   next.models = next.models ?? { providers: {} }
   next.models.providers = next.models.providers ?? {}
+  const existing = next.models.providers.local
+  const existingModel =
+    Array.isArray(existing?.models) && existing.models.length > 0
+      ? existing.models[0]
+      : undefined
   next.models.providers.local = {
+    ...(existing ?? {}),
     baseUrl: `http://127.0.0.1:${LOCAL_ENGINE_PORT}/v1`,
     api: 'openai-completions',
-    apiKey: '',
-    models: [{ id: model.fileName.replace(/\.gguf$/i, ''), name: model.fileName }],
+    apiKey: existing?.apiKey ?? '',
+    models: [
+      {
+        ...(existingModel ?? {}),
+        id: existingModel?.id ?? model.id,
+        name: existingModel?.name ?? model.id,
+        // llama.cpp cannot parse OpenAI tool schemas (bare `pattern` regexes
+        // fail JSON-schema→grammar conversion with HTTP 400), so local GGUF
+        // models must run without tools.
+        compat: { supportsTools: false },
+      },
+    ],
   }
   writeConfig(next)
 
@@ -449,7 +474,11 @@ export async function startLocalEngine(
       '127.0.0.1',
       '--port',
       String(LOCAL_ENGINE_PORT),
-      '--no-webui',
+      '--no-ui',
+      '-c',
+      '8192',
+      '--log-file',
+      path.join(engineDir(), 'server.log'),
     ],
     { windowsHide: true, stdio: 'ignore' },
   )
@@ -490,6 +519,29 @@ export function stopLocalEngine(): boolean {
   const wasRunning = engineState.running
   engineState = { running: false, port: LOCAL_ENGINE_PORT, modelId: null }
   return wasRunning
+}
+
+/**
+ * Auto-start the local engine on app launch when the primary agent model is a
+ * `local/*` GGUF. Failures are swallowed (logged via return value) so a broken
+ * local setup never blocks app startup; the Models panel still shows state.
+ */
+export async function maybeAutoStartLocalEngine(
+  readConfig: () => OpenClawConfig | null,
+  writeConfig: (c: OpenClawConfig) => void,
+): Promise<void> {
+  try {
+    const config = readConfig()
+    if (!config) return
+    const modelCfg = config?.agents?.defaults?.model
+    const primary =
+      typeof modelCfg === 'string' ? modelCfg : modelCfg?.primary
+    if (!primary || !primary.startsWith('local/')) return
+    const modelId = primary.slice('local/'.length)
+    await startLocalEngine(modelId, config, writeConfig)
+  } catch {
+    /* non-fatal: engine stays off, Models panel shows the error state */
+  }
 }
 
 export { formatBytes }

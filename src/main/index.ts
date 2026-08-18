@@ -40,6 +40,7 @@ import { startBackgroundUpdateCheck, stopBackgroundUpdateCheck } from './update/
 import { parseGatewayLogLine } from './logs/index.js'
 import { migrateAuthProfilesIfNeeded } from './wizard/index.js'
 import { listAuthProfiles } from './providers/index.js'
+import { maybeAutoStartLocalEngine } from './models/local-engine.js'
 import { syncLoginItemToSystem, getLoginItemOpenAtLogin, clearLoginItem } from './login-item/index.js'
 import { patchGatewayResponseHeaders } from './security/gateway-response-headers.js'
 import { rewriteGatewayRequestUrlWithToken } from './security/gateway-request-auth.js'
@@ -328,6 +329,17 @@ app.whenReady().then(() => {
   // 4. Main window (packaged: loadFile from asar.unpacked renderer to avoid blank screen)
   logInfo('[OpenClaw] Creating main window...')
   windowManager.createMainWindow()
+
+  // 4.5 Auto-start the local GGUF engine when the primary agent model is local/*
+  // (after IPC wiring so writeConfig/readConfig deps are live; failures are
+  // non-fatal and surface in the Models panel instead of blocking startup).
+  void maybeAutoStartLocalEngine(
+    () => readOpenClawConfig(),
+    (c) => {
+      writeOpenClawConfig(c)
+      readOpenClawConfig()
+    },
+  )
   logInfo('[OpenClaw] Main window created.')
 
   // 4.5 Post-update validation if .post-update-pending marker exists
