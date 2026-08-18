@@ -6,7 +6,8 @@ All notable changes to OpenClaw Desktop will be documented in this file.
 
 ### Changed
 
-- **Local model presets reworked**: the 1.5B preset is gone; three picks remain — **Normal** (Qwen 2.5 0.5B, always works), **Hard** (Qwen 2.5 3B, best quality) and **Experimental** (same Hard model, but with tool calling enabled — llama.cpp may reject some tool schemas, opt-in by design). The wizard and the Models page show an `Experimental` badge on the third preset.
+- **Local model presets reworked to Qwen 3.5**: **Normal** (Qwen 3.5 4B, runs on any PC), **Hard** (Qwen 3.5 9B, best quality) and **Experimental** (same 9B model, but with tool calling enabled — llama.cpp may reject some tool schemas, opt-in by design). The wizard and the Models page show an `Experimental` badge on the third preset. GGUF files are fetched straight from the Ollama registry (official model blobs are plain GGUF).
+- **Add a model from disk**: new "From disk…" button in the wizard and on the Models page opens a file picker for a local `.gguf` file and copies it into the models folder (previously only a download URL was supported).
 - **Brand accent**: wizard/settings accent switched from orange (`#FF4500`) to the official OpenClaw coral palette — deep wine red `#9C3222` (light) / `#C24028` (dark).
 - **Wizard no longer disables tools for API providers**: `compat.supportsTools: false` and the 32k local context window are now applied only to the `local` provider (previously `buildDefaultProviderModel` forced them on DeepSeek/cloudflare/custom too, silently disabling tools for cloud models).
 

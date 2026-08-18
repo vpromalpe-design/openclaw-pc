@@ -95,10 +95,11 @@
       "localNote": "The model runs fully offline on this PC via the built-in llama.cpp engine. Download it now, or later from the Models page.",
       "badCustomUrl": "The URL must point to a .gguf file",
       "downloadFailed": "Download failed",
-      "localNormal": "Qwen 2.5 0.5B (Normal)",
-      "localHard": "Qwen 2.5 3B (Hard)",
-      "localExperimental": "Qwen 2.5 3B (Experimental)",
-      "experimentalBadge": "Experimental"
+      "localNormal": "Qwen 3.5 4B (Normal)",
+      "localHard": "Qwen 3.5 9B (Hard)",
+      "localExperimental": "Qwen 3.5 9B (Experimental)",
+      "experimentalBadge": "Experimental",
+      "pickFile": "From disk…"
     },
     "models": {
       "loadFailed": "Failed to load models",
@@ -696,13 +697,14 @@
       "addCustom": "Add",
       "downloading": "Downloading… {{percent}}%",
       "title": "Models",
-      "presetNormal": "Qwen 2.5 0.5B (Normal)",
-      "presetNormalDesc": "~470 MB · fastest, runs on any PC",
-      "presetHard": "Qwen 2.5 3B (Hard)",
-      "presetHardDesc": "~1.9 GB · best quality on CPU",
-      "presetExperimental": "Qwen 2.5 3B (Experimental)",
-      "presetExperimentalDesc": "~1.9 GB · same Hard model, but with tool calling enabled",
-      "experimentalBadge": "Experimental"
+      "presetNormal": "Qwen 3.5 4B (Normal)",
+      "presetNormalDesc": "~3.2 GB · fastest, runs on any PC",
+      "presetHard": "Qwen 3.5 9B (Hard)",
+      "presetHardDesc": "~6.1 GB · best quality on CPU",
+      "presetExperimental": "Qwen 3.5 9B (Experimental)",
+      "presetExperimentalDesc": "~6.1 GB · same Hard model, but with tool calling enabled",
+      "experimentalBadge": "Experimental",
+      "pickFile": "From disk…"
     }
   }
 }

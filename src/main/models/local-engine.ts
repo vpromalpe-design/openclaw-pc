@@ -37,35 +37,38 @@ export interface LocalModelPreset {
 }
 
 /**
- * Preinstalled GGUF picks (CPU-friendly sizes, stable HuggingFace URLs):
- * Normal (0.5B, always works), Hard (3B, best quality) and an experimental
- * Hard preset with tool calling enabled — llama.cpp may reject OpenClaw's
- * tool schemas, so it is opt-in and clearly labelled.
+ * Preinstalled GGUF picks (CPU-friendly sizes, stable URLs):
+ * Normal (Qwen 3.5 4B, runs on any PC), Hard (Qwen 3.5 9B, best quality)
+ * and an experimental Hard preset with tool calling enabled — llama.cpp may
+ * reject OpenClaw's tool schemas, so it is opt-in and clearly labelled.
+ *
+ * Qwen 3.5 ships as Ollama manifests; the model layer blobs are plain GGUF
+ * files, served straight from the Ollama registry (no login required).
  */
 export const LOCAL_MODEL_PRESETS: LocalModelPreset[] = [
   {
-    id: 'qwen2.5-0.5b',
-    name: 'Qwen 2.5 0.5B (Normal)',
-    fileName: 'qwen2.5-0.5b-instruct-q8_0.gguf',
-    url: 'https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q8_0.gguf',
-    sizeBytes: 495_000_000,
-    description: '~470 MB · fastest, runs on any PC',
+    id: 'qwen3.5-4b',
+    name: 'Qwen 3.5 4B (Normal)',
+    fileName: 'qwen3.5-4b-instruct-q4_k_m.gguf',
+    url: 'https://registry.ollama.ai/v2/library/qwen3.5/blobs/sha256:81fb60c7daa80fc1123380b98970b320ae233409f0f71a72ed7b9b0d62f40490',
+    sizeBytes: 3_389_971_840,
+    description: '~3.2 GB · fastest, runs on any PC',
   },
   {
-    id: 'qwen2.5-3b',
-    name: 'Qwen 2.5 3B (Hard)',
-    fileName: 'qwen2.5-3b-instruct-q4_k_m.gguf',
-    url: 'https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf',
-    sizeBytes: 1_950_000_000,
-    description: '~1.9 GB · best quality on CPU',
+    id: 'qwen3.5-9b',
+    name: 'Qwen 3.5 9B (Hard)',
+    fileName: 'qwen3.5-9b-instruct-q4_k_m.gguf',
+    url: 'https://registry.ollama.ai/v2/library/qwen3.5/blobs/sha256:dec52a44569a2a25341c4e4d3fee25846eed4f6f0b936278e3a3c900bb99d37c',
+    sizeBytes: 6_594_462_816,
+    description: '~6.1 GB · best quality on CPU',
   },
   {
-    id: 'qwen2.5-3b-experimental',
-    name: 'Qwen 2.5 3B (Experimental)',
-    fileName: 'qwen2.5-3b-instruct-q4_k_m.gguf',
-    url: 'https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf',
-    sizeBytes: 1_950_000_000,
-    description: '~1.9 GB · same Hard model, but with tool calling enabled',
+    id: 'qwen3.5-9b-experimental',
+    name: 'Qwen 3.5 9B (Experimental)',
+    fileName: 'qwen3.5-9b-instruct-q4_k_m.gguf',
+    url: 'https://registry.ollama.ai/v2/library/qwen3.5/blobs/sha256:dec52a44569a2a25341c4e4d3fee25846eed4f6f0b936278e3a3c900bb99d37c',
+    sizeBytes: 6_594_462_816,
+    description: '~6.1 GB · same Hard model, but with tool calling enabled',
     experimental: true,
     supportsTools: true,
   },
@@ -92,7 +95,7 @@ function emitProgress(payload: unknown): void {
   if (sendProgress) sendProgress(IPC_LOCAL_PROGRESS, payload)
 }
 
-function modelsDir(): string {
+export function modelsDir(): string {
   const dir = path.join(getUserDataDir(), 'models')
   fs.mkdirSync(dir, { recursive: true })
   return dir
@@ -519,7 +522,7 @@ export async function startLocalEngine(
 
   // Register the `local` provider so the gateway can reach the engine.
   // Merge with an existing provider entry and keep the configured model id,
-  // so a previously set primary (e.g. local/qwen2.5-0.5b) keeps resolving.
+  // so a previously set primary (e.g. local/qwen3.5-4b) keeps resolving.
   const next = JSON.parse(JSON.stringify(currentConfig)) as OpenClawConfig
   next.models = next.models ?? { providers: {} }
   next.models.providers = next.models.providers ?? {}

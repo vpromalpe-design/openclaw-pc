@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Cpu,
   Download,
+  FolderOpen,
   Loader2,
   Play,
   Plus,
@@ -29,7 +30,7 @@ export interface ModelsViewProps {
   onBack?: () => void
 }
 
-const PRESET_IDS = ['qwen2.5-0.5b', 'qwen2.5-3b', 'qwen2.5-3b-experimental']
+const PRESET_IDS = ['qwen3.5-4b', 'qwen3.5-9b', 'qwen3.5-9b-experimental']
 
 function statusLabel(
   status: ModelTableEntry['status'],
@@ -165,6 +166,22 @@ export function ModelsView({ onBack }: ModelsViewProps) {
       setError(e instanceof Error ? e.message : t('shell.models.downloadFailed'))
     } finally {
       setAddingCustom(false)
+    }
+  }
+
+  const handlePickFile = async () => {
+    setError(null)
+    try {
+      const res = (await window.electronAPI.localPickFile()) as { path: string } | null
+      if (!res) return
+      const added = (await window.electronAPI.localAdd({ path: res.path })) as {
+        custom?: { id: string }
+      }
+      if (!added.custom?.id) throw new Error(t('shell.models.badCustomUrl'))
+      setCustomUrl('')
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('shell.models.downloadFailed'))
     }
   }
 
@@ -344,7 +361,7 @@ export function ModelsView({ onBack }: ModelsViewProps) {
                   <div className="min-w-0">
                     <p className="text-sm font-medium">
                       {presetName(presetId, t)}
-                      {presetId === 'qwen2.5-3b-experimental' && (
+                      {presetId.endsWith('-experimental') && (
                         <span className="ml-2 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
                           {t('shell.models.experimentalBadge')}
                         </span>
@@ -419,6 +436,10 @@ export function ModelsView({ onBack }: ModelsViewProps) {
               {addingCustom ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Plus className="w-4 h-4 mr-1" />}
               {t('shell.models.addCustom')}
             </Button>
+            <Button variant="outline" size="sm" className="h-9 shrink-0" onClick={() => void handlePickFile()}>
+              <FolderOpen className="w-4 h-4 mr-1" aria-hidden />
+              {t('shell.models.pickFile')}
+            </Button>
           </div>
         </section>
 
@@ -439,11 +460,11 @@ export function ModelsView({ onBack }: ModelsViewProps) {
 
 function presetName(id: string, t: (key: string) => string): string {
   switch (id) {
-    case 'qwen2.5-0.5b':
+    case 'qwen3.5-4b':
       return t('shell.models.presetNormal')
-    case 'qwen2.5-3b':
+    case 'qwen3.5-9b':
       return t('shell.models.presetHard')
-    case 'qwen2.5-3b-experimental':
+    case 'qwen3.5-9b-experimental':
       return t('shell.models.presetExperimental')
     default:
       return id
@@ -452,11 +473,11 @@ function presetName(id: string, t: (key: string) => string): string {
 
 function presetDesc(id: string, t: (key: string) => string): string {
   switch (id) {
-    case 'qwen2.5-0.5b':
+    case 'qwen3.5-4b':
       return t('shell.models.presetNormalDesc')
-    case 'qwen2.5-3b':
+    case 'qwen3.5-9b':
       return t('shell.models.presetHardDesc')
-    case 'qwen2.5-3b-experimental':
+    case 'qwen3.5-9b-experimental':
       return t('shell.models.presetExperimentalDesc')
     default:
       return ''

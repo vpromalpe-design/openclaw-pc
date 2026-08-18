@@ -87,9 +87,9 @@
       "reasoningMedium": "Средне",
       "reasoningHigh": "Высоко",
       "selectLocalModel": "Выберите локальную модель",
-      "localNormal": "Qwen 2.5 0.5B (Normal)",
-      "localHard": "Qwen 2.5 3B (Hard)",
-      "localExperimental": "Qwen 2.5 3B (Experimental)",
+      "localNormal": "Qwen 3.5 4B (Normal)",
+      "localHard": "Qwen 3.5 9B (Hard)",
+      "localExperimental": "Qwen 3.5 9B (Experimental)",
       "experimentalBadge": "Experimental",
       "customGguf": "Своя модель (ссылка на GGUF)",
       "downloadModel": "Скачать модель",
@@ -98,7 +98,8 @@
       "localPicked": "Модель выбрана",
       "localNote": "Модель работает полностью офлайн на этом ПК через встроенный движок llama.cpp. Скачайте её сейчас или позже на странице «Модели».",
       "badCustomUrl": "Ссылка должна указывать на файл .gguf",
-      "downloadFailed": "Не удалось скачать"
+      "downloadFailed": "Не удалось скачать",
+      "pickFile": "С диска…"
     },
     "channel": {
       "title": "Настройка каналов",
@@ -357,15 +358,16 @@
       "badCustomUrl": "Ссылка должна указывать на файл .gguf",
       "customUrlPlaceholder": "https://…/model.gguf (ссылка на свою модель)",
       "addCustom": "Добавить",
-      "presetNormal": "Qwen 2.5 0.5B (Normal)",
-      "presetNormalDesc": "~470 МБ · самая быстрая, работает на любом ПК",
-      "presetHard": "Qwen 2.5 3B (Hard)",
-      "presetHardDesc": "~1.9 ГБ · лучшее качество на CPU",
-      "presetExperimental": "Qwen 2.5 3B (Experimental)",
-      "presetExperimentalDesc": "~1.9 ГБ · та же Hard-модель, но с включённым вызовом инструментов",
+      "presetNormal": "Qwen 3.5 4B (Normal)",
+      "presetNormalDesc": "~3.2 ГБ · самая быстрая, работает на любом ПК",
+      "presetHard": "Qwen 3.5 9B (Hard)",
+      "presetHardDesc": "~6.1 ГБ · лучшее качество на CPU",
+      "presetExperimental": "Qwen 3.5 9B (Experimental)",
+      "presetExperimentalDesc": "~6.1 ГБ · та же Hard-модель, но с включённым вызовом инструментов",
       "experimentalBadge": "Experimental",
       "downloading": "Скачивание… {{percent}}%",
-      "title": "Модели"
+      "title": "Модели",
+      "pickFile": "С диска…"
     },
     "feishu": {
       "title": "Настройки Feishu",

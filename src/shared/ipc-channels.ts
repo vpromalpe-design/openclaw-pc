@@ -176,8 +176,11 @@ export const IPC_MODELS_VIEW_APPLY = 'models:viewApply' as const
 /** Local models: list downloaded GGUF + engine state */
 export const IPC_LOCAL_LIST = 'local:list' as const
 
-/** Local models: add (preset or custom URL) */
+/** Local models: add (preset, custom URL or local file) */
 export const IPC_LOCAL_ADD = 'local:add' as const
+
+/** Local models: pick a .gguf file from disk */
+export const IPC_LOCAL_PICK_FILE = 'local:pickFile' as const
 
 /** Local models: remove */
 export const IPC_LOCAL_REMOVE = 'local:remove' as const
@@ -306,6 +309,7 @@ export const IPC_INVOKE_CHANNELS = [
   IPC_MODELS_VIEW_APPLY,
   IPC_LOCAL_LIST,
   IPC_LOCAL_ADD,
+  IPC_LOCAL_PICK_FILE,
   IPC_LOCAL_REMOVE,
   IPC_LOCAL_DOWNLOAD_START,
   IPC_LOCAL_DOWNLOAD_CANCEL,

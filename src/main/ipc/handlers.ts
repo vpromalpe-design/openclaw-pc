@@ -1,4 +1,4 @@
-import { app, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import type { GatewayProcessManager } from '../gateway/index.js'
 import type {
   OpenClawConfig,
@@ -21,8 +21,9 @@ import {
 } from '../wizard/setup-handler.js'
 import { inferModelConfigFromOpenClaw, listAgentSummariesFromConfig } from '../wizard/model-settings-load.js'
 import fs from 'node:fs'
+import path from 'node:path'
 import type { ModelsViewResult } from '../../shared/types.js'
-import { LOCAL_MODEL_PRESETS } from '../models/local-engine.js'
+import { LOCAL_MODEL_PRESETS, modelsDir } from '../models/local-engine.js'
 import { DEFAULT_GATEWAY_PORT } from '../../shared/constants.js'
 import {
   IPC_GATEWAY_START,
@@ -61,6 +62,7 @@ import {
   IPC_MODELS_VIEW_APPLY,
   IPC_LOCAL_LIST,
   IPC_LOCAL_ADD,
+  IPC_LOCAL_PICK_FILE,
   IPC_LOCAL_REMOVE,
   IPC_LOCAL_DOWNLOAD_START,
   IPC_LOCAL_DOWNLOAD_CANCEL,
@@ -859,6 +861,7 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
       const raw = validatePlainObject(payload, 'local:add')
       const presetId = typeof raw.presetId === 'string' ? raw.presetId : undefined
       const url = typeof raw.url === 'string' && raw.url.trim() ? raw.url.trim() : undefined
+      const filePath = typeof raw.path === 'string' && raw.path.trim() ? raw.path.trim() : undefined
       if (presetId) {
         const preset = LOCAL_MODEL_PRESETS.find((p) => p.id === presetId)
         if (!preset) throw new Error(`Unknown local preset: ${presetId}`)
@@ -879,7 +882,52 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
           },
         }
       }
-      throw new Error('Provide presetId or url')
+      // Local file: copy it into the models dir so the engine can load it.
+      if (filePath) {
+        const fileName = path.basename(filePath)
+        if (!fileName.toLowerCase().endsWith('.gguf')) {
+          throw new Error('Selected file must be a .gguf model')
+        }
+        if (!fs.existsSync(filePath)) {
+          throw new Error(`File not found: ${fileName}`)
+        }
+        const destDir = modelsDir()
+        fs.mkdirSync(destDir, { recursive: true })
+        const dest = path.join(destDir, fileName)
+        if (path.resolve(filePath) !== path.resolve(dest)) {
+          fs.copyFileSync(filePath, dest)
+        }
+        let size = 0
+        try {
+          size = fs.statSync(dest).size
+        } catch {
+          /* ignore */
+        }
+        return {
+          custom: {
+            id: fileName.replace(/\.gguf$/i, ''),
+            fileName,
+            url: '',
+            sizeBytes: size,
+            description: 'Local GGUF file',
+          },
+        }
+      }
+      throw new Error('Provide presetId, url or path')
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_LOCAL_PICK_FILE,
+    wrapHandler('LOCAL_PICK_FILE', async () => {
+      const win = BrowserWindow.getFocusedWindow() ?? undefined
+      const res = await dialog.showOpenDialog(win!, {
+        title: 'Select a GGUF model file',
+        properties: ['openFile'],
+        filters: [{ name: 'GGUF models', extensions: ['gguf'] }],
+      })
+      if (res.canceled || res.filePaths.length === 0) return null
+      return { path: res.filePaths[0] }
     }),
   )
 

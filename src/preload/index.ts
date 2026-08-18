@@ -41,6 +41,7 @@ import {
   IPC_MODELS_VIEW_APPLY,
   IPC_LOCAL_LIST,
   IPC_LOCAL_ADD,
+  IPC_LOCAL_PICK_FILE,
   IPC_LOCAL_REMOVE,
   IPC_LOCAL_DOWNLOAD_START,
   IPC_LOCAL_DOWNLOAD_CANCEL,
@@ -170,7 +171,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   modelsViewApply: (payload: { primary: string | null; fallbacks: string[]; restart: boolean }) =>
     invoke(IPC_MODELS_VIEW_APPLY, payload),
   localList: () => invoke(IPC_LOCAL_LIST),
-  localAdd: (payload: { presetId?: string; url?: string }) => invoke(IPC_LOCAL_ADD, payload),
+  localAdd: (payload: { presetId?: string; url?: string; path?: string }) => invoke(IPC_LOCAL_ADD, payload),
+  localPickFile: () => invoke(IPC_LOCAL_PICK_FILE),
   localRemove: (payload: { id: string }) => invoke(IPC_LOCAL_REMOVE, payload),
   localDownloadStart: (payload: { modelId: string }) => invoke(IPC_LOCAL_DOWNLOAD_START, payload),
   localDownloadCancel: () => invoke(IPC_LOCAL_DOWNLOAD_CANCEL),

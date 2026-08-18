@@ -192,7 +192,8 @@ export interface ElectronAPI {
   modelsViewList: () => Promise<ModelsViewResult>
   modelsViewApply: (payload: ModelsViewApplyRequest) => Promise<{ ok: boolean; restarted: boolean; backupPath: string | null }>
   localList: () => Promise<{ localModels: LocalModelInfo[]; engineState: LocalEngineState }>
-  localAdd: (payload: { presetId?: string; url?: string }) => Promise<unknown>
+  localAdd: (payload: { presetId?: string; url?: string; path?: string }) => Promise<unknown>
+  localPickFile: () => Promise<{ path: string } | null>
   localRemove: (payload: { id: string }) => Promise<{ ok: boolean }>
   localDownloadStart: (payload: { modelId: string }) => Promise<{ ok: boolean }>
   localDownloadCancel: () => Promise<{ ok: boolean }>

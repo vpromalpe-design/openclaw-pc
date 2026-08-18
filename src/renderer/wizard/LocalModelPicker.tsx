@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Download, Loader2, CheckCircle2 } from 'lucide-react'
+import { Download, FolderOpen, Loader2, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -13,19 +13,19 @@ import {
 
 const LOCAL_PRESETS = [
   {
-    id: 'qwen2.5-0.5b',
+    id: 'qwen3.5-4b',
     labelKey: 'wizard.model.localNormal',
-    size: '~470 MB',
+    size: '~3.2 GB',
   },
   {
-    id: 'qwen2.5-3b',
+    id: 'qwen3.5-9b',
     labelKey: 'wizard.model.localHard',
-    size: '~1.9 GB',
+    size: '~6.1 GB',
   },
   {
-    id: 'qwen2.5-3b-experimental',
+    id: 'qwen3.5-9b-experimental',
     labelKey: 'wizard.model.localExperimental',
-    size: '~1.9 GB',
+    size: '~6.1 GB',
     experimental: true,
   },
 ]
@@ -75,6 +75,21 @@ export function LocalModelPicker({
       setProgress(null)
     } finally {
       setDownloading(false)
+    }
+  }
+
+  const handlePickFile = async () => {
+    try {
+      const res = (await window.electronAPI.localPickFile()) as { path: string } | null
+      if (!res) return
+      const added = (await window.electronAPI.localAdd({ path: res.path })) as {
+        custom?: { id: string }
+      }
+      const id = added.custom?.id
+      if (!id) throw new Error(t('wizard.model.badCustomUrl'))
+      onModelId(id)
+    } catch (e) {
+      onError(e instanceof Error ? e.message : t('wizard.model.downloadFailed'))
     }
   }
 
@@ -155,6 +170,15 @@ export function LocalModelPicker({
             {t('wizard.model.localPicked')}
           </span>
         )}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => void handlePickFile()}
+        >
+          <FolderOpen className="w-4 h-4 mr-1" aria-hidden />
+          {t('wizard.model.pickFile')}
+        </Button>
       </div>
       <p className="text-xs text-muted-foreground">{t('wizard.model.localNote')}</p>
     </div>
