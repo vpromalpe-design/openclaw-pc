@@ -352,7 +352,8 @@
       "presetSmall": "Qwen 2.5 1.5B (Компактная)",
       "presetSmallDesc": "~1.1 ГБ · баланс скорости и качества",
       "presetMedium": "Qwen 2.5 3B (Средняя)",
-      "presetMediumDesc": "~1.9 ГБ · лучшее качество на CPU"
+      "presetMediumDesc": "~1.9 ГБ · лучшее качество на CPU",
+      "downloading": "Скачивание… {{percent}}%"
     },
     "feishu": {
       "title": "Настройки Feishu",

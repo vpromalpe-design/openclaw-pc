@@ -344,11 +344,6 @@ export function ModelsView({ onBack }: ModelsViewProps) {
                   <div className="min-w-0">
                     <p className="text-sm font-medium">{presetName(presetId, t)}</p>
                     <p className="text-xs text-muted-foreground">{presetDesc(presetId, t)}</p>
-                    {downloading && (
-                      <div className="mt-1.5 h-1.5 w-full max-w-[240px] rounded-full bg-muted overflow-hidden">
-                        <div className="h-full bg-primary transition-all" style={{ width: `${Math.round(progress * 100)}%` }} />
-                      </div>
-                    )}
                     {model?.downloaded && (
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {formatBytes(model.sizeBytes)} · {t('shell.models.ready')}
@@ -363,8 +358,21 @@ export function ModelsView({ onBack }: ModelsViewProps) {
                       </Button>
                     )}
                     {downloading && (
-                      <Button variant="outline" size="sm" className="h-7" onClick={() => void window.electronAPI.localDownloadCancel()}>
-                        {t('shell.models.cancel')}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="relative overflow-hidden h-7 min-w-[150px] border-green-500/40 text-green-700 dark:text-green-300 hover:bg-green-500/10 hover:text-green-700 dark:hover:text-green-300"
+                        onClick={() => void window.electronAPI.localDownloadCancel()}
+                        title={t('shell.models.cancel')}
+                      >
+                        <span
+                          className="absolute inset-y-0 left-0 bg-green-500/25 dark:bg-green-500/30 transition-[width] duration-300"
+                          style={{ width: `${Math.min(100, Math.round(progress * 100))}%` }}
+                          aria-hidden
+                        />
+                        <span className="relative inline-flex items-center gap-1">
+                          {t('shell.models.downloading', { percent: Math.min(100, Math.round(progress * 100)) })}
+                        </span>
                       </Button>
                     )}
                     {model?.downloaded && (
