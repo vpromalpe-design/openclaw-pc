@@ -6,8 +6,8 @@
 <p align="center">龙虾智能体官方中文桌面版一键安装部署EXE程序</p>
 
 <p align="center">
-  <strong>Official-style Windows installer &amp; desktop app for <a href="https://github.com/openclaw/openclaw">OpenClaw</a>.</strong><br />
-  One-click install, bundled runtime, guided setup — run OpenClaw AI agents on Windows without touching a terminal.
+  <strong>Your private AI assistant, running entirely on your PC.</strong><br />
+  One-click install of <strong>local AI models</strong> that run 100% offline via the built-in llama.cpp engine — no cloud, no subscription, no data leaving your computer. Cloud providers (Anthropic, OpenAI, Google, DeepSeek…) also supported.
 </p>
 
 <p align="center">
@@ -41,7 +41,11 @@
 
 ## What is this?
 
-**OpenClaw PC** packages the OpenClaw runtime into a standard Windows install experience. Download one `.exe`, finish a setup wizard, and run OpenClaw from a native desktop shell — no manual wiring, no terminal required.
+**OpenClaw PC** packages the OpenClaw runtime into a standard Windows install experience, with **local AI models as the headline feature**: download one `.exe`, finish a setup wizard, and your assistant is up and running — completely offline if you want it to be.
+
+- 🖥️ **Local models first** — install open-source models (Qwen 2.5 GGUF) with one click; they run 100% on this PC via the bundled llama.cpp engine. Free, private, works without internet.
+- 🔌 **Cloud providers when you need them** — Anthropic, OpenAI, Google, DeepSeek and more, one-click API key setup.
+- 🤖 **Full AI agent runtime** — the OpenClaw gateway with Feishu, Telegram and other channels, all managed from a native desktop shell.
 
 If you've been searching for *how to install OpenClaw on Windows*, *how to run OpenClaw locally*, or an **OpenClaw Windows installer** with a GUI, this is it.
 

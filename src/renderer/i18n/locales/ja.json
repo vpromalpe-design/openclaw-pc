@@ -20,12 +20,12 @@
     },
     "welcome": {
       "title": "OpenClaw PC へようこそ",
-      "subtitle": "OpenClaw PC は AI アシスタントをネイティブ Windows アプリとしてパッケージし、インストールと設定を統合しています。このウィザードが初期設定を案内します。",
+      "subtitle": "あなた専用のプライベートAIアシスタント。完全にあなたのPC上で動作します。ローカルモデルをインストールすれば完全オフラインで動作——クラウド不要、サブスク不要、データはPCから出ません。",
       "startHint": "以下の「セットアップを開始」をクリックして開始",
       "features": {
         "model": {
-          "title": "AI モデル連携",
-          "description": "Anthropic、OpenAI、Google などの主要プロバイダーに対応。ワンクリックで API キーを設定。"
+          "title": "クラウドAIプロバイダー",
+          "description": "クラウドがお好みですか？Anthropic、OpenAI、Googleなどの主要プロバイダーにAPIキーをワンクリックで設定。"
         },
         "channel": {
           "title": "マルチチャネル対応",
@@ -38,6 +38,10 @@
         "ready": {
           "title": "すぐに使える",
           "description": "ウィザードで数分で設定完了。手動で設定ファイルを編集する必要はありません。"
+        },
+        "local": {
+          "title": "ローカルAIモデル",
+          "description": "オープンソースモデル（Qwen 2.5 GGUF）をワンクリックでインストール。内蔵のllama.cppエンジンでこのPC上で100%オフライン動作。無料でプライベート。"
         }
       }
     },
@@ -238,7 +242,8 @@
       "title": "バージョン情報",
       "shellVersion": "Shell バージョン",
       "viewOnGithub": "GitHub でプロジェクトを表示",
-      "fetchingVersions": "バージョン情報を取得中…"
+      "fetchingVersions": "バージョン情報を取得中…",
+      "localTagline": "プライベートAIアシスタント · ローカルモデルはこのPCで100%オフライン動作"
     },
     "updates": {
       "title": "更新とメンテナンス",

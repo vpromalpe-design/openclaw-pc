@@ -20,12 +20,12 @@
     },
     "welcome": {
       "title": "OpenClaw PC에 오신 것을 환영합니다",
-      "subtitle": "OpenClaw PC은 AI 어시스턴트를 네이티브 Windows 데스크톱 앱으로 패키지하며, 설치와 설정을 통합합니다. 이 마법사가 초기 구성을 안내합니다.",
+      "subtitle": "내 PC에서 완전히 실행되는 나만의 비공개 AI 어시스턴트. 로컬 모델을 설치하면 완전히 오프라인으로 작동합니다 — 클라우드 없음, 구독 없음, 데이터가 PC를 떠나지 않습니다.",
       "startHint": "아래의 \"설정 시작\"을 클릭하여 시작하세요",
       "features": {
         "model": {
-          "title": "AI 모델 연동",
-          "description": "Anthropic, OpenAI, Google 등 주요 제공업체 지원. 원클릭 API 키 설정."
+          "title": "클라우드 AI 공급자",
+          "description": "클라우드가 더 편한가요? Anthropic, OpenAI, Google 등 주요 공급자를 원클릭 API 키 설정으로 지원합니다."
         },
         "channel": {
           "title": "다중 채널 지원",
@@ -38,6 +38,10 @@
         "ready": {
           "title": "즉시 사용 가능",
           "description": "마법사로 몇 분 내 설정 완료. 설정 파일 수동 편집 불필요."
+        },
+        "local": {
+          "title": "로컬 AI 모델",
+          "description": "내장 llama.cpp 엔진으로 이 PC에서 100% 오프라인 실행되는 오픈소스 모델(Qwen 2.5 GGUF)을 원클릭 설치. 무료이고 비공개입니다."
         }
       }
     },
@@ -238,7 +242,8 @@
       "title": "정보",
       "shellVersion": "Shell 버전",
       "viewOnGithub": "GitHub에서 프로젝트 보기",
-      "fetchingVersions": "버전 정보 가져오는 중…"
+      "fetchingVersions": "버전 정보 가져오는 중…",
+      "localTagline": "비공개 AI 어시스턴트 · 로컬 모델이 이 PC에서 100% 오프라인으로 실행됩니다"
     },
     "updates": {
       "title": "업데이트 및 유지보수",

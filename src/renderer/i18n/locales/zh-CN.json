@@ -20,12 +20,12 @@
     },
     "welcome": {
       "title": "欢迎使用 OpenClaw 桌面版",
-      "subtitle": "OpenClaw 桌面版将 AI 助手打包为原生 Windows 桌面应用，集成了安装与配置流程。本向导将引导您完成初始配置。",
+      "subtitle": "您的私人 AI 助手，完全在您的电脑上运行。安装本地模型即可完全离线使用——无需云端、无需订阅、数据不会离开您的电脑。",
       "startHint": "点击下方「开始设置」以开始",
       "features": {
         "model": {
-          "title": "AI 模型集成",
-          "description": "支持 Anthropic、OpenAI、Google 等主流提供商，一键配置 API Key。"
+          "title": "云端 AI 服务商",
+          "description": "更倾向云端？支持 Anthropic、OpenAI、Google 等主流服务商，一键配置 API 密钥。"
         },
         "channel": {
           "title": "多通道支持",
@@ -38,6 +38,10 @@
         "ready": {
           "title": "开箱即用",
           "description": "向导式配置几分钟内完成，无需手动编辑配置文件。"
+        },
+        "local": {
+          "title": "本地 AI 模型",
+          "description": "一键安装开源模型（Qwen 2.5 GGUF），通过内置 llama.cpp 引擎在本机 100% 离线运行。免费且私密。"
         }
       }
     },
@@ -385,7 +389,8 @@
       "appNameTitle": "OpenClaw PC",
       "mainVersionAria": "主版本",
       "viewOnGithub": "在 GitHub 上查看项目",
-      "fetchingVersions": "正在获取版本信息…"
+      "fetchingVersions": "正在获取版本信息…",
+      "localTagline": "私人 AI 助手 · 本地模型在本机 100% 离线运行"
     },
     "llmApi": {
       "loading": "正在加载提供商与配置…",

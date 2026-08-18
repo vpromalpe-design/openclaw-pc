@@ -20,12 +20,12 @@
     },
     "welcome": {
       "title": "Welcome to OpenClaw PC",
-      "subtitle": "OpenClaw PC packages AI assistant as a native Windows desktop app with integrated installation and setup. This wizard will guide you through initial configuration.",
+      "subtitle": "Your private AI assistant, running entirely on your PC. Install local models that work fully offline — no cloud, no subscription, no data leaving your computer.",
       "startHint": "Click \"Start Setup\" below to begin",
       "features": {
         "model": {
-          "title": "AI Model Integration",
-          "description": "Support for Anthropic, OpenAI, Google and other major providers with one-click API key setup."
+          "title": "Cloud AI Providers",
+          "description": "Prefer the cloud? Anthropic, OpenAI, Google and other major providers with one-click API key setup."
         },
         "channel": {
           "title": "Multi-Channel Support",
@@ -38,6 +38,10 @@
         "ready": {
           "title": "Ready to Use",
           "description": "Guided setup wizard completes configuration in minutes without manual config editing."
+        },
+        "local": {
+          "title": "Local AI Models",
+          "description": "One-click install of open-source models (Qwen 2.5 GGUF) that run 100% offline on this PC via the built-in llama.cpp engine. Free and private."
         }
       }
     },
@@ -409,7 +413,8 @@
       "appNameTitle": "OpenClaw PC",
       "mainVersionAria": "Main version",
       "viewOnGithub": "View project on GitHub",
-      "fetchingVersions": "Fetching version info…"
+      "fetchingVersions": "Fetching version info…",
+      "localTagline": "Private AI assistant · local models run 100% offline on this PC"
     },
     "llmApi": {
       "loading": "Loading providers and profiles…",

@@ -6,8 +6,8 @@
 <p align="center">龙虾智能体官方中文桌面版一键安装部署EXE程序</p>
 
 <p align="center">
-  <strong>面向 Windows 的 OpenClaw 官方风格安装器与桌面应用。</strong><br />
-  一键安装、内置运行时、引导式设置 — 无需接触终端，即可在 Windows 上运行 OpenClaw AI Agent。
+  <strong>您的私人 AI 助手，完全在您的电脑上运行。</strong><br />
+  一键安装<strong>本地 AI 模型</strong>，通过内置 llama.cpp 引擎 100% 离线运行 — 无需云端、无需订阅、数据不会离开您的电脑。同时支持云端服务商（Anthropic、OpenAI、Google、DeepSeek…）。
 </p>
 
 <p align="center">
@@ -41,7 +41,11 @@
 
 ## 这是什么？
 
-**OpenClaw PC** 把 OpenClaw 的运行环境封装成标准的 Windows 安装体验。下载一个 `.exe`，完成设置向导，即可从原生桌面应用运行 OpenClaw，无需手动配置，无需接触终端。
+**OpenClaw PC** 把 OpenClaw 的运行环境封装成标准的 Windows 安装体验，**本地 AI 模型是核心卖点**：下载一个 `.exe`，完成设置向导，您的助手即可运行 — 如果愿意，可以完全离线使用。
+
+- 🖥️ **本地模型优先** — 一键安装开源模型（Qwen 2.5 GGUF），通过内置 llama.cpp 引擎在本机 100% 运行。免费、私密、无需联网。
+- 🔌 **需要时用云端** — 支持 Anthropic、OpenAI、Google、DeepSeek 等，一键配置 API 密钥。
+- 🤖 **完整的 AI Agent 运行时** — OpenClaw 网关与飞书、Telegram 等渠道，全部由原生桌面应用管理。
 
 如果你在搜索 **OpenClaw Windows 安装器**、**如何在 Windows 上运行 OpenClaw**，或者找 **OpenClaw 桌面版**，就是这个项目。
 

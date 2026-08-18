@@ -20,12 +20,12 @@
     },
     "welcome": {
       "title": "Bienvenido a OpenClaw PC",
-      "subtitle": "OpenClaw PC empaqueta el asistente de IA como aplicación nativa de Windows con instalación y configuración integradas. Este asistente te guiará en la configuración inicial.",
+      "subtitle": "Tu asistente de IA privado, que funciona íntegramente en tu PC. Instala modelos locales que funcionan 100 % sin conexión: sin nube, sin suscripción, tus datos no salen de tu equipo.",
       "startHint": "Haz clic en \"Iniciar configuración\" abajo para comenzar",
       "features": {
         "model": {
-          "title": "Integración de modelos IA",
-          "description": "Soporte para Anthropic, OpenAI, Google y otros proveedores principales con configuración de API key en un clic."
+          "title": "Proveedores de IA en la nube",
+          "description": "¿Prefieres la nube? Anthropic, OpenAI, Google y otros proveedores con configuración de clave API en un clic."
         },
         "channel": {
           "title": "Soporte multicanal",
@@ -38,6 +38,10 @@
         "ready": {
           "title": "Listo para usar",
           "description": "El asistente de configuración completa la configuración en minutos sin editar archivos manualmente."
+        },
+        "local": {
+          "title": "Modelos de IA locales",
+          "description": "Instalación con un clic de modelos de código abierto (Qwen 2.5 GGUF) que funcionan 100 % sin conexión en este PC mediante el motor integrado llama.cpp. Gratis y privado."
         }
       }
     },
@@ -238,7 +242,8 @@
       "title": "Acerca de",
       "shellVersion": "Versión del Shell",
       "viewOnGithub": "Ver proyecto en GitHub",
-      "fetchingVersions": "Obteniendo info de versión…"
+      "fetchingVersions": "Obteniendo info de versión…",
+      "localTagline": "Asistente de IA privado · modelos locales 100 % sin conexión en este PC"
     },
     "updates": {
       "title": "Actualizaciones y mantenimiento",

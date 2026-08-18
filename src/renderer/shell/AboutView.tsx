@@ -65,6 +65,7 @@ export function AboutView({ onBack }: AboutViewProps) {
             <span className="text-2xl font-bold text-primary-foreground tracking-tight">OC</span>
           </div>
           <h2 className="text-lg font-semibold tracking-tight">{t('shell.about.appNameTitle')}</h2>
+          <p className="text-sm text-muted-foreground max-w-xs text-center">{t('shell.about.localTagline')}</p>
         </div>
 
         {versions ? (

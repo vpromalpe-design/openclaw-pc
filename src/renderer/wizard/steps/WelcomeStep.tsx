@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Brain, MessageSquare, Server, Sparkles } from 'lucide-react'
+import { Brain, Cpu, MessageSquare, Sparkles } from 'lucide-react'
 
 interface FeatureCardProps {
   icon: React.ReactNode
@@ -23,12 +23,12 @@ function FeatureCard({ icon, title, description }: FeatureCardProps) {
   )
 }
 
-const FEATURE_KEYS = ['model', 'channel', 'gateway', 'ready'] as const
+const FEATURE_KEYS = ['local', 'model', 'channel', 'ready'] as const
 
 const FEATURE_ICONS = [
+  <Cpu key="cpu" className="w-5 h-5" />,
   <Brain key="brain" className="w-5 h-5" />,
   <MessageSquare key="msg" className="w-5 h-5" />,
-  <Server key="server" className="w-5 h-5" />,
   <Sparkles key="sparkles" className="w-5 h-5" />,
 ]
 

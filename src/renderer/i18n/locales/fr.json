@@ -20,12 +20,12 @@
     },
     "welcome": {
       "title": "Bienvenue sur OpenClaw PC",
-      "subtitle": "OpenClaw PC intègre l'assistant IA dans une application Windows native avec installation et configuration intégrées. Cet assistant vous guidera pour la configuration initiale.",
+      "subtitle": "Votre assistant IA privé, qui fonctionne entièrement sur votre PC. Installez des modèles locaux qui fonctionnent 100 % hors ligne — pas de cloud, pas d'abonnement, vos données ne quittent pas votre ordinateur.",
       "startHint": "Cliquez sur « Démarrer la configuration » ci-dessous pour commencer",
       "features": {
         "model": {
-          "title": "Intégration de modèles IA",
-          "description": "Prise en charge d'Anthropic, OpenAI, Google et autres fournisseurs majeurs avec configuration de clé API en un clic."
+          "title": "Fournisseurs d'IA cloud",
+          "description": "Vous préférez le cloud ? Anthropic, OpenAI, Google et d'autres grands fournisseurs avec configuration de clé API en un clic."
         },
         "channel": {
           "title": "Support multi-canaux",
@@ -38,6 +38,10 @@
         "ready": {
           "title": "Prêt à l'emploi",
           "description": "L'assistant de configuration termine la configuration en quelques minutes sans modification manuelle des fichiers."
+        },
+        "local": {
+          "title": "Modèles IA locaux",
+          "description": "Installation en un clic de modèles open source (Qwen 2.5 GGUF) qui fonctionnent 100 % hors ligne sur ce PC via le moteur intégré llama.cpp. Gratuit et privé."
         }
       }
     },
@@ -238,7 +242,8 @@
       "title": "À propos",
       "shellVersion": "Version du Shell",
       "viewOnGithub": "Voir le projet sur GitHub",
-      "fetchingVersions": "Récupération des informations de version…"
+      "fetchingVersions": "Récupération des informations de version…",
+      "localTagline": "Assistant IA privé · les modèles locaux fonctionnent 100 % hors ligne sur ce PC"
     },
     "updates": {
       "title": "Mises à jour et maintenance",
