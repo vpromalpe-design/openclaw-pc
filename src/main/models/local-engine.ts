@@ -30,33 +30,44 @@ export interface LocalModelPreset {
   url: string
   sizeBytes: number
   description: string
+  /** Experimental presets enable tool calling (may fail on llama.cpp). */
+  experimental?: boolean
+  /** Overrides the default `compat.supportsTools: false` for this preset. */
+  supportsTools?: boolean
 }
 
-/** Three preinstalled GGUF picks (CPU-friendly sizes, stable HuggingFace URLs). */
+/**
+ * Preinstalled GGUF picks (CPU-friendly sizes, stable HuggingFace URLs):
+ * Normal (0.5B, always works), Hard (3B, best quality) and an experimental
+ * Hard preset with tool calling enabled — llama.cpp may reject OpenClaw's
+ * tool schemas, so it is opt-in and clearly labelled.
+ */
 export const LOCAL_MODEL_PRESETS: LocalModelPreset[] = [
   {
     id: 'qwen2.5-0.5b',
-    name: 'Qwen 2.5 0.5B (Tiny)',
+    name: 'Qwen 2.5 0.5B (Normal)',
     fileName: 'qwen2.5-0.5b-instruct-q8_0.gguf',
     url: 'https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q8_0.gguf',
     sizeBytes: 495_000_000,
     description: '~470 MB · fastest, runs on any PC',
   },
   {
-    id: 'qwen2.5-1.5b',
-    name: 'Qwen 2.5 1.5B (Small)',
-    fileName: 'qwen2.5-1.5b-instruct-q4_k_m.gguf',
-    url: 'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf',
-    sizeBytes: 1_100_000_000,
-    description: '~1.1 GB · balanced speed/quality',
-  },
-  {
     id: 'qwen2.5-3b',
-    name: 'Qwen 2.5 3B (Medium)',
+    name: 'Qwen 2.5 3B (Hard)',
     fileName: 'qwen2.5-3b-instruct-q4_k_m.gguf',
     url: 'https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf',
     sizeBytes: 1_950_000_000,
     description: '~1.9 GB · best quality on CPU',
+  },
+  {
+    id: 'qwen2.5-3b-experimental',
+    name: 'Qwen 2.5 3B (Experimental)',
+    fileName: 'qwen2.5-3b-instruct-q4_k_m.gguf',
+    url: 'https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf',
+    sizeBytes: 1_950_000_000,
+    description: '~1.9 GB · same Hard model, but with tool calling enabled',
+    experimental: true,
+    supportsTools: true,
   },
 ]
 
@@ -115,6 +126,21 @@ export function listLocalModels(): LocalModelInfo[] {
         status: 'ready',
         progress: 1,
       })
+      // Experimental presets share the same GGUF file with the base preset,
+      // but are separate model entries (they enable tool calling).
+      for (const exp of LOCAL_MODEL_PRESETS.filter(
+        (p) => p.fileName === f && p.experimental,
+      )) {
+        out.push({
+          id: exp.id,
+          fileName: f,
+          path: full,
+          sizeBytes: size,
+          downloaded: true,
+          status: 'ready',
+          progress: 1,
+        })
+      }
     }
   } catch {
     /* ignore */
@@ -478,8 +504,12 @@ export async function startLocalEngine(
     engineState = { running: true, port: LOCAL_ENGINE_PORT, modelId }
     return { ...engineState }
   }
+  const preset = LOCAL_MODEL_PRESETS.find((p) => p.id === modelId)
   const model = listLocalModels().find(
-    (m) => m.id === modelId || m.fileName.replace(/\.gguf$/i, '') === modelId,
+    (m) =>
+      m.id === modelId ||
+      (preset?.fileName != null && m.fileName === preset.fileName) ||
+      m.fileName.replace(/\.gguf$/i, '') === modelId,
   )
   if (!model) throw new Error(`Model not downloaded: ${modelId}`)
   if (process.platform !== 'win32') {
@@ -489,7 +519,7 @@ export async function startLocalEngine(
 
   // Register the `local` provider so the gateway can reach the engine.
   // Merge with an existing provider entry and keep the configured model id,
-  // so a previously set primary (e.g. local/qwen2.5-1.5b) keeps resolving.
+  // so a previously set primary (e.g. local/qwen2.5-0.5b) keeps resolving.
   const next = JSON.parse(JSON.stringify(currentConfig)) as OpenClawConfig
   next.models = next.models ?? { providers: {} }
   next.models.providers = next.models.providers ?? {}
@@ -526,8 +556,9 @@ export async function startLocalEngine(
         maxTokens: 2048,
         // llama.cpp cannot parse OpenAI tool schemas (bare `pattern` regexes
         // fail JSON-schema→grammar conversion with HTTP 400), so local GGUF
-        // models must run without tools.
-        compat: { supportsTools: false },
+        // models run without tools by default. The Experimental preset opts
+        // into tool calling (may fail on some schemas).
+        compat: { supportsTools: preset?.supportsTools === true },
       },
     ],
   }

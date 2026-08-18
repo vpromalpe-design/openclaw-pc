@@ -29,7 +29,7 @@ export interface ModelsViewProps {
   onBack?: () => void
 }
 
-const PRESET_IDS = ['qwen2.5-0.5b', 'qwen2.5-1.5b', 'qwen2.5-3b']
+const PRESET_IDS = ['qwen2.5-0.5b', 'qwen2.5-3b', 'qwen2.5-3b-experimental']
 
 function statusLabel(
   status: ModelTableEntry['status'],
@@ -342,7 +342,14 @@ export function ModelsView({ onBack }: ModelsViewProps) {
               return (
                 <div key={presetId} className="flex items-center justify-between rounded-md border border-border px-3 py-2">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium">{presetName(presetId, t)}</p>
+                    <p className="text-sm font-medium">
+                      {presetName(presetId, t)}
+                      {presetId === 'qwen2.5-3b-experimental' && (
+                        <span className="ml-2 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
+                          {t('shell.models.experimentalBadge')}
+                        </span>
+                      )}
+                    </p>
                     <p className="text-xs text-muted-foreground">{presetDesc(presetId, t)}</p>
                     {model?.downloaded && (
                       <p className="text-xs text-muted-foreground mt-0.5">
@@ -433,11 +440,11 @@ export function ModelsView({ onBack }: ModelsViewProps) {
 function presetName(id: string, t: (key: string) => string): string {
   switch (id) {
     case 'qwen2.5-0.5b':
-      return t('shell.models.presetTiny')
-    case 'qwen2.5-1.5b':
-      return t('shell.models.presetSmall')
+      return t('shell.models.presetNormal')
     case 'qwen2.5-3b':
-      return t('shell.models.presetMedium')
+      return t('shell.models.presetHard')
+    case 'qwen2.5-3b-experimental':
+      return t('shell.models.presetExperimental')
     default:
       return id
   }
@@ -446,11 +453,11 @@ function presetName(id: string, t: (key: string) => string): string {
 function presetDesc(id: string, t: (key: string) => string): string {
   switch (id) {
     case 'qwen2.5-0.5b':
-      return t('shell.models.presetTinyDesc')
-    case 'qwen2.5-1.5b':
-      return t('shell.models.presetSmallDesc')
+      return t('shell.models.presetNormalDesc')
     case 'qwen2.5-3b':
-      return t('shell.models.presetMediumDesc')
+      return t('shell.models.presetHardDesc')
+    case 'qwen2.5-3b-experimental':
+      return t('shell.models.presetExperimentalDesc')
     default:
       return ''
   }

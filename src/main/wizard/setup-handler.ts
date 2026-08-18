@@ -307,12 +307,28 @@ function buildDefaultProviderModel(modelId: string): Record<string, unknown> & {
     reasoning: false,
     input: ['text'],
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: 128000,
+    maxTokens: 8192,
+  }
+}
+
+/**
+ * Local GGUF specifics: real engine limits (-c 32768) — context window +
+ * max output tokens must fit inside the server's n_ctx or llama-server
+ * answers 400 "Context size has been exceeded". llama.cpp rejects OpenAI
+ * tool payloads whose JSON schemas use bare regex `pattern` (400 "Pattern
+ * must start with '^' and end with '$'"), so local models run without tools
+ * unless the Experimental preset opted in.
+ */
+function buildLocalProviderModel(
+  modelId: string,
+  experimental: boolean,
+): Record<string, unknown> & { id: string; name: string } {
+  return {
+    ...buildDefaultProviderModel(modelId),
     contextWindow: 30720,
     maxTokens: 2048,
-    // llama.cpp rejects OpenAI tool payloads whose JSON schemas use bare
-    // regex `pattern` (400: "Pattern must start with '^' and end with '$'").
-    // Local GGUF models run without tools; the agent replies in plain text.
-    compat: { supportsTools: false },
+    compat: { supportsTools: experimental },
   }
 }
 
@@ -394,7 +410,9 @@ function ensureProviderSeedConfig(config: OpenClawConfig, state: WizardState): v
       baseUrl: 'http://127.0.0.1:18788/v1',
       api: 'openai-completions',
       apiKey: '',
-      models: [buildDefaultProviderModel(modelId)],
+      models: [
+        buildLocalProviderModel(modelId, modelId.includes('-experimental')),
+      ],
     }
     return
   }

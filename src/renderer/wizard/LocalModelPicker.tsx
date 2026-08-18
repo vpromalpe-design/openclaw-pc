@@ -12,9 +12,22 @@ import {
 } from '@/components/ui/select'
 
 const LOCAL_PRESETS = [
-  { id: 'qwen2.5-0.5b', label: 'Qwen 2.5 0.5B', size: '~470 MB' },
-  { id: 'qwen2.5-1.5b', label: 'Qwen 2.5 1.5B', size: '~1.1 GB' },
-  { id: 'qwen2.5-3b', label: 'Qwen 2.5 3B', size: '~1.9 GB' },
+  {
+    id: 'qwen2.5-0.5b',
+    labelKey: 'wizard.model.localNormal',
+    size: '~470 MB',
+  },
+  {
+    id: 'qwen2.5-3b',
+    labelKey: 'wizard.model.localHard',
+    size: '~1.9 GB',
+  },
+  {
+    id: 'qwen2.5-3b-experimental',
+    labelKey: 'wizard.model.localExperimental',
+    size: '~1.9 GB',
+    experimental: true,
+  },
 ]
 
 const CUSTOM_OPTION = '__custom_gguf__'
@@ -84,7 +97,14 @@ export function LocalModelPicker({
           {LOCAL_PRESETS.map((m) => (
             <SelectItem key={m.id} value={m.id}>
               <span className="flex items-center justify-between gap-4">
-                <span>{m.label}</span>
+                <span>
+                  {t(m.labelKey)}
+                  {m.experimental && (
+                    <span className="ml-2 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
+                      {t('wizard.model.experimentalBadge')}
+                    </span>
+                  )}
+                </span>
                 <span className="text-xs text-muted-foreground">{m.size}</span>
               </span>
             </SelectItem>

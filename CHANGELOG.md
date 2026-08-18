@@ -4,6 +4,12 @@ All notable changes to OpenClaw Desktop will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **Local model presets reworked**: the 1.5B preset is gone; three picks remain — **Normal** (Qwen 2.5 0.5B, always works), **Hard** (Qwen 2.5 3B, best quality) and **Experimental** (same Hard model, but with tool calling enabled — llama.cpp may reject some tool schemas, opt-in by design). The wizard and the Models page show an `Experimental` badge on the third preset.
+- **Brand accent**: wizard/settings accent switched from orange (`#FF4500`) to the official OpenClaw coral palette — deep wine red `#9C3222` (light) / `#C24028` (dark).
+- **Wizard no longer disables tools for API providers**: `compat.supportsTools: false` and the 32k local context window are now applied only to the `local` provider (previously `buildDefaultProviderModel` forced them on DeepSeek/cloudflare/custom too, silently disabling tools for cloud models).
+
 ### Added
 
 - **Local engine auto-start on app launch**: when the primary agent model is `local/*`, the llama.cpp engine now starts itself (no manual button needed after reboot).

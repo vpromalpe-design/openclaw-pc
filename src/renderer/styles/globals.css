@@ -3,7 +3,7 @@
 @theme inline {
   --color-background: #ffffff;
   --color-foreground: #171717;
-  --color-primary: #FF4500;
+  --color-primary: #9C3222;
   --color-primary-foreground: #ffffff;
   --color-secondary: #f4f4f5;
   --color-secondary-foreground: #18181b;
@@ -24,7 +24,7 @@
 .dark {
   --color-background: #0a0a0a;
   --color-foreground: #fafafa;
-  --color-primary: #FF4500;
+  --color-primary: #C24028;
   --color-primary-foreground: #ffffff;
   --color-secondary: #27272a;
   --color-secondary-foreground: #fafafa;

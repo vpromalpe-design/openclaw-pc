@@ -94,7 +94,11 @@
       "localPicked": "Model selected",
       "localNote": "The model runs fully offline on this PC via the built-in llama.cpp engine. Download it now, or later from the Models page.",
       "badCustomUrl": "The URL must point to a .gguf file",
-      "downloadFailed": "Download failed"
+      "downloadFailed": "Download failed",
+      "localNormal": "Qwen 2.5 0.5B (Normal)",
+      "localHard": "Qwen 2.5 3B (Hard)",
+      "localExperimental": "Qwen 2.5 3B (Experimental)",
+      "experimentalBadge": "Experimental"
     },
     "models": {
       "loadFailed": "Failed to load models",
@@ -135,12 +139,13 @@
       "badCustomUrl": "The URL must point to a .gguf file",
       "customUrlPlaceholder": "https://…/model.gguf (custom model URL)",
       "addCustom": "Add",
-      "presetTiny": "Qwen 2.5 0.5B (Tiny)",
-      "presetTinyDesc": "~470 MB · fastest, runs on any PC",
-      "presetSmall": "Qwen 2.5 1.5B (Small)",
-      "presetSmallDesc": "~1.1 GB · balanced speed/quality",
-      "presetMedium": "Qwen 2.5 3B (Medium)",
-      "presetMediumDesc": "~1.9 GB · best quality on CPU"
+      "presetNormal": "Qwen 2.5 0.5B (Normal)",
+      "presetNormalDesc": "~470 MB · fastest, runs on any PC",
+      "presetHard": "Qwen 2.5 3B (Hard)",
+      "presetHardDesc": "~1.9 GB · best quality on CPU",
+      "presetExperimental": "Qwen 2.5 3B (Experimental)",
+      "presetExperimentalDesc": "~1.9 GB · same Hard model, but with tool calling enabled",
+      "experimentalBadge": "Experimental"
     },
     "channel": {
       "title": "Channel Configuration",
@@ -689,14 +694,15 @@
       "badCustomUrl": "The URL must point to a .gguf file",
       "customUrlPlaceholder": "https://…/model.gguf (custom model URL)",
       "addCustom": "Add",
-      "presetTiny": "Qwen 2.5 0.5B (Tiny)",
-      "presetTinyDesc": "~470 MB · fastest, runs on any PC",
-      "presetSmall": "Qwen 2.5 1.5B (Small)",
-      "presetSmallDesc": "~1.1 GB · balanced speed/quality",
-      "presetMedium": "Qwen 2.5 3B (Medium)",
-      "presetMediumDesc": "~1.9 GB · best quality on CPU",
       "downloading": "Downloading… {{percent}}%",
-      "title": "Models"
+      "title": "Models",
+      "presetNormal": "Qwen 2.5 0.5B (Normal)",
+      "presetNormalDesc": "~470 MB · fastest, runs on any PC",
+      "presetHard": "Qwen 2.5 3B (Hard)",
+      "presetHardDesc": "~1.9 GB · best quality on CPU",
+      "presetExperimental": "Qwen 2.5 3B (Experimental)",
+      "presetExperimentalDesc": "~1.9 GB · same Hard model, but with tool calling enabled",
+      "experimentalBadge": "Experimental"
     }
   }
 }
