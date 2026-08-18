@@ -116,7 +116,8 @@
         "testGeneric": "Check failed: {{message}}",
         "configDone": "Telegram Bot Token が設定されました。",
         "configMissing": "Telegram 選択時は BotFather の Bot Token が必要です。",
-        "userIdMissing": "Bot token is set — now add your Telegram user ID so the bot knows who to answer."
+        "userIdMissing": "Bot token is set — now add your Telegram user ID so the bot knows who to answer.",
+        "connected": "接続済み"
       },
       "discord": {
         "title": "Discord チャネル",
@@ -142,7 +143,11 @@
         "description": "WhatsApp は QR コード認証を使用します。セットアップ後に Control UI で設定してください。"
       },
       "skipChannels": "スキップして WebChat のみ使用",
-      "skipHint": "チャネル設定は後から設定で追加できます。"
+      "skipHint": "チャネル設定は後から設定で追加できます。",
+      "webchat": {
+        "title": "WebChat",
+        "description": "インストール直後から使える内蔵ウェブチャット。追加チャンネル不要で、ブラウザからアシスタントを利用できます。"
+      }
     },
     "gateway": {
       "title": "ゲートウェイ設定",
@@ -165,7 +170,8 @@
       "autoDesc": "ゲートウェイが自動的にバインドアドレスを選択します。パブリックネットワークに公開される可能性があります。",
       "authToken": "認証トークン",
       "regenerate": "再生成",
-      "tokenHint": "ゲートウェイ API 認証に使用します。自動生成された値を保持することを推奨します。"
+      "tokenHint": "ゲートウェイ API 認証に使用します。自動生成された値を保持することを推奨します。",
+      "free": "空き"
     },
     "complete": {
       "title": "設定の確認",
@@ -181,7 +187,7 @@
       "gatewaySettings": "ゲートウェイ設定",
       "port": "ポート",
       "bindAddress": "バインドアドレス",
-      "authToken": "認証トークン",
+      "authToken": "ゲートウェイトークン",
       "confirmStart": "確認して開始",
       "retry": "再試行",
       "edit": "編集",

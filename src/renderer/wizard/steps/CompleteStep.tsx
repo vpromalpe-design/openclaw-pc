@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useWizardStore } from '@/stores/wizard-store'
+import { Button } from '@/components/ui/button'
 import {
-  Brain,
-  MessageSquare,
-  Server,
+  Bot,
+  Send,
+  Settings2,
   Loader2,
   CheckCircle2,
   XCircle,
@@ -99,15 +100,17 @@ function SummaryCard({ icon, title, children, onEdit }: SummaryCardProps) {
           <h3 className="text-sm font-semibold tracking-tight truncate">{title}</h3>
         </div>
         {onEdit && (
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             onClick={onEdit}
-            className="text-[11px] font-medium text-muted-foreground hover:text-primary transition-colors inline-flex items-center gap-1 bg-muted/30 hover:bg-primary/10 px-2 py-1 rounded-md shrink-0"
+            className="h-8 px-3 text-xs font-semibold shrink-0"
             aria-label={`${t('wizard.complete.edit')} ${title}`}
           >
-            <Pencil className="w-3 h-3" />
+            <Pencil className="w-3.5 h-3.5" />
             {t('wizard.complete.edit')}
-          </button>
+          </Button>
         )}
       </div>
       <dl className="space-y-2 text-sm pt-1">
@@ -132,16 +135,16 @@ function SummaryRow({ label, value, title, wrap, compact }: SummaryRowProps) {
   const isString = typeof value === 'string'
   return (
     <div className={`flex min-w-0 ${compact ? 'gap-0.5' : 'gap-1'} ${wrap ? 'items-start' : 'items-center'}`}>
-      <dt className={`text-muted-foreground text-xs font-medium shrink-0 flex-shrink-0 ${compact ? 'w-10' : 'w-12'}`}>{label}</dt>
+      <dt className={`text-muted-foreground text-xs font-medium shrink-0 flex-shrink-0 ${compact ? 'w-16' : 'w-36'}`}>{label}</dt>
       <dd
-        className={`font-mono text-xs text-foreground/90 bg-muted/20 px-2 py-1 rounded-md min-w-0 ${wrap ? 'break-words' : 'overflow-hidden flex items-center'}`}
+        className={`font-mono text-xs font-semibold text-foreground min-w-0 flex-1 ${wrap ? 'break-words' : 'overflow-hidden flex items-center justify-end'}`}
         title={title}
       >
         {isString ? (
           wrap ? (
-            <span className="break-words min-w-0">{value}</span>
+            <span className="break-words min-w-0 text-right">{value}</span>
           ) : (
-            <span className="truncate block" title={title ?? value}>{value}</span>
+            <span className="truncate block text-right" title={title ?? value}>{value}</span>
           )
         ) : (
           value
@@ -168,6 +171,7 @@ export function CompleteStep() {
   }
 
   const channelLabels: Record<string, string> = {
+    webchat: 'WebChat',
     feishu: 'Feishu',
     telegram: 'Telegram',
     whatsapp: 'WhatsApp',
@@ -188,7 +192,7 @@ export function CompleteStep() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5 flex-1 content-start">
         {/* Model Summary */}
         <SummaryCard
-          icon={<Brain className="w-4 h-4" />}
+          icon={<Bot className="w-4 h-4" />}
           title={t('wizard.complete.modelConfig')}
           onEdit={isDeploying ? undefined : () => handleEditStep(1)}
         >
@@ -229,28 +233,16 @@ export function CompleteStep() {
 
         {/* Channel Summary */}
         <SummaryCard
-          icon={<MessageSquare className="w-4 h-4" />}
+          icon={<Send className="w-4 h-4" />}
           title={t('wizard.complete.channelConfig')}
           onEdit={isDeploying ? undefined : () => handleEditStep(2)}
         >
           <SummaryRow label={t('wizard.complete.channel')} value={channelDisplay} />
-          {!channelConfig.skipChannels && channelConfig.selectedChannel === 'feishu' && channelConfig.feishu && (
-            <>
-              <SummaryRow label={t('wizard.channel.feishu.appId')} value={maskSecret(channelConfig.feishu.appId ?? '', 4, 4)} />
-              <SummaryRow label={t('wizard.channel.feishu.appSecret')} value={maskSecret(channelConfig.feishu.appSecret ?? '', 0, 0)} />
-            </>
-          )}
           {!channelConfig.skipChannels && channelConfig.selectedChannel === 'telegram' && channelConfig.telegram?.botToken && (
             <SummaryRow label={t('wizard.channel.telegram.botToken')} value={maskSecret(channelConfig.telegram.botToken, 4, 4)} />
           )}
           {!channelConfig.skipChannels && channelConfig.selectedChannel === 'discord' && channelConfig.discord?.token && (
             <SummaryRow label={t('wizard.channel.discord.botToken')} value={maskSecret(channelConfig.discord.token, 4, 4)} />
-          )}
-          {!channelConfig.skipChannels && channelConfig.selectedChannel === 'slack' && channelConfig.slack && (
-            <>
-              <SummaryRow label={t('wizard.channel.slack.connectionMode')} value={channelConfig.slack.mode ?? 'socket'} />
-              <SummaryRow label={t('wizard.channel.slack.botToken')} value={maskSecret(channelConfig.slack.botToken ?? '', 4, 4)} />
-            </>
           )}
           {!channelConfig.skipChannels && channelConfig.selectedChannel === 'whatsapp' && (
             <SummaryRow label={t('wizard.complete.channel')} value={t('wizard.complete.configureViaUI')} wrap compact />
@@ -259,7 +251,7 @@ export function CompleteStep() {
 
         {/* Gateway Summary */}
         <SummaryCard
-          icon={<Server className="w-4 h-4" />}
+          icon={<Settings2 className="w-4 h-4" />}
           title={t('wizard.complete.gatewaySettings')}
           onEdit={isDeploying ? undefined : () => handleEditStep(3)}
         >

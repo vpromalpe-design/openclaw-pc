@@ -160,7 +160,8 @@
         "testGeneric": "Check failed: {{message}}",
         "configDone": "Telegram Bot Token 已配置。",
         "configMissing": "選擇 Telegram 時需要填寫 BotFather 提供的 Bot Token。",
-        "userIdMissing": "Bot token is set — now add your Telegram user ID so the bot knows who to answer."
+        "userIdMissing": "Bot token is set — now add your Telegram user ID so the bot knows who to answer.",
+        "connected": "已連接"
       },
       "discord": {
         "title": "Discord 通道",
@@ -186,7 +187,11 @@
         "description": "WhatsApp 使用二維碼認證，請在設置完成後通過 Control UI 進行配置。"
       },
       "skipChannels": "跳過，僅使用 WebChat",
-      "skipHint": "您可以在設置中隨時添加通道配置。"
+      "skipHint": "您可以在設置中隨時添加通道配置。",
+      "webchat": {
+        "title": "WebChat",
+        "description": "內建網頁聊天，安裝後立即可用。無需額外管道，即可在任意瀏覽器中使用您的助手。"
+      }
     },
     "gateway": {
       "title": "網關設置",
@@ -209,7 +214,8 @@
       "autoDesc": "網關自動選擇綁定地址。可能暴露到公網，請確保防火牆已配置。",
       "authToken": "認證令牌",
       "regenerate": "重新生成",
-      "tokenHint": "用於網關 API 認證。建議保留自動生成的值。"
+      "tokenHint": "用於網關 API 認證。建議保留自動生成的值。",
+      "free": "空閒"
     },
     "complete": {
       "title": "確認配置",
@@ -225,7 +231,7 @@
       "gatewaySettings": "網關設置",
       "port": "端口",
       "bindAddress": "綁定地址",
-      "authToken": "認證令牌",
+      "authToken": "網關令牌",
       "confirmStart": "確認並啟動",
       "retry": "重試",
       "edit": "編輯",

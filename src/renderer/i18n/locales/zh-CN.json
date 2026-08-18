@@ -160,7 +160,8 @@
         "testGeneric": "Check failed: {{message}}",
         "configDone": "Telegram Bot Token 已配置。",
         "configMissing": "选择 Telegram 时需要填写 BotFather 提供的 Bot Token。",
-        "userIdMissing": "Bot token is set — now add your Telegram user ID so the bot knows who to answer."
+        "userIdMissing": "Bot token is set — now add your Telegram user ID so the bot knows who to answer.",
+        "connected": "已连接"
       },
       "discord": {
         "title": "Discord 通道",
@@ -186,7 +187,11 @@
         "description": "WhatsApp 使用二维码认证，请在设置完成后通过 Control UI 进行配置。"
       },
       "skipChannels": "跳过，仅使用 WebChat",
-      "skipHint": "您可以在设置中随时添加通道配置。"
+      "skipHint": "您可以在设置中随时添加通道配置。",
+      "webchat": {
+        "title": "WebChat",
+        "description": "内置网页聊天，安装后立即可用。无需额外渠道，即可在任意浏览器中使用您的助手。"
+      }
     },
     "gateway": {
       "title": "网关设置",
@@ -209,7 +214,8 @@
       "autoDesc": "网关自动选择绑定地址。可能暴露到公网，请确保防火墙已配置。",
       "authToken": "认证令牌",
       "regenerate": "重新生成",
-      "tokenHint": "用于网关 API 认证。建议保留自动生成的值。"
+      "tokenHint": "用于网关 API 认证。建议保留自动生成的值。",
+      "free": "空闲"
     },
     "complete": {
       "title": "确认配置",
@@ -225,7 +231,7 @@
       "gatewaySettings": "网关设置",
       "port": "端口",
       "bindAddress": "绑定地址",
-      "authToken": "认证令牌",
+      "authToken": "网关令牌",
       "confirmStart": "确认并启动",
       "retry": "重试",
       "edit": "编辑",

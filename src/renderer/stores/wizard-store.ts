@@ -52,7 +52,7 @@ const DEFAULT_CHANNEL_CONFIG: ChannelConfig = {
   discord: null,
   slack: null,
   whatsapp: null,
-  selectedChannel: 'whatsapp',
+  selectedChannel: 'webchat',
   skipChannels: false,
 }
 
@@ -197,20 +197,13 @@ export const useWizardStore = create<WizardStore>((set, get) => ({
       case 2:
         if (state.channelConfig.skipChannels) return true
         switch (state.channelConfig.selectedChannel) {
-          case 'feishu':
-            return Boolean(
-              state.channelConfig.feishu?.appId?.trim() &&
-                state.channelConfig.feishu?.appSecret?.trim(),
-            )
           case 'telegram':
             return Boolean(state.channelConfig.telegram?.botToken?.trim())
           case 'discord':
             return Boolean(state.channelConfig.discord?.token?.trim())
-          case 'slack':
-            return Boolean(state.channelConfig.slack?.botToken?.trim()) &&
-              (state.channelConfig.slack?.mode !== 'http' ||
-                Boolean(state.channelConfig.slack?.signingSecret?.trim()))
           case 'whatsapp':
+            return true
+          case 'webchat':
             return true
           default:
             return true

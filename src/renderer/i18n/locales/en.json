@@ -177,7 +177,8 @@
         "testGeneric": "Check failed: {{message}}",
         "configDone": "Telegram bot token and owner ID configured.",
         "configMissing": "Bot token from BotFather is required when Telegram is selected.",
-        "userIdMissing": "Bot token is set — now add your Telegram user ID so the bot knows who to answer."
+        "userIdMissing": "Bot token is set — now add your Telegram user ID so the bot knows who to answer.",
+        "connected": "Connected"
       },
       "discord": {
         "title": "Discord Channel",
@@ -203,7 +204,11 @@
         "description": "WhatsApp uses QR code authentication. Configure this channel after setup via the Control UI."
       },
       "skipChannels": "Skip, use WebChat only",
-      "skipHint": "You can add channel configuration later in settings."
+      "skipHint": "You can add channel configuration later in settings.",
+      "webchat": {
+        "title": "WebChat",
+        "description": "Built-in web chat — works right after setup. Your assistant is available from any browser, no extra channels needed."
+      }
     },
     "gateway": {
       "title": "Gateway Settings",
@@ -226,7 +231,8 @@
       "autoDesc": "Gateway chooses bind address automatically. May expose to public network; ensure firewall is configured.",
       "authToken": "Auth Token",
       "regenerate": "Regenerate",
-      "tokenHint": "Used for Gateway API authentication. Recommend keeping the auto-generated value."
+      "tokenHint": "Used for Gateway API authentication. Recommend keeping the auto-generated value.",
+      "free": "Free"
     },
     "complete": {
       "title": "Confirm Configuration",
@@ -242,7 +248,7 @@
       "gatewaySettings": "Gateway Settings",
       "port": "Port",
       "bindAddress": "Bind Address",
-      "authToken": "Auth Token",
+      "authToken": "Gateway Token",
       "confirmStart": "Confirm & Start",
       "retry": "Retry",
       "edit": "Edit",

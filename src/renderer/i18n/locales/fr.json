@@ -116,7 +116,8 @@
         "testGeneric": "Check failed: {{message}}",
         "configDone": "Token Bot Telegram configuré.",
         "configMissing": "Le token Bot de BotFather est requis lorsque Telegram est sélectionné.",
-        "userIdMissing": "Bot token is set — now add your Telegram user ID so the bot knows who to answer."
+        "userIdMissing": "Bot token is set — now add your Telegram user ID so the bot knows who to answer.",
+        "connected": "Connecté"
       },
       "discord": {
         "title": "Canal Discord",
@@ -142,7 +143,11 @@
         "description": "WhatsApp utilise l'authentification par code QR. Configurez ce canal après l'installation via l'interface de contrôle."
       },
       "skipChannels": "Passer, utiliser WebChat uniquement",
-      "skipHint": "Vous pouvez ajouter la configuration des canaux ultérieurement dans les paramètres."
+      "skipHint": "Vous pouvez ajouter la configuration des canaux ultérieurement dans les paramètres.",
+      "webchat": {
+        "title": "WebChat",
+        "description": "Chat web intégré, fonctionne dès l’installation. Votre assistant est accessible depuis n’importe quel navigateur, sans canal supplémentaire."
+      }
     },
     "gateway": {
       "title": "Paramètres de la passerelle",
@@ -165,7 +170,8 @@
       "autoDesc": "La passerelle choisit automatiquement l'adresse de liaison. Peut être exposée au réseau public.",
       "authToken": "Token d'authentification",
       "regenerate": "Régénérer",
-      "tokenHint": "Utilisé pour l'authentification API de la passerelle. Il est recommandé de garder la valeur générée automatiquement."
+      "tokenHint": "Utilisé pour l'authentification API de la passerelle. Il est recommandé de garder la valeur générée automatiquement.",
+      "free": "Libre"
     },
     "complete": {
       "title": "Confirmer la configuration",
@@ -181,7 +187,7 @@
       "gatewaySettings": "Paramètres de la passerelle",
       "port": "Port",
       "bindAddress": "Adresse de liaison",
-      "authToken": "Token d'authentification",
+      "authToken": "Jeton du gateway",
       "confirmStart": "Confirmer et démarrer",
       "retry": "Réessayer",
       "edit": "Modifier",

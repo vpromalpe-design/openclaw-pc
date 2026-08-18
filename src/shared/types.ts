@@ -349,7 +349,7 @@ export interface ChannelConfig {
   discord: DiscordChannelConfig | null
   slack: SlackChannelConfig | null
   whatsapp: WhatsAppChannelConfig | null
-  selectedChannel: 'feishu' | 'telegram' | 'whatsapp' | 'discord' | 'slack'
+  selectedChannel: 'webchat' | 'telegram' | 'whatsapp' | 'discord'
   skipChannels: boolean
 }
 

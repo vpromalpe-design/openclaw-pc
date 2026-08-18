@@ -283,7 +283,7 @@ function wizardStateForModelConfig(modelConfig: ModelConfig): WizardState {
       discord: null,
       slack: null,
       whatsapp: null,
-      selectedChannel: 'whatsapp',
+      selectedChannel: 'webchat',
       skipChannels: true,
     },
     gatewayConfig: {

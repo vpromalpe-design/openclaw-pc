@@ -116,7 +116,8 @@
         "testGeneric": "Check failed: {{message}}",
         "configDone": "Telegram Bot Token이 설정되었습니다.",
         "configMissing": "Telegram 선택 시 BotFather의 Bot Token이 필요합니다.",
-        "userIdMissing": "Bot token is set — now add your Telegram user ID so the bot knows who to answer."
+        "userIdMissing": "Bot token is set — now add your Telegram user ID so the bot knows who to answer.",
+        "connected": "연결됨"
       },
       "discord": {
         "title": "Discord 채널",
@@ -142,7 +143,11 @@
         "description": "WhatsApp은 QR 코드 인증을 사용합니다. 설정 완료 후 Control UI에서 설정하세요."
       },
       "skipChannels": "건너뛰고 WebChat만 사용",
-      "skipHint": "나중에 설정에서 채널을 추가할 수 있습니다."
+      "skipHint": "나중에 설정에서 채널을 추가할 수 있습니다.",
+      "webchat": {
+        "title": "WebChat",
+        "description": "설치 직후 바로 작동하는 내장 웹 채팅. 추가 채널 없이 브라우저에서 어시스턴트를 사용할 수 있습니다."
+      }
     },
     "gateway": {
       "title": "게이트웨이 설정",
@@ -165,7 +170,8 @@
       "autoDesc": "게이트웨이가 바인드 주소를 자동으로 선택합니다. 공용 네트워크에 노출될 수 있습니다.",
       "authToken": "인증 토큰",
       "regenerate": "재생성",
-      "tokenHint": "게이트웨이 API 인증에 사용됩니다. 자동 생성된 값을 유지하는 것을 권장합니다."
+      "tokenHint": "게이트웨이 API 인증에 사용됩니다. 자동 생성된 값을 유지하는 것을 권장합니다.",
+      "free": "사용 가능"
     },
     "complete": {
       "title": "설정 확인",
@@ -181,7 +187,7 @@
       "gatewaySettings": "게이트웨이 설정",
       "port": "포트",
       "bindAddress": "바인드 주소",
-      "authToken": "인증 토큰",
+      "authToken": "게이트웨이 토큰",
       "confirmStart": "확인 및 시작",
       "retry": "재시도",
       "edit": "편집",

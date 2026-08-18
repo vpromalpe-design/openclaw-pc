@@ -175,19 +175,27 @@ export function GatewayStep() {
               className="w-32 font-mono tabular-nums"
             />
             <Button
-              variant="outline"
+              variant={portCheck.status === 'available' ? 'default' : 'outline'}
               size="sm"
               onClick={() => void handleCheckPort()}
               disabled={
                 portCheck.status === 'checking' || gatewayConfig.port === 0
               }
+              className={[
+                portCheck.status === 'available' &&
+                  'bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700 hover:text-white shadow-sm shadow-emerald-600/30',
+              ].join(' ')}
             >
               {portCheck.status === 'checking' ? (
                 <Loader2 className="animate-spin" />
               ) : (
                 <Shield className="w-4 h-4" />
               )}
-              {portCheck.status === 'checking' ? t('wizard.gateway.checking') : t('wizard.gateway.checkPort')}
+              {portCheck.status === 'checking'
+                ? t('wizard.gateway.checking')
+                : portCheck.status === 'available'
+                  ? t('wizard.gateway.free')
+                  : t('wizard.gateway.checkPort')}
             </Button>
           </div>
 
@@ -270,38 +278,39 @@ export function GatewayStep() {
           {BIND_OPTIONS.map((opt) => {
             const isSelected = gatewayConfig.bind === opt.value
             return (
-              <label
-                key={opt.value}
-                className={[
-                  'flex flex-col items-start gap-2 rounded-lg border p-2.5 sm:p-3 cursor-pointer transition-colors',
-                  isSelected
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border hover:border-primary/30',
-                ].join(' ')}
-              >
-                <div className="flex items-center gap-2 w-full">
-                  <input
-                    type="radio"
-                    name="gateway-bind"
-                    value={opt.value}
-                    checked={isSelected}
-                    onChange={() => handleBindChange(opt.value)}
-                    className="h-4 w-4 accent-primary shrink-0"
-                  />
-                  <span className="text-sm font-medium flex items-center gap-1.5 flex-1">
-                    <span className="text-muted-foreground">{opt.icon}</span>
-                    {t(opt.labelKey)}
-                  </span>
-                  {opt.tagKey && (
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-primary bg-primary/10 px-1.5 py-0.5 rounded shrink-0">
-                      {t(opt.tagKey)}
+              <div key={opt.value} className="flex flex-col gap-1.5 min-w-0">
+                <label
+                  className={[
+                    'flex flex-col items-start gap-2 rounded-lg border p-2.5 sm:p-3 cursor-pointer transition-colors',
+                    isSelected
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-primary/30',
+                  ].join(' ')}
+                >
+                  <div className="flex items-center gap-2 w-full">
+                    <input
+                      type="radio"
+                      name="gateway-bind"
+                      value={opt.value}
+                      checked={isSelected}
+                      onChange={() => handleBindChange(opt.value)}
+                      className="h-4 w-4 accent-primary shrink-0"
+                    />
+                    <span className="text-sm font-medium flex items-center gap-1.5 flex-1">
+                      <span className="text-muted-foreground">{opt.icon}</span>
+                      {t(opt.labelKey)}
                     </span>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed pl-6">
-                  {t(opt.descriptionKey)}
-                </p>
-              </label>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed pl-6">
+                    {t(opt.descriptionKey)}
+                  </p>
+                </label>
+                {opt.tagKey && (
+                  <p className="text-xs font-semibold text-primary bg-primary/10 rounded-md px-2 py-1 text-center tracking-wide">
+                    {t(opt.tagKey)}
+                  </p>
+                )}
+              </div>
             )
           })}
         </div>
