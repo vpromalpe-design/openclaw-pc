@@ -49,12 +49,12 @@ export async function applyOpenClawUiSidebarDesktopPatches(uiRoot: string): Prom
     'app-sidebar.ts',
     [
       {
-        find: /  sidebarMoreRoutes,\n/,
+        find: / {2}sidebarMoreRoutes,\n/,
         replace: ``,
         expectCount: 1,
       },
       {
-        find: /            <nav class="sidebar-nav" @contextmenu=\$\{this\.openCustomizeMenuFromContext\}>[\s\S]*?\$\{this\.renderSessions\(\)\}/,
+        find: / {12}<nav class="sidebar-nav" @contextmenu=\$\{this\.openCustomizeMenuFromContext\}>[\s\S]*?\$\{this\.renderSessions\(\)\}/,
         replace: `            \${this.renderSessions()}
             <nav class="sidebar-nav" @contextmenu=\${this.openCustomizeMenuFromContext}>
               \${this.collapsed ? this.renderRoute("chat") : nothing}
@@ -74,12 +74,12 @@ export async function applyOpenClawUiSidebarDesktopPatches(uiRoot: string): Prom
         expectCount: 1,
       },
       {
-        find: /  private renderMoreSection\(\) \{[\s\S]*?\n  \}\n\n/,
+        find: / {2}private renderMoreSection\(\) \{[\s\S]*?\n {2}\}\n\n/,
         replace: `  `,
         expectCount: 1,
       },
       {
-        find: /  private renderChatFallback\(\) \{/,
+        find: / {2}private renderChatFallback\(\) \{/,
         replace: `  /** OpenClaw PC: "Models" opens the desktop Models panel (parent window bridge). */
   private readonly openDesktopModels = () => {
     try {
@@ -118,12 +118,12 @@ export async function applyOpenClawUiSidebarDesktopPatches(uiRoot: string): Prom
   await patchFile(
     join(locales, 'en.ts'),
     'en.ts',
-    [{ find: /    more: "More",/, replace: `    more: "More",\n    models: "Models",`, expectCount: 1 }],
+    [{ find: / {4}more: "More",/, replace: `    more: "More",\n    models: "Models",`, expectCount: 1 }],
   )
   await patchFile(
     join(locales, 'ru.ts'),
     'ru.ts',
-    [{ find: /    more: "Ещё",/, replace: `    more: "Ещё",\n    models: "Модели",`, expectCount: 1 }],
+    [{ find: / {4}more: "Ещё",/, replace: `    more: "Ещё",\n    models: "Модели",`, expectCount: 1 }],
   )
 
   // 4. layout.css: bigger nav items.
@@ -132,7 +132,7 @@ export async function applyOpenClawUiSidebarDesktopPatches(uiRoot: string): Prom
     'layout.css',
     [
       {
-        find: /\.nav-item \{\n  position: relative;\n  display: flex;\n  align-items: center;\n  justify-content: flex-start;\n  gap: 8px;\n  min-height: 32px;\n  padding: 0 9px;/,
+        find: /\.nav-item \{\n {2}position: relative;\n {2}display: flex;\n {2}align-items: center;\n {2}justify-content: flex-start;\n {2}gap: 8px;\n {2}min-height: 32px;\n {2}padding: 0 9px;/,
         replace: `.nav-item {
   position: relative;
   display: flex;
@@ -144,21 +144,21 @@ export async function applyOpenClawUiSidebarDesktopPatches(uiRoot: string): Prom
         expectCount: 1,
       },
       {
-        find: /\.nav-item__icon \{\n  width: 16px;\n  height: 16px;/,
+        find: /\.nav-item__icon \{\n {2}width: 16px;\n {2}height: 16px;/,
         replace: `.nav-item__icon {
   width: 18px;
   height: 18px;`,
         expectCount: 1,
       },
       {
-        find: /\.nav-item__icon svg \{\n  width: 16px;\n  height: 16px;/,
+        find: /\.nav-item__icon svg \{\n {2}width: 16px;\n {2}height: 16px;/,
         replace: `.nav-item__icon svg {
   width: 18px;
   height: 18px;`,
         expectCount: 1,
       },
       {
-        find: /\.nav-item__text \{\n  font-size: 13px;/,
+        find: /\.nav-item__text \{\n {2}font-size: 13px;/,
         replace: `.nav-item__text {
   font-size: 14px;`,
         expectCount: 1,
