@@ -72,6 +72,17 @@ const DESKTOP_NAV_ITEMS: { id: EmbeddedPanel; label: string; icon: React.ReactNo
   { id: 'about', label: 'About', icon: <Info className="w-4 h-4" />, description: 'Version info' },
 ]
 
+/** Desktop nav item id → i18n key (used for the panel header breadcrumb). */
+const NAV_I18N_KEY: Record<string, string> = {
+  dashboard: 'shell.nav.dashboard',
+  models: 'shell.nav.models',
+  'llm-api': 'shell.nav.llmApi',
+  skills: 'shell.nav.skills',
+  updates: 'shell.nav.updates',
+  settings: 'shell.nav.settings',
+  about: 'shell.nav.about',
+}
+
 export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShellLayoutProps) {
   const { t } = useTranslation()
   const [gatewayView, setGatewayView] = useState<'loading' | 'error'>('loading')
@@ -372,7 +383,14 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
             <span className="text-sm font-medium">
               {activePanel === 'feishu-settings'
                 ? t('shell.feishu.title')
-                : DESKTOP_NAV_ITEMS.find((item) => item.id === activePanel)?.label ?? activePanel}
+                : (() => {
+                    const found = DESKTOP_NAV_ITEMS.find(
+                      (item) => item.id === activePanel,
+                    )
+                    return found
+                      ? t(NAV_I18N_KEY[found.id] ?? found.label, found.label)
+                      : activePanel
+                  })()}
             </span>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">{renderPanelContent()}</div>
