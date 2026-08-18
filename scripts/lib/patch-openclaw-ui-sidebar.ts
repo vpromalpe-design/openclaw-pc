@@ -17,6 +17,7 @@ async function patchFile(
   filePath: string,
   label: string,
   replacements: { find: RegExp | string; replace: string; expectCount?: number }[],
+  comment: 'js' | 'css' = 'js',
 ): Promise<boolean> {
   let raw = await readFile(filePath, 'utf8')
   if (raw.includes(SENTINEL)) return false
@@ -31,7 +32,11 @@ async function patchFile(
     }
     raw = raw.replace(re, replace)
   }
-  raw = `// ${SENTINEL} v1\n${raw}`
+  const marker =
+    comment === 'css'
+      ? `/* ${SENTINEL} v1 */\n`
+      : `// ${SENTINEL} v1\n`
+  raw = `${marker}${raw}`
   await writeFile(filePath, raw, 'utf8')
   console.log(`  [patch-sidebar] ${label}: patched`)
   return true
@@ -164,5 +169,6 @@ export async function applyOpenClawUiSidebarDesktopPatches(uiRoot: string): Prom
         expectCount: 1,
       },
     ],
+    'css',
   )
 }
