@@ -8,7 +8,7 @@ import sharp from 'sharp';
 import toIco from 'to-ico';
 import { Buffer } from 'node:buffer';
 import { writeFile, mkdir } from 'node:fs/promises';
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -166,11 +166,16 @@ async function generateInstallerSidebar() {
 
 function verify() {
   console.log('\nVerification:');
+  const licenseFiles = readdirSync(RESOURCES_DIR)
+    .filter((f) => /^license_[a-z_]+\\.txt$/i.test(f))
+    .sort();
   const checks = [
     { name: 'icon.ico', path: join(RESOURCES_DIR, 'icon.ico') },
     { name: 'tray-icon.png', path: join(RESOURCES_DIR, 'tray-icon.png') },
     { name: 'installer-sidebar.bmp', path: join(INSTALLER_DIR, 'installer-sidebar.bmp') },
-    { name: 'license.txt', path: join(INSTALLER_DIR, 'license.txt') },
+    ...(licenseFiles.length > 0
+      ? licenseFiles.map((f) => ({ name: f, path: join(RESOURCES_DIR, f) }))
+      : [{ name: 'license_*.txt (multilingual licenses)', path: join(RESOURCES_DIR, 'license_en.txt') }]),
   ];
   let ok = true;
   for (const { name, path } of checks) {
