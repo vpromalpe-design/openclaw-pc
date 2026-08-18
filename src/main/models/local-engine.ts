@@ -7,6 +7,7 @@
  */
 
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import https from 'node:https'
 import http from 'node:http'
@@ -410,6 +411,54 @@ function waitForHealth(port: number, timeoutMs: number): Promise<boolean> {
   })
 }
 
+function fetchServerContextWindow(port: number): Promise<number | null> {
+  return new Promise((resolve) => {
+    http
+      .get(`http://127.0.0.1:${port}/props`, { timeout: 3000 }, (res) => {
+        let body = ''
+        res.on('data', (c) => (body += c))
+        res.on('end', () => {
+          try {
+            const j = JSON.parse(body) as {
+              n_ctx?: number
+              default_generation_settings?: { n_ctx?: number }
+            }
+            resolve(j.n_ctx ?? j.default_generation_settings?.n_ctx ?? null)
+          } catch {
+            resolve(null)
+          }
+        })
+      })
+      .on('error', () => resolve(null))
+  })
+}
+
+/**
+ * Guard against context-window desync: when a llama-server was started
+ * manually (or by an older build) with a smaller `-c` than the provider
+ * model declares, cap contextWindow so input+output always fit inside the
+ * server's n_ctx. Otherwise llama-server answers HTTP 400 "Context size has
+ * been exceeded" as soon as the chat history grows. No-op when consistent.
+ */
+async function syncLocalContextWindow(
+  port: number,
+  cfg: OpenClawConfig,
+  writeConfig: (c: OpenClawConfig) => void,
+): Promise<void> {
+  const nCtx = await fetchServerContextWindow(port)
+  if (!nCtx || nCtx <= 0) return
+  const local = cfg.models?.providers?.local
+  const model = Array.isArray(local?.models) ? local.models[0] : undefined
+  if (!model || typeof model.contextWindow !== 'number') return
+  const maxTokens =
+    typeof model.maxTokens === 'number' ? model.maxTokens : 2048
+  const ideal = Math.max(1024, nCtx - maxTokens)
+  if (model.contextWindow > ideal) {
+    model.contextWindow = ideal
+    writeConfig(cfg)
+  }
+}
+
 /** Start llama-server with a downloaded GGUF; registers `local` provider in config. */
 export async function startLocalEngine(
   modelId: string,
@@ -423,6 +472,9 @@ export async function startLocalEngine(
   // app instance whose state we lost) — adopt it instead of double-spawning.
   const alreadyUp = await waitForHealth(LOCAL_ENGINE_PORT, 5_000)
   if (alreadyUp) {
+    // Adopted server may run with an arbitrary `-c`; keep the config honest
+    // so we never send a prompt larger than the server's n_ctx.
+    await syncLocalContextWindow(LOCAL_ENGINE_PORT, currentConfig, writeConfig)
     engineState = { running: true, port: LOCAL_ENGINE_PORT, modelId }
     return { ...engineState }
   }
@@ -519,6 +571,10 @@ export async function startLocalEngine(
     stopLocalEngine()
     throw new Error('llama-server did not become healthy within 120s')
   }
+  // Belt-and-braces: if the downloaded binary defaults to a smaller n_ctx
+  // than our -c request, align the config with reality instead of failing
+  // later with HTTP 400.
+  await syncLocalContextWindow(LOCAL_ENGINE_PORT, next, writeConfig)
   engineState = { running: true, port: LOCAL_ENGINE_PORT, modelId: model.id }
   return { ...engineState }
 }
@@ -538,6 +594,42 @@ export function stopLocalEngine(): boolean {
 }
 
 /**
+ * Repair a corrupted `agents.defaults.workspace` in the config: when the path
+ * was mangled by an ANSI read/write round-trip (e.g. editing openclaw.json
+ * with PowerShell `Get-Content` without `-Encoding UTF8` — cyrillic paths
+ * like `C:\Users\Дамир\...` turn into mojibake), the agent fails on every
+ * message with `ENOENT: mkdir '<mojibake>'`. Detect the mojibake signature
+ * and fall back to the standard workspace path.
+ */
+function sanitizeConfigWorkspace(
+  cfg: OpenClawConfig,
+  writeConfig: (c: OpenClawConfig) => void,
+): void {
+  const ws = cfg.agents?.defaults?.workspace
+  if (typeof ws !== 'string' || ws.length === 0) return
+  // Mojibake signature: cyrillic letters mixed with punctuation/currency
+  // ranges that never appear in a real path (U+2018–U+2020, U+20AC).
+  const mojibake =
+    /[\u0400-\u045F][\u2018-\u2020\u20AC]|[\u2018-\u2020\u20AC][\u0400-\u045F]/.test(
+      ws,
+    )
+  if (mojibake) {
+    cfg.agents!.defaults!.workspace = path.join(
+      os.homedir(),
+      '.openclaw',
+      'workspace',
+    )
+    writeConfig(cfg)
+    return
+  }
+  if (!fs.existsSync(ws)) {
+    // Non-existent but not mojibake (e.g. first run, folder not created yet):
+    // leave it alone, the agent creates it on demand.
+    return
+  }
+}
+
+/**
  * Auto-start the local engine on app launch when the primary agent model is a
  * `local/*` GGUF. Failures are swallowed (logged via return value) so a broken
  * local setup never blocks app startup; the Models panel still shows state.
@@ -549,6 +641,7 @@ export async function maybeAutoStartLocalEngine(
   try {
     const config = readConfig()
     if (!config) return
+    sanitizeConfigWorkspace(config, writeConfig)
     const modelCfg = config?.agents?.defaults?.model
     const primary =
       typeof modelCfg === 'string' ? modelCfg : modelCfg?.primary
