@@ -19,7 +19,7 @@ export interface ModelPreset {
 
 /** 顺序大致对应 openclaw onboard 常见选项与文档推荐顺序。local 置顶（产品重点，v0.8.7 内建本地引擎）。 */
 export const PROVIDER_OPTIONS: readonly ProviderOption[] = [
-  { id: 'local', label: 'Local Model (offline, coming soon)', placeholder: '—' },
+  { id: 'local', label: 'Local Model (offline)', placeholder: '—' },
   { id: 'anthropic', label: 'Anthropic', placeholder: 'sk-ant-api03-...' },
   { id: 'openai', label: 'OpenAI', placeholder: 'sk-proj-...' },
   { id: 'deepseek', label: 'DeepSeek', placeholder: 'sk-...' },
