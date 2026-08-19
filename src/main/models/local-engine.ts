@@ -56,7 +56,6 @@ export const LOCAL_MODEL_PRESETS: LocalModelPreset[] = [
     url: 'https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf?download=true',
     sizeBytes: 2_740_937_888,
     description: '~2.6 GB · fastest, runs on any PC',
-    supportsTools: true,
   },
   {
     id: 'qwen3.5-9b',
@@ -64,8 +63,7 @@ export const LOCAL_MODEL_PRESETS: LocalModelPreset[] = [
     fileName: 'Qwen3.5-9B-Q4_K_M.gguf',
     url: 'https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/main/Qwen3.5-9B-Q4_K_M.gguf?download=true',
     sizeBytes: 5_680_522_464,
-    description: '~5.3 GB · best quality, tool calling enabled',
-    supportsTools: true,
+    description: '~5.3 GB · best quality',
   },
 ]
 
@@ -817,12 +815,14 @@ export async function startLocalEngine(
         // "Context size has been exceeded" once the chat history grows.
         contextWindow: 63488,
         maxTokens: 2048,
-        // Tool calling is on for presets that enable it and for custom GGUF
-        // models: without the schemas the model echoes the agent's tool
-        // descriptions as raw text (<|tool_call|>call:Read{...}<|tool_call|>).
-        // Risk: llama.cpp may reject exotic JSON-schema constructs (bare
-        // `pattern` → HTTP 400) — then the model errors instead of echoing.
-        compat: { supportsTools: preset ? preset.supportsTools === true : true },
+        // Tool calling stays OFF for local GGUF models: llama.cpp's JSON
+        // schema->grammar conversion rejects bare regex `pattern` in tool
+        // schemas (HTTP 400 "Pattern must start with '^' and end with '$'"),
+        // so ANY request carrying tools fails hard — the model looks dead
+        // right after the first wizard run. Without tools the model answers
+        // reliably; tool support can return once the schema issue is solved
+        // upstream (or via a request-sanitizing patch).
+        compat: { supportsTools: false },
       },
     ],
   }
@@ -1009,12 +1009,28 @@ export function sanitizeConfigPaths(
   cfg: OpenClawConfig,
   writeConfig: (c: OpenClawConfig) => void,
 ): void {
+  let changed = false
   const defaults = cfg.agents?.defaults
-  if (!defaults) return
-  if (isMojibakePath(defaults.workspace)) {
+  if (defaults && isMojibakePath(defaults.workspace)) {
     defaults.workspace = path.join(os.homedir(), '.openclaw', 'workspace')
-    writeConfig(cfg)
+    changed = true
   }
+  // Local GGUF models must never advertise tool support: llama.cpp rejects
+  // tool schemas with bare regex `pattern` (HTTP 400), which makes every
+  // chat request fail. Older configs may carry `compat.supportsTools: true`
+  // from earlier builds — force it off so the model works out of the box.
+  const localModels = cfg.models?.providers?.local?.models
+  if (Array.isArray(localModels)) {
+    for (const m of localModels) {
+      const compat = (m.compat ?? {}) as Record<string, unknown>
+      if (compat.supportsTools !== false) {
+        compat.supportsTools = false
+        m.compat = compat
+        changed = true
+      }
+    }
+  }
+  if (changed) writeConfig(cfg)
 }
 
 /**
