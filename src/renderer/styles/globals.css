@@ -81,3 +81,14 @@ body {
 .duration-200 {
   animation-duration: 200ms;
 }
+
+/* Wizard success states: solid green button (download done / connection ok) */
+.btn-success {
+  background-color: #16a34a !important;
+  border-color: #16a34a !important;
+  color: #ffffff !important;
+}
+.btn-success:hover:not(:disabled) {
+  background-color: #15803d !important;
+  border-color: #15803d !important;
+}

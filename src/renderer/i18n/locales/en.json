@@ -99,7 +99,9 @@
       "localHard": "Qwen 3.5 9B (Hard)",
       "localExperimental": "Qwen 3.5 9B (Experimental)",
       "experimentalBadge": "Experimental",
-      "pickFile": "From disk…"
+      "pickFile": "From disk…",
+      "downloaded": "Downloaded",
+      "connected": "Connected"
     },
     "models": {
       "loadFailed": "Failed to load models",

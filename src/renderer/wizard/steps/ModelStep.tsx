@@ -483,21 +483,23 @@ export function ModelStep() {
             size="sm"
             onClick={() => void handleTestConnection()}
             disabled={!canTest || testState.status === 'testing'}
+            className={[
+              testState.status === 'success' && 'btn-success',
+            ].join(' ')}
           >
             {testState.status === 'testing' ? (
               <Loader2 className="animate-spin" />
+            ) : testState.status === 'success' ? (
+              <CheckCircle2 />
             ) : (
               <Zap />
             )}
-            {testState.status === 'testing' ? t('wizard.model.testing') : t('wizard.model.testConnection')}
+            {testState.status === 'testing'
+              ? t('wizard.model.testing')
+              : testState.status === 'success'
+                ? t('wizard.model.connected')
+                : t('wizard.model.testConnection')}
           </Button>
-
-          {testState.status === 'success' && (
-            <span className="inline-flex items-center gap-1.5 text-sm text-green-600">
-              <CheckCircle2 className="w-4 h-4" />
-              {testState.message}
-            </span>
-          )}
 
           {testState.status === 'error' && (
             <span className="inline-flex items-center gap-1.5 text-sm text-destructive">

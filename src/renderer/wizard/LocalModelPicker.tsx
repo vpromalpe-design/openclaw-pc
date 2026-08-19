@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download, FolderOpen, Loader2, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -32,6 +32,8 @@ const LOCAL_PRESETS = [
 
 const CUSTOM_OPTION = '__custom_gguf__'
 
+type DownloadState = 'idle' | 'downloading' | 'done'
+
 export interface LocalModelPickerProps {
   modelId: string
   customUrl: string
@@ -50,6 +52,28 @@ export function LocalModelPicker({
   const { t } = useTranslation()
   const [downloading, setDownloading] = useState(false)
   const [progress, setProgress] = useState<number | null>(null)
+  const [downloadState, setDownloadState] = useState<DownloadState>('idle')
+
+  useEffect(() => {
+    const unsub = window.electronAPI.onLocalProgress((p) => {
+      if (p.stage === 'done') {
+        setProgress(1)
+        setDownloadState('done')
+        setDownloading(false)
+        return
+      }
+      if (p.stage === 'error') {
+        setProgress(null)
+        setDownloadState('idle')
+        setDownloading(false)
+        return
+      }
+      if (typeof p.progress === 'number') {
+        setProgress(p.progress)
+      }
+    })
+    return unsub
+  }, [])
 
   const isCustom = !LOCAL_PRESETS.some((p) => p.id === modelId)
 
@@ -58,6 +82,7 @@ export function LocalModelPicker({
     if (!target) return
     setDownloading(true)
     setProgress(0)
+    setDownloadState('downloading')
     try {
       if (isCustom) {
         const res = (await window.electronAPI.localAdd({ url: target })) as {
@@ -73,6 +98,7 @@ export function LocalModelPicker({
     } catch (e) {
       onError(e instanceof Error ? e.message : t('wizard.model.downloadFailed'))
       setProgress(null)
+      setDownloadState('idle')
     } finally {
       setDownloading(false)
     }
@@ -92,6 +118,9 @@ export function LocalModelPicker({
       onError(e instanceof Error ? e.message : t('wizard.model.downloadFailed'))
     }
   }
+
+  const progressPct =
+    progress !== null ? Math.min(100, Math.max(0, Math.round(progress * 100))) : 0
 
   return (
     <div className="space-y-2.5">
@@ -147,24 +176,38 @@ export function LocalModelPicker({
           disabled={
             downloading || (isCustom ? !customUrl.trim() : !modelId)
           }
+          className={[
+            'relative overflow-hidden',
+            downloadState === 'done' && 'btn-success',
+          ].join(' ')}
         >
-          {downloading ? (
-            <Loader2 className="w-4 h-4 animate-spin mr-1" aria-hidden />
-          ) : (
-            <Download className="w-4 h-4 mr-1" aria-hidden />
+          {downloadState === 'downloading' && progress !== null && (
+            <span
+              className="absolute inset-y-0 left-0 bg-green-600/35 transition-[width] duration-300"
+              style={{ width: `${progressPct}%` }}
+            />
           )}
-          {downloading
-            ? progress !== null && progress > 0
-              ? `${Math.round(progress * 100)}%`
-              : t('wizard.model.downloading')
-            : t('wizard.model.downloadModel')}
+          <span className="relative z-10 inline-flex items-center">
+            {downloadState === 'done' ? (
+              <CheckCircle2 className="w-4 h-4 mr-1" aria-hidden />
+            ) : downloading ? (
+              <Loader2 className="w-4 h-4 animate-spin mr-1" aria-hidden />
+            ) : (
+              <Download className="w-4 h-4 mr-1" aria-hidden />
+            )}
+            {downloadState === 'done'
+              ? t('wizard.model.downloaded')
+              : downloading
+                ? `${progressPct}%`
+                : t('wizard.model.downloadModel')}
+          </span>
         </Button>
         {downloading && (
           <span className="text-xs text-muted-foreground">
             {t('wizard.model.downloadHint')}
           </span>
         )}
-        {!downloading && modelId && (
+        {!downloading && modelId && downloadState !== 'done' && (
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
             <CheckCircle2 className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
             {t('wizard.model.localPicked')}
