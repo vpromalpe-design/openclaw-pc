@@ -61,7 +61,8 @@ type EngineToggleState = {
   error?: string;
 };
 
-const BRAND_RED = "#E43F3F";
+// Lit css literals must not interpolate plain strings (hard error in prod builds);
+// colors are inlined literally below. Keep JS color constants separate from css.
 
 export class OpenClawPcEngineToggle extends LitElement {
   static styles = css\`
@@ -87,7 +88,7 @@ export class OpenClawPcEngineToggle extends LitElement {
     .engine-toggle:hover { transform: translateY(-1px); }
     .engine-toggle:active { transform: translateY(0); }
     .engine-toggle--gpu {
-      background: \${BRAND_RED};
+      background: #E43F3F;
       box-shadow: 0 0 0 1px rgba(228, 63, 63, 0.6), 0 0 14px rgba(228, 63, 63, 0.55);
     }
     .engine-toggle--gpu:hover {
