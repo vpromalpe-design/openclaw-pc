@@ -162,6 +162,7 @@ export function listLocalModels(): LocalModelInfo[] {
     if (preset && !out.some((m) => m.fileName === preset.fileName)) {
       out.push({
         id: preset.id,
+        name: preset.name,
         fileName: preset.fileName,
         path: path.join(dir, preset.fileName),
         sizeBytes: preset.sizeBytes,
