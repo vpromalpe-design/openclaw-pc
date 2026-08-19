@@ -714,15 +714,18 @@ export async function startLocalEngine(
     String(LOCAL_ENGINE_PORT),
     '--no-ui',
     '-c',
-    '32768',
+    '65536',
     '-ngl',
     variant === 'cpu' ? '0' : '99',
-    // 32k context on GPU: quantize KV cache (q8_0 ≈ half of fp16) so the KV
-    // fits comfortably in VRAM next to the weights. The agent's prompt
-    // (system + tools + history) easily reaches ~10k tokens; with a 16k
-    // window the compaction reserve eats half of it and every turn overflows
-    // ("Auto-compaction could not recover this turn").
-    ...(variant === 'cpu' ? [] : ['-ctk', 'q8_0', '-ctv', 'q8_0']),
+    // 64k context: quantize the KV cache (q8_0 ≈ half of fp16) so it fits in
+    // VRAM/RAM next to the weights. The agent's prompt (system + tools +
+    // history) easily reaches ~10k tokens; with a 32k window the compaction
+    // reserve (50% by default) leaves too little room and auto-compaction
+    // fires almost every turn.
+    '-ctk',
+    'q8_0',
+    '-ctv',
+    'q8_0',
     '--log-file',
     path.join(engineDir(), 'server.log'),
   ]
@@ -763,7 +766,7 @@ export async function startLocalEngine(
     const cpuPath = await ensureEngineBinary('cpu')
     const cpuArgs = spawnArgs.map((a) => a)
     cpuArgs[cpuArgs.indexOf('-ngl') + 1] = '0'
-    cpuArgs[cpuArgs.indexOf('-c') + 1] = '32768'
+    cpuArgs[cpuArgs.indexOf('-c') + 1] = '65536'
     ok = await spawnServer(cpuPath, cpuArgs)
   }
   if (!ok) {
@@ -780,6 +783,15 @@ export async function startLocalEngine(
   next.agents = next.agents ?? { defaults: {} }
   next.agents.defaults = next.agents.defaults ?? {}
   next.agents.defaults.compaction = next.agents.defaults.compaction ?? {}
+  if (
+    typeof next.agents.defaults.compaction.reserveTokens !== 'number' &&
+    typeof next.agents.defaults.compaction.reserveTokensFloor !== 'number'
+  ) {
+    // Exact reserve: the gateway's default is 50% of the context window,
+    // which for a 64k window would reserve 32k tokens for output that will
+    // never come. 4096 is plenty (maxTokens is 2048 + tool results).
+    next.agents.defaults.compaction.reserveTokens = 4096
+  }
   if (
     typeof next.agents.defaults.compaction.reserveTokensFloor !== 'number'
   ) {
@@ -800,10 +812,10 @@ export async function startLocalEngine(
         ...(existingModel ?? {}),
         id: model.id,
         name: model.id,
-        // Real engine limits (-c 32768): context window + max output tokens
+        // Real engine limits (-c 65536): context window + max output tokens
         // must fit inside the server's n_ctx or llama-server answers 400
         // "Context size has been exceeded" once the chat history grows.
-        contextWindow: 30720,
+        contextWindow: 63488,
         maxTokens: 2048,
         // Tool calling is on for presets that enable it and for custom GGUF
         // models: without the schemas the model echoes the agent's tool
