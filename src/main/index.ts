@@ -40,7 +40,7 @@ import { startBackgroundUpdateCheck, stopBackgroundUpdateCheck } from './update/
 import { parseGatewayLogLine } from './logs/index.js'
 import { migrateAuthProfilesIfNeeded } from './wizard/index.js'
 import { listAuthProfiles } from './providers/index.js'
-import { maybeAutoStartLocalEngine } from './models/local-engine.js'
+import { maybeAutoStartLocalEngine, sanitizeConfigPaths } from './models/local-engine.js'
 import { syncLoginItemToSystem, getLoginItemOpenAtLogin, clearLoginItem } from './login-item/index.js'
 import { patchGatewayResponseHeaders } from './security/gateway-response-headers.js'
 import { rewriteGatewayRequestUrlWithToken } from './security/gateway-request-auth.js'
@@ -149,6 +149,20 @@ app.whenReady().then(() => {
   Menu.setApplicationMenu(null) // Remove View, File, etc. menu bar
   initShellLog()
   registerShellFileProtocol()
+
+  // Repair mojibake paths in openclaw.json (cyrillic username mangled by an
+  // ANSI round-trip, e.g. PowerShell Get-Content without -Encoding UTF8).
+  // Must run before the gateway spawns: it reads workspace/agentDir from the
+  // config and would otherwise re-create the agent profile under a garbage
+  // C:\Users\<mojibake> directory.
+  try {
+    const cfg = readOpenClawConfig()
+    if (cfg) {
+      sanitizeConfigPaths(cfg, (c) => writeOpenClawConfig(c))
+    }
+  } catch (err) {
+    logWarn(`[OpenClaw] sanitizeConfigPaths failed: ${String(err)}`)
+  }
 
   // Allow Control UI to be embedded in our Shell iframe: OpenClaw sets X-Frame-Options: DENY
   // and frame-ancestors 'none', which would block the iframe. We intercept and relax these

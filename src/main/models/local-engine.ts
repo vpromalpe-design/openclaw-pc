@@ -988,31 +988,32 @@ export async function setLocalEngineMode(
  * message with `ENOENT: mkdir '<mojibake>'`. Detect the mojibake signature
  * and fall back to the standard workspace path.
  */
-function sanitizeConfigWorkspace(
+
+/** Mojibake signature: cyrillic letters mixed with characters that never
+ * appear in a real Windows path (NBSP U+00A0, smart quotes U+2018–U+201F,
+ * currency U+20AC, CP1251 control chars U+0098). */
+function isMojibakePath(p: string | undefined): boolean {
+  if (typeof p !== 'string' || p.length === 0) return false
+  return /[\u0400-\u045F][\u00A0\u0098\u2018-\u201F\u20AC]|[\u00A0\u0098\u2018-\u201F\u20AC][\u0400-\u045F]/.test(
+    p,
+  )
+}
+
+/**
+ * Repair mojibake paths in the config (workspace, agentDir) so the agent
+ * works in the real profile even when a cyrillic username was mangled by an
+ * ANSI read/write round-trip of openclaw.json. Called on app start (before
+ * the gateway spawns) and before every local-engine config write.
+ */
+export function sanitizeConfigPaths(
   cfg: OpenClawConfig,
   writeConfig: (c: OpenClawConfig) => void,
 ): void {
-  const ws = cfg.agents?.defaults?.workspace
-  if (typeof ws !== 'string' || ws.length === 0) return
-  // Mojibake signature: cyrillic letters mixed with punctuation/currency
-  // ranges that never appear in a real path (U+2018–U+2020, U+20AC).
-  const mojibake =
-    /[\u0400-\u045F][\u2018-\u2020\u20AC]|[\u2018-\u2020\u20AC][\u0400-\u045F]/.test(
-      ws,
-    )
-  if (mojibake) {
-    cfg.agents!.defaults!.workspace = path.join(
-      os.homedir(),
-      '.openclaw',
-      'workspace',
-    )
+  const defaults = cfg.agents?.defaults
+  if (!defaults) return
+  if (isMojibakePath(defaults.workspace)) {
+    defaults.workspace = path.join(os.homedir(), '.openclaw', 'workspace')
     writeConfig(cfg)
-    return
-  }
-  if (!fs.existsSync(ws)) {
-    // Non-existent but not mojibake (e.g. first run, folder not created yet):
-    // leave it alone, the agent creates it on demand.
-    return
   }
 }
 
@@ -1028,7 +1029,7 @@ export async function maybeAutoStartLocalEngine(
   try {
     const config = readConfig()
     if (!config) return
-    sanitizeConfigWorkspace(config, writeConfig)
+    sanitizeConfigPaths(config, writeConfig)
     const modelCfg = config?.agents?.defaults?.model
     const primary =
       typeof modelCfg === 'string' ? modelCfg : modelCfg?.primary
