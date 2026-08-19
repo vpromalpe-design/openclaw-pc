@@ -25,6 +25,7 @@ export function getDefaultShellConfig(): ShellConfig {
     onboardingMainWindowExpanded: false,
     autoCheckUpdates: true,
     localEngineMode: 'auto',
+    localModelsOrder: [],
     windowBounds: {
       x: -1,
       y: -1,

@@ -69,6 +69,7 @@ import {
   IPC_LOCAL_ENGINE_START,
   IPC_LOCAL_ENGINE_STOP,
   IPC_LOCAL_ENGINE_MODE,
+  IPC_LOCAL_REORDER,
   IPC_SKILLS_LIST,
   IPC_SKILLS_TOGGLE,
   IPC_SKILLS_RELOAD,
@@ -145,6 +146,7 @@ import {
   validateRegistryItem,
 } from '../registry/index.js'
 import { tailLogsWithGateway } from '../logs/index.js'
+import { logError } from '../utils/logger.js'
 import { getLogAggregator } from '../diagnostics/log-aggregator.js'
 import { runBackupCreateCli, runBackupVerifyCli } from '../backup/index.js'
 import { syncLoginItemToSystem } from '../login-item/index.js'
@@ -815,7 +817,7 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
     wrapHandler('MODELS_VIEW_LIST', (): ModelsViewResult => {
       const config = deps.openclawConfigExists() ? (deps.readOpenClawConfig() ?? {}) : {}
       const view = buildModelsView(config)
-      view.localModels = listLocalModels()
+      view.localModels = listLocalModels(deps.readShellConfig().localModelsOrder)
       view.engineState = getEngineState()
       return view
     }),
@@ -859,7 +861,7 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
   ipcMain.handle(
     IPC_LOCAL_LIST,
     wrapHandler('LOCAL_LIST', () => ({
-      localModels: listLocalModels(),
+      localModels: listLocalModels(deps.readShellConfig().localModelsOrder),
       engineState: getEngineState(),
     })),
   )
@@ -982,6 +984,7 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
       const modelId = String(raw.modelId ?? '')
       if (!modelId) throw new Error('modelId is required')
       const config = deps.openclawConfigExists() ? (deps.readOpenClawConfig() ?? {}) : {}
+      const before = getEngineState()
       const state = await startLocalEngine(modelId, config, (c) => {
         deps.writeOpenClawConfig(c)
         readOpenClawConfig()
@@ -990,7 +993,30 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
       if (raw.test === true && state.running) {
         test = await testLocalEngineChat(LOCAL_ENGINE_PORT, state.modelId ?? modelId)
       }
-      return { ok: test ? test.ok : true, engineState: state, test }
+      // The running gateway only re-reads openclaw.json on restart. When the
+      // engine started for the first time (or switched to another model) while
+      // the gateway was already up, restart it so the chat actually uses the
+      // new primary model. Failures here are non-fatal: the engine is healthy,
+      // the user can restart the gateway from the UI.
+      if (state.running && (raw.restartGateway !== false)) {
+        const switched = !before.running || before.modelId !== state.modelId
+        if (switched && deps.openclawConfigExists()) {
+          const gwCfg = deps.readOpenClawConfig()
+          const gw = gwCfg?.gateway
+          const port = gw?.port ?? DEFAULT_GATEWAY_PORT
+          const bind = gw?.bind ?? 'loopback'
+          const token = gw?.auth?.token?.trim()
+          const force = Boolean(gw?.forcePortOnConflict)
+          try {
+            await gatewayManager.restart({ port, bind, token: token || undefined, force })
+          } catch (err) {
+            logError(
+              `[local-engine] gateway restart after model switch failed: ${err instanceof Error ? err.message : String(err)}`,
+            )
+          }
+        }
+      }
+      return { ok: test ? test.ok : true, engineState: state, test, restarted: true }
     }),
   )
 
@@ -1021,6 +1047,20 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
         })
       }
       return getLocalEngineRuntimeState()
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_LOCAL_REORDER,
+    wrapHandler('LOCAL_REORDER', (payload: unknown) => {
+      const raw = validatePlainObject(payload, 'local:reorder')
+      const ids = Array.isArray(raw.ids)
+        ? (raw.ids as unknown[]).filter((x): x is string => typeof x === 'string')
+        : []
+      const shell = deps.readShellConfig()
+      shell.localModelsOrder = ids
+      deps.writeShellConfig(shell)
+      return { ok: true }
     }),
   )
 

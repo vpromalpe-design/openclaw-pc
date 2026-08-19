@@ -114,7 +114,7 @@ function engineDir(): string {
 }
 
 /** Scan downloaded GGUF files. */
-export function listLocalModels(): LocalModelInfo[] {
+export function listLocalModels(order?: string[]): LocalModelInfo[] {
   const dir = modelsDir()
   const out: LocalModelInfo[] = []
   try {
@@ -174,7 +174,21 @@ export function listLocalModels(): LocalModelInfo[] {
       })
     }
   }
-  out.sort((a, b) => a.fileName.localeCompare(b.fileName))
+  const orderIndex = new Map((order ?? []).map((id, i) => [id, i]))
+  const presetIndex = new Map(LOCAL_MODEL_PRESETS.map((p, i) => [p.id, i]))
+  out.sort((a, b) => {
+    const oa = orderIndex.get(a.id)
+    const ob = orderIndex.get(b.id)
+    if (oa !== undefined && ob !== undefined) return oa - ob
+    if (oa !== undefined) return -1
+    if (ob !== undefined) return 1
+    const pa = presetIndex.get(a.id)
+    const pb = presetIndex.get(b.id)
+    if (pa !== undefined && pb !== undefined) return pa - pb
+    if (pa !== undefined) return -1
+    if (pb !== undefined) return 1
+    return a.fileName.localeCompare(b.fileName)
+  })
   return out
 }
 
@@ -830,7 +844,7 @@ export async function getLocalEngineRuntimeState(): Promise<LocalEngineRuntimeIn
     gpuVendor: gpu.vendor,
     gpuName: gpu.name,
     engineState: { ...engineState },
-    models: listLocalModels(),
+    models: listLocalModels(shellConfig.localModelsOrder),
   }
 }
 

@@ -41,6 +41,8 @@ export interface ShellConfig {
   lastUpdateCheck?: string
   /** Local engine compute mode: auto (GPU when available) | cpu | gpu */
   localEngineMode?: 'auto' | 'cpu' | 'gpu'
+  /** User-defined display/switch order for downloaded local models (ids). */
+  localModelsOrder?: string[]
   windowBounds: WindowBounds
 }
 

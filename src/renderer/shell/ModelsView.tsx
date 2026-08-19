@@ -162,6 +162,22 @@ export function ModelsView({ onBack }: ModelsViewProps) {
 
   const handleMakePrimary = async (entry: ModelTableEntry) => {
     if (!data) return
+    if (entry.isLocal) {
+      // Local: actually start the engine with this model (config sync + the
+      // gateway restart happen inside the local:engineStart handler).
+      if (!entry.modelId) return
+      setEngineBusy(true)
+      setError(null)
+      try {
+        await window.electronAPI.localEngineStart({ modelId: entry.modelId })
+        await load()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : t('shell.models.engineStartFailed'))
+      } finally {
+        setEngineBusy(false)
+      }
+      return
+    }
     const chain = chainIds()
     const rest = chain.filter((c) => !c.startsWith(`${entry.providerId}/`))
     await applyPriority(`${entry.providerId}/${entry.modelId}`, rest)
@@ -415,6 +431,24 @@ export function ModelsView({ onBack }: ModelsViewProps) {
     }
   }
 
+  const handleLocalMove = async (dir: -1 | 1) => {
+    if (!selectedLocal) return
+    const idx = downloadedLocalModels.findIndex((m) => m.id === selectedLocal)
+    const swap = idx + dir
+    if (idx < 0 || swap < 0 || swap >= downloadedLocalModels.length) return
+    const ids = downloadedLocalModels.map((m) => m.id)
+    ;[ids[idx], ids[swap]] = [ids[swap]!, ids[idx]!]
+    setEngineBusy(true)
+    try {
+      await window.electronAPI.localEngineReorder(ids)
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('shell.models.applyFailed'))
+    } finally {
+      setEngineBusy(false)
+    }
+  }
+
   const defaultBack = () => {
     window.location.hash = ''
   }
@@ -433,6 +467,7 @@ export function ModelsView({ onBack }: ModelsViewProps) {
   const engineState: LocalEngineState | null = data?.engineState ?? null
   const localModels: LocalModelInfo[] = data?.localModels ?? []
   const downloadedLocalModels = localModels.filter((m) => m.downloaded)
+  const selectedIdx = downloadedLocalModels.findIndex((m) => m.id === selectedLocal)
   const localConnected =
     selectedLocal !== '' &&
     engineState?.running &&
@@ -485,6 +520,7 @@ export function ModelsView({ onBack }: ModelsViewProps) {
                       fallbackCount={data?.fallbacks.length ?? 0}
                       applying={applying}
                       saving={savingProvider === e.providerId}
+                      connected={Boolean(engineState?.running && engineState.modelId === e.modelId)}
                       onToggle={() => toggleProviderPanel(e)}
                       onMove={(dir) => void handleMove(e, dir)}
                       onMakePrimary={() => void handleMakePrimary(e)}
@@ -527,25 +563,47 @@ export function ModelsView({ onBack }: ModelsViewProps) {
             <label htmlFor="local-active-select" className="text-sm font-medium block">
               {t('shell.models.localActive')}
             </label>
-            <Select
-              value={selectedLocal}
-              onValueChange={(v) => {
-                setSelectedLocal(v)
-                setLocalTest('idle')
-                setLocalTestMsg('')
-              }}
-            >
-              <SelectTrigger id="local-active-select" className="w-full">
-                <SelectValue placeholder={t('shell.models.localSelectPlaceholder')} />
-              </SelectTrigger>
-              <SelectContent>
-                {downloadedLocalModels.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.fileName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-1.5">
+              <Select
+                value={selectedLocal}
+                onValueChange={(v) => {
+                  setSelectedLocal(v)
+                  setLocalTest('idle')
+                  setLocalTestMsg('')
+                }}
+              >
+                <SelectTrigger id="local-active-select" className="w-full">
+                  <SelectValue placeholder={t('shell.models.localSelectPlaceholder')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {downloadedLocalModels.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.fileName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                title={t('shell.models.moveUp')}
+                disabled={!selectedLocal || selectedIdx <= 0 || engineBusy}
+                onClick={() => void handleLocalMove(-1)}
+              >
+                <ArrowUp className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                title={t('shell.models.moveDown')}
+                disabled={!selectedLocal || selectedIdx < 0 || selectedIdx >= downloadedLocalModels.length - 1 || engineBusy}
+                onClick={() => void handleLocalMove(1)}
+              >
+                <ArrowDown className="h-4 w-4" />
+              </Button>
+            </div>
             {downloadedLocalModels.length === 0 && (
               <p className="text-xs text-muted-foreground">{t('shell.models.noLocalModels')}</p>
             )}
@@ -711,6 +769,7 @@ interface ProviderRowGroupProps {
   fallbackCount: number
   applying: boolean
   saving: boolean
+  connected?: boolean
   onToggle: () => void
   onMove: (dir: -1 | 1) => void
   onMakePrimary: () => void
@@ -730,6 +789,7 @@ function ProviderRowGroup({
   fallbackCount,
   applying,
   saving,
+  connected,
   onToggle,
   onMove,
   onMakePrimary,
@@ -797,10 +857,17 @@ function ProviderRowGroup({
               </Button>
             )}
             {e.isLocal && (
-              <Button variant="outline" size="sm" className="h-7"
-                onClick={onMakePrimary} disabled={applying}>
-                {t('shell.models.connect')}
-              </Button>
+              connected ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-green-500/40 bg-green-500/10 px-2.5 py-1 text-xs font-semibold text-green-600 dark:text-green-400">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  {t('shell.models.connected')}
+                </span>
+              ) : (
+                <Button variant="outline" size="sm" className="h-7" onClick={onMakePrimary} disabled={applying}>
+                  <Zap className="h-3.5 w-3.5 mr-1" />
+                  {t('shell.models.connect')}
+                </Button>
+              )
             )}
           </div>
         </td>

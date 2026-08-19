@@ -291,6 +291,10 @@ export class OpenClawPcModelBar extends LitElement {
   };
 
   private toggleMenu() {
+    if (!this.open) {
+      // Re-fetch the engine state so the list reflects the latest downloads.
+      window.parent.postMessage({ type: REQUEST_TYPE, action: "get-state" }, "*");
+    }
     this.open = !this.open;
   }
 
