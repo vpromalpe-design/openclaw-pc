@@ -476,6 +476,13 @@ export async function ensureEngineBinary(
   } catch {
     /* ignore */
   }
+  if (variant === 'cuda') {
+    // Official llama.cpp CUDA builds load cudart/cublas dynamically and die
+    // with ExitCode 1 when the host has no CUDA Toolkit installed. Ship the
+    // runtime next to the binary so the GPU build works on any machine with
+    // an NVIDIA driver (no admin install required).
+    await ensureCudaRuntime(dir)
+  }
   const exe = getEngineServerPath(variant)
   if (!exe) {
     // llama-server.exe may sit in a subfolder (older builds) — search one level deep.
@@ -484,6 +491,61 @@ export async function ensureEngineBinary(
     return found
   }
   return exe
+}
+
+/**
+ * Stable release tag on OUR repo hosting the CUDA 12.x runtime DLLs
+ * (never force-pushed; independent from the app version tags).
+ */
+const CUDA_RUNTIME_TAG = 'cuda-runtime-v1'
+const CUDA_RUNTIME_ASSET = 'llama-runtime-cuda12-win-x64.zip'
+const CUDA_RUNTIME_DLLS = ['cudart64_12.dll', 'cublas64_12.dll', 'cublasLt64_12.dll']
+
+/** Download + extract the CUDA runtime DLLs next to the engine binary. */
+async function ensureCudaRuntime(dir: string): Promise<void> {
+  const have = CUDA_RUNTIME_DLLS.every((dll) => fs.existsSync(path.join(dir, dll)))
+  if (have) return
+  const zipUrl = `https://github.com/vpromalpe-design/openclaw-pc/releases/download/${CUDA_RUNTIME_TAG}/${CUDA_RUNTIME_ASSET}`
+  const zipPath = path.join(dir, 'cuda-runtime.zip')
+  emitProgress({
+    stage: 'cuda-runtime-download',
+    tag: CUDA_RUNTIME_TAG,
+    variant: 'cuda',
+    progress: 0,
+  })
+  const { res } = await httpGetFollowRedirect(zipUrl, 5)
+  const total = Number(res.headers['content-length'] ?? 0)
+  let received = 0
+  const out = fs.createWriteStream(zipPath)
+  await new Promise<void>((resolve, reject) => {
+    res.on('data', (c: Buffer) => {
+      received += c.length
+      emitProgress({
+        stage: 'cuda-runtime-download',
+        tag: CUDA_RUNTIME_TAG,
+        variant: 'cuda',
+        received,
+        total,
+        progress: total ? Math.min(1, received / total) : 0,
+      })
+    })
+    res.on('error', reject)
+    out.on('error', reject)
+    out.on('close', resolve)
+    res.pipe(out)
+  })
+  await extractZip(zipPath, dir)
+  try {
+    fs.unlinkSync(zipPath)
+  } catch {
+    /* ignore */
+  }
+  const missing = CUDA_RUNTIME_DLLS.filter((dll) => !fs.existsSync(path.join(dir, dll)))
+  if (missing.length > 0) {
+    throw new Error(
+      `CUDA runtime download incomplete, missing: ${missing.join(', ')}`,
+    )
+  }
 }
 
 function findLlamaServerExe(dir: string): string | null {
