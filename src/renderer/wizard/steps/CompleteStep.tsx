@@ -91,13 +91,14 @@ interface SummaryCardProps {
 function SummaryCard({ icon, title, children, onEdit }: SummaryCardProps) {
   const { t } = useTranslation()
   return (
-    <section className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-sm min-w-0">
-      <div className="flex items-center justify-between gap-2 border-b border-border/50 pb-2 min-w-0">
-        <div className="flex items-center gap-2.5 min-w-0">
+    <div className="min-w-0 flex flex-col">
+      {/* Title lives OUTSIDE the card frame so it is never squeezed/truncated */}
+      <div className="flex items-center justify-between gap-2 min-w-0 mb-2">
+        <div className="flex items-center gap-2 min-w-0">
           <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center text-primary shrink-0">
             {icon}
           </div>
-          <h3 className="text-sm font-semibold tracking-tight truncate">{title}</h3>
+          <h3 className="text-sm font-semibold tracking-tight leading-snug break-words">{title}</h3>
         </div>
         {onEdit && (
           <Button
@@ -113,10 +114,10 @@ function SummaryCard({ icon, title, children, onEdit }: SummaryCardProps) {
           </Button>
         )}
       </div>
-      <dl className="space-y-2 text-sm pt-1">
-        {children}
-      </dl>
-    </section>
+      <section className="rounded-xl border border-border bg-card p-4 shadow-sm min-w-0 flex-1">
+        <dl className="space-y-2 text-sm">{children}</dl>
+      </section>
+    </div>
   )
 }
 
