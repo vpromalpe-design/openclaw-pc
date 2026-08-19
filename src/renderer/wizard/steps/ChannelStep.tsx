@@ -4,7 +4,6 @@ import { ExternalLink, Loader2, MessageSquareText, ShieldCheck } from 'lucide-re
 import { useWizardStore } from '@/stores/wizard-store'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 
 type ChannelTab = 'webchat' | 'telegram' | 'whatsapp' | 'discord'
 
@@ -70,10 +69,6 @@ export function ChannelStep() {
     t,
   ])
 
-  const handleSkipChannelsChange = (checked: boolean) => {
-    setChannelConfig({ skipChannels: checked })
-  }
-
   const handleTabChange = (tab: ChannelTab) => {
     setChannelConfig({ selectedChannel: tab, skipChannels: false })
   }
@@ -131,27 +126,13 @@ export function ChannelStep() {
         </p>
 
         {activeTab === 'webchat' ? (
-          <div className="rounded-md border border-primary/20 bg-primary/5 p-3 sm:p-4 space-y-3 sm:space-y-4">
+          <div className="rounded-md border border-primary/20 bg-primary/5 p-3 sm:p-4">
             <div className="space-y-1">
               <p className="text-sm font-medium text-foreground">{t('wizard.channel.webchat.title')}</p>
               <p className="text-xs text-muted-foreground">
                 {t('wizard.channel.webchat.description')}
               </p>
             </div>
-
-            <label
-              htmlFor="skip-channels-checkbox"
-              className="inline-flex items-center gap-2 cursor-pointer rounded-md border border-border px-3 py-2 bg-background hover:bg-muted/50 transition-colors"
-            >
-              <Checkbox
-                id="skip-channels-checkbox"
-                checked={channelConfig.skipChannels}
-                onCheckedChange={(checked) =>
-                  handleSkipChannelsChange(checked === true)
-                }
-              />
-              <span className="text-sm font-medium">{t('wizard.channel.skipChannels')}</span>
-            </label>
           </div>
         ) : activeTab === 'telegram' ? (
           <div className="rounded-md border border-primary/20 bg-primary/5 p-3 sm:p-4 space-y-3 sm:space-y-4">
