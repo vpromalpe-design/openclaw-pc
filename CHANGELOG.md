@@ -2,7 +2,7 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
-## [Unreleased]
+## [0.8.8] - 2026-08-18
 
 ### Changed
 
