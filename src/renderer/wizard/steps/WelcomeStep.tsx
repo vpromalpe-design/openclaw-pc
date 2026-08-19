@@ -12,7 +12,7 @@ interface FeatureCardProps {
 
 function FeatureCard({ icon, title, description }: FeatureCardProps) {
   return (
-    <div className="rounded-xl border border-border bg-card p-4 space-y-2 transition-all hover:border-primary/30 hover:shadow-sm">
+    <div className="rounded-xl border border-border bg-card p-4 space-y-2">
       <div className="flex items-center gap-2.5 mb-1">
         <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
           {icon}
