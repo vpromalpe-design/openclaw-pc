@@ -698,11 +698,12 @@ export async function startLocalEngine(
         // "Context size has been exceeded" once the chat history grows.
         contextWindow: 30720,
         maxTokens: 2048,
-        // llama.cpp cannot parse OpenAI tool schemas (bare `pattern` regexes
-        // fail JSON-schema→grammar conversion with HTTP 400), so local GGUF
-        // models run without tools by default. The Experimental preset opts
-        // into tool calling (may fail on some schemas).
-        compat: { supportsTools: preset?.supportsTools === true },
+        // Tool calling is on for presets that enable it and for custom GGUF
+        // models: without the schemas the model echoes the agent's tool
+        // descriptions as raw text (<|tool_call|>call:Read{...}<|tool_call|>).
+        // Risk: llama.cpp may reject exotic JSON-schema constructs (bare
+        // `pattern` → HTTP 400) — then the model errors instead of echoing.
+        compat: { supportsTools: preset ? preset.supportsTools === true : true },
       },
     ],
   }
