@@ -59,6 +59,7 @@ export const LOCAL_MODEL_PRESETS: LocalModelPreset[] = [
     url: 'https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf?download=true',
     sizeBytes: 2_740_937_888,
     description: '~2.6 GB · fastest, runs on any PC',
+    supportsTools: true,
   },
   {
     id: 'qwen3.5-9b',
@@ -66,7 +67,8 @@ export const LOCAL_MODEL_PRESETS: LocalModelPreset[] = [
     fileName: 'Qwen3.5-9B-Q4_K_M.gguf',
     url: 'https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/main/Qwen3.5-9B-Q4_K_M.gguf?download=true',
     sizeBytes: 5_680_522_464,
-    description: '~5.3 GB · best quality on CPU',
+    description: '~5.3 GB · best quality, tool calling enabled',
+    supportsTools: true,
   },
   {
     id: 'qwen3.5-9b-experimental',
