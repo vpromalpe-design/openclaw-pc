@@ -6,6 +6,14 @@ All notable changes to OpenClaw Desktop will be documented in this file.
 
 ### Changed
 
+- **Welcome screen redesigned**: three feature cards in a row, start button centered and raised, original OpenClaw logo image instead of a text mark.
+- **Wizard**: removed the "Skip, WebChat only" checkbox — WebChat remains the default channel and Telegram/Discord stay optional.
+- **Accent color** switched to the brand coral `#E43F3F` in both light and dark themes.
+- **DeepSeek listed last** among cloud providers.
+- **Download progress on the model button**: live percentage fill turning into a green "Downloaded" state with a checkmark when the model finishes.
+- **Models page**: each cloud provider row expands into a settings panel (model picker with presets or free input, API key with show/hide, Base URL + API compatibility for custom providers) with a "Test Connection" button that turns green "Connected" on success and a "Save" button that persists the key and model into the config.
+- **Models page**: "Active local model" selector lists every downloaded GGUF model (including ones added from disk); "Test Connection" starts the local engine with the chosen model and shows a green "Connected" status once it is ready.
+
 - **Local model presets reworked to Qwen 3.5**: **Normal** (Qwen 3.5 4B, runs on any PC), **Hard** (Qwen 3.5 9B, best quality) and **Experimental** (same 9B model, but with tool calling enabled — llama.cpp may reject some tool schemas, opt-in by design). The wizard and the Models page show an `Experimental` badge on the third preset. GGUF files are fetched straight from the Ollama registry (official model blobs are plain GGUF).
 - **Add a model from disk**: new "From disk…" button in the wizard and on the Models page opens a file picker for a local `.gguf` file and copies it into the models folder (previously only a download URL was supported).
 - **Brand accent**: wizard/settings accent switched from orange (`#FF4500`) to the official OpenClaw coral palette — deep wine red `#9C3222` (light) / `#C24028` (dark).
