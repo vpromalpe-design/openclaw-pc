@@ -88,27 +88,27 @@ export class OpenClawPcEngineToggle extends LitElement {
     .engine-toggle:hover { transform: translateY(-1px); }
     .engine-toggle:active { transform: translateY(0); }
     .engine-toggle--gpu {
-      background: #E43F3F;
-      box-shadow: 0 0 0 1px rgba(228, 63, 63, 0.6), 0 0 14px rgba(228, 63, 63, 0.55);
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(74, 222, 128, 0.45);
+      color: #4ADE80;
+      box-shadow: 0 0 12px rgba(74, 222, 128, 0.35);
     }
     .engine-toggle--gpu:hover {
-      background: #d63a3a;
-      box-shadow: 0 0 0 1px rgba(228, 63, 63, 0.8), 0 0 18px rgba(228, 63, 63, 0.8);
+      background: rgba(255, 255, 255, 0.2);
+      box-shadow: 0 0 16px rgba(74, 222, 128, 0.5);
     }
     .engine-toggle--cpu {
-      background: rgba(255, 255, 255, 0.12);
-      border-color: rgba(255, 255, 255, 0.25);
-      color: rgba(255, 255, 255, 0.85);
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.15);
+      color: rgba(255, 255, 255, 0.55);
     }
     .engine-toggle--cpu:hover {
-      background: rgba(255, 255, 255, 0.2);
-      box-shadow: 0 0 10px rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.14);
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
     }
-    .engine-toggle__dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: currentColor;
+    .engine-toggle__bolt {
+      width: 12px;
+      height: 12px;
       flex: none;
     }
   \`;
@@ -159,7 +159,9 @@ export class OpenClawPcEngineToggle extends LitElement {
         aria-label=\${title}
         @click=\${this.toggle}
       >
-        <span class="engine-toggle__dot" aria-hidden="true"></span>
+        \${gpu
+          ? html\`<svg class="engine-toggle__bolt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>\`
+          : ""}
         \${label}
       </button>
     \`;
