@@ -4,6 +4,7 @@
  */
 
 import type { ModelConfig } from '../../shared/types.js'
+import { listLocalModels } from '../models/local-engine.js'
 
 export interface WizardTestModelResult {
   ok: boolean
@@ -189,8 +190,24 @@ function resolveErrorMessage(status: number, body: unknown): string {
 export async function testModelConnection(
   config: ModelConfig,
 ): Promise<WizardTestModelResult> {
-  if (!config.provider || !config.apiKey?.trim() || !config.modelId?.trim()) {
+  if (!config.provider || !config.modelId?.trim()) {
     return { ok: false, message: 'Complete the model configuration' }
+  }
+
+  if (config.provider === 'local') {
+    const found = listLocalModels().some(
+      (m) =>
+        m.id === config.modelId ||
+        m.fileName.replace(/\.gguf$/i, '') === config.modelId,
+    )
+    if (found) {
+      return { ok: true, message: 'Local model is ready' }
+    }
+    return { ok: false, message: 'Local model file not found — pick a GGUF file first' }
+  }
+
+  if (!config.apiKey?.trim()) {
+    return { ok: false, message: 'Enter an API key to test the connection' }
   }
 
   if (config.provider === 'custom') {

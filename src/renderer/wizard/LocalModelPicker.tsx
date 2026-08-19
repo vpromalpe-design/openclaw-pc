@@ -207,12 +207,6 @@ export function LocalModelPicker({
             {t('wizard.model.downloadHint')}
           </span>
         )}
-        {!downloading && modelId && downloadState !== 'done' && (
-          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-            <CheckCircle2 className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
-            {t('wizard.model.localPicked')}
-          </span>
-        )}
         <Button
           type="button"
           variant="outline"
@@ -223,6 +217,14 @@ export function LocalModelPicker({
           {t('wizard.model.pickFile')}
         </Button>
       </div>
+      {!downloading && modelId && (
+        <div className="flex items-center gap-3 rounded-xl border-2 border-green-500/50 bg-green-500/10 px-4 py-3">
+          <CheckCircle2 className="h-8 w-8 shrink-0 text-green-600 dark:text-green-400" />
+          <span className="text-base font-bold text-green-700 dark:text-green-400">
+            {t('wizard.model.localPicked')}
+          </span>
+        </div>
+      )}
       <p className="text-xs text-muted-foreground">{t('wizard.model.localNote')}</p>
     </div>
   )

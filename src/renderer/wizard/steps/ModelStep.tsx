@@ -35,6 +35,7 @@ const TESTABLE_PROVIDERS = new Set<ModelProvider>([
   'openrouter',
   'kuae',
   'custom',
+  'local',
 ])
 
 // ─── Test result types ───────────────────────────────────────────────────────

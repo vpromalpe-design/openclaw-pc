@@ -431,8 +431,11 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
         customCompatibility:
           raw.customCompatibility === 'anthropic' ? 'anthropic' : raw.customCompatibility === 'openai' ? 'openai' : undefined,
       }
-      if (!cfg.provider || !cfg.apiKey || !cfg.modelId) {
-        throw new Error('modelConfig must include provider, apiKey, and modelId')
+      if (!cfg.provider || !cfg.modelId) {
+        throw new Error('modelConfig must include provider and modelId')
+      }
+      if (cfg.provider !== 'local' && !cfg.apiKey) {
+        throw new Error('modelConfig must include apiKey')
       }
       if (cfg.provider === 'custom' && (!cfg.customProviderId || !cfg.customBaseUrl)) {
         throw new Error('custom modelConfig must include customProviderId and customBaseUrl')
@@ -640,8 +643,11 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
         customCompatibility:
           raw.customCompatibility === 'anthropic' ? 'anthropic' : raw.customCompatibility === 'openai' ? 'openai' : undefined,
       }
-      if (!cfg.provider || !cfg.apiKey || !cfg.modelId) {
-        throw new Error('modelConfig must include provider, apiKey, and modelId')
+      if (!cfg.provider || !cfg.modelId) {
+        throw new Error('modelConfig must include provider and modelId')
+      }
+      if (cfg.provider !== 'local' && !cfg.apiKey) {
+        throw new Error('modelConfig must include apiKey')
       }
       if (cfg.provider === 'custom' && (!cfg.customProviderId || !cfg.customBaseUrl)) {
         throw new Error('custom modelConfig must include customProviderId and customBaseUrl')
