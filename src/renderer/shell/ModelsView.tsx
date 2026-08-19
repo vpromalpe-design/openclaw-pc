@@ -473,7 +473,6 @@ export function ModelsView({ onBack }: ModelsViewProps) {
                       fallbackCount={data?.fallbacks.length ?? 0}
                       applying={applying}
                       saving={savingProvider === e.providerId}
-                      engineBusy={engineBusy}
                       onToggle={() => toggleProviderPanel(e)}
                       onMove={(dir) => void handleMove(e, dir)}
                       onMakePrimary={() => void handleMakePrimary(e)}
@@ -700,7 +699,6 @@ interface ProviderRowGroupProps {
   fallbackCount: number
   applying: boolean
   saving: boolean
-  engineBusy: boolean
   onToggle: () => void
   onMove: (dir: -1 | 1) => void
   onMakePrimary: () => void
@@ -720,7 +718,6 @@ function ProviderRowGroup({
   fallbackCount,
   applying,
   saving,
-  engineBusy,
   onToggle,
   onMove,
   onMakePrimary,
