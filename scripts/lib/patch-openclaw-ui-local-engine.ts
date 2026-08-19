@@ -100,7 +100,7 @@ export class OpenClawPcEngineToggle extends LitElement {
     .engine-toggle--cpu {
       background: rgba(255, 255, 255, 0.08);
       border-color: rgba(255, 255, 255, 0.15);
-      color: rgba(255, 255, 255, 0.55);
+      color: #6B7280;
     }
     .engine-toggle--cpu:hover {
       background: rgba(255, 255, 255, 0.14);
