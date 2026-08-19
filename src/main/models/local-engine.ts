@@ -613,6 +613,74 @@ export async function startLocalEngine(
   return { ...engineState }
 }
 
+export interface LocalEngineTestResult {
+  ok: boolean
+  message: string
+}
+
+/**
+ * Real end-to-end check: send a minimal chat completion to llama-server and
+ * require an actual model answer. Health checks only prove the server is up;
+ * this proves the loaded GGUF can produce tokens.
+ */
+export async function testLocalEngineChat(
+  port: number,
+  modelId: string,
+  timeoutMs = 90_000,
+): Promise<LocalEngineTestResult> {
+  return new Promise((resolve) => {
+    const body = JSON.stringify({
+      model: modelId,
+      messages: [{ role: 'user', content: 'ping' }],
+      max_tokens: 4,
+      temperature: 0,
+    })
+    const req = http.request(
+      {
+        host: '127.0.0.1',
+        port,
+        path: '/v1/chat/completions',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+        },
+        timeout: timeoutMs,
+      },
+      (res) => {
+        let data = ''
+        res.on('data', (c) => (data += c))
+        res.on('end', () => {
+          if (res.statusCode !== 200) {
+            resolve({
+              ok: false,
+              message: `llama-server вернул HTTP ${res.statusCode}`,
+            })
+            return
+          }
+          try {
+            const j = JSON.parse(data) as {
+              choices?: Array<{ message?: { content?: string } }>
+            }
+            const content = j.choices?.[0]?.message?.content?.trim()
+            if (content) {
+              resolve({ ok: true, message: 'OK' })
+            } else {
+              resolve({ ok: false, message: 'Модель не вернула ответ' })
+            }
+          } catch {
+            resolve({ ok: false, message: 'Некорректный ответ движка' })
+          }
+        })
+      },
+    )
+    req.on('timeout', () => req.destroy())
+    req.on('error', (err) => resolve({ ok: false, message: err.message }))
+    req.write(body)
+    req.end()
+  })
+}
+
 export function stopLocalEngine(): boolean {
   if (engineChild) {
     try {

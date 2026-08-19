@@ -298,15 +298,23 @@ export function ModelsView({ onBack }: ModelsViewProps) {
     updateDraft(entry.providerId, { test: 'testing', message: '' })
     try {
       if (entry.isLocal) {
-        // Local: start the engine and wait for it to become healthy.
-        const res = (await window.electronAPI.localEngineStart({ modelId })) as {
+        // Local: start the engine, then send a real chat completion and
+        // require an actual model answer.
+        const res = (await window.electronAPI.localEngineStart({
+          modelId,
+          test: true,
+        })) as {
           ok?: boolean
           engineState?: LocalEngineState
+          test?: { ok: boolean; message: string }
         }
-        if (res?.engineState?.running && res.engineState.modelId === modelId) {
+        if (res?.test?.ok) {
           updateDraft(entry.providerId, { test: 'ok', message: t('shell.models.connectionOk') })
         } else {
-          updateDraft(entry.providerId, { test: 'fail', message: t('shell.models.testFailed') })
+          updateDraft(entry.providerId, {
+            test: 'fail',
+            message: res?.test?.message ?? t('shell.models.testFailed'),
+          })
         }
         await load()
         return
@@ -383,17 +391,21 @@ export function ModelsView({ onBack }: ModelsViewProps) {
       if (state?.running && state.modelId !== selectedLocal) {
         await window.electronAPI.localEngineStop()
       }
-      const res = (await window.electronAPI.localEngineStart({ modelId: selectedLocal })) as {
+      const res = (await window.electronAPI.localEngineStart({
+        modelId: selectedLocal,
+        test: true,
+      })) as {
         ok?: boolean
         engineState?: LocalEngineState
+        test?: { ok: boolean; message: string }
       }
       await load()
-      if (res?.engineState?.running && res.engineState.modelId === selectedLocal) {
+      if (res?.test?.ok) {
         setLocalTest('ok')
         setLocalTestMsg(t('shell.models.connectionOk'))
       } else {
         setLocalTest('fail')
-        setLocalTestMsg(t('shell.models.testFailed'))
+        setLocalTestMsg(res?.test?.message ?? t('shell.models.testFailed'))
       }
     } catch (e) {
       setLocalTest('fail')

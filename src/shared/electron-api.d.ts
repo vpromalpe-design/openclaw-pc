@@ -197,7 +197,7 @@ export interface ElectronAPI {
   localRemove: (payload: { id: string }) => Promise<{ ok: boolean }>
   localDownloadStart: (payload: { modelId: string }) => Promise<{ ok: boolean }>
   localDownloadCancel: () => Promise<{ ok: boolean }>
-  localEngineStart: (payload: { modelId: string }) => Promise<{ ok: boolean; engineState: LocalEngineState }>
+  localEngineStart: (payload: { modelId: string; test?: boolean }) => Promise<{ ok: boolean; engineState: LocalEngineState; test?: { ok: boolean; message: string } }>
   localEngineStop: () => Promise<{ ok: boolean; wasRunning: boolean }>
   onLocalProgress: (callback: (payload: LocalProgressPayload) => void) => Unsubscribe
 

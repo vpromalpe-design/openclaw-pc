@@ -176,7 +176,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   localRemove: (payload: { id: string }) => invoke(IPC_LOCAL_REMOVE, payload),
   localDownloadStart: (payload: { modelId: string }) => invoke(IPC_LOCAL_DOWNLOAD_START, payload),
   localDownloadCancel: () => invoke(IPC_LOCAL_DOWNLOAD_CANCEL),
-  localEngineStart: (payload: { modelId: string }) => invoke(IPC_LOCAL_ENGINE_START, payload),
+  localEngineStart: (payload: { modelId: string; test?: boolean }) => invoke(IPC_LOCAL_ENGINE_START, payload),
   localEngineStop: () => invoke(IPC_LOCAL_ENGINE_STOP),
   onLocalProgress: (cb: (payload: unknown) => void) => on(IPC_LOCAL_PROGRESS, cb),
 

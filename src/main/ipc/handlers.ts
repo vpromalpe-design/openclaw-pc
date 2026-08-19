@@ -23,7 +23,7 @@ import { inferModelConfigFromOpenClaw, listAgentSummariesFromConfig } from '../w
 import fs from 'node:fs'
 import path from 'node:path'
 import type { ModelsViewResult } from '../../shared/types.js'
-import { LOCAL_MODEL_PRESETS, modelsDir } from '../models/local-engine.js'
+import { LOCAL_MODEL_PRESETS, modelsDir, testLocalEngineChat, LOCAL_ENGINE_PORT, type LocalEngineTestResult } from '../models/local-engine.js'
 import { DEFAULT_GATEWAY_PORT } from '../../shared/constants.js'
 import {
   IPC_GATEWAY_START,
@@ -983,7 +983,11 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
         deps.writeOpenClawConfig(c)
         readOpenClawConfig()
       })
-      return { ok: true, engineState: state }
+      let test: LocalEngineTestResult | undefined
+      if (raw.test === true && state.running) {
+        test = await testLocalEngineChat(LOCAL_ENGINE_PORT, state.modelId ?? modelId)
+      }
+      return { ok: test ? test.ok : true, engineState: state, test }
     }),
   )
 
