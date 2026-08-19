@@ -18,6 +18,7 @@ import type {
   OpenClawConfig,
 } from '../../shared/types.js'
 import { getUserDataDir } from '../utils/paths.js'
+import { logInfo } from '../utils/logger.js'
 import { IPC_LOCAL_PROGRESS } from '../../shared/ipc-channels.js'
 
 export const LOCAL_ENGINE_PORT = 18788
@@ -750,8 +751,13 @@ export async function maybeAutoStartLocalEngine(
     if (!primary || !primary.startsWith('local/')) return
     const modelId = primary.slice('local/'.length)
     await startLocalEngine(modelId, config, writeConfig)
-  } catch {
-    /* non-fatal: engine stays off, Models panel shows the error state */
+  } catch (err) {
+    // Non-fatal: engine stays off, Models panel shows the error state. But
+    // surface the real reason in the log — silent failures made the
+    // "network connection error" impossible to diagnose.
+    logInfo(
+      `[local-engine] auto-start failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`,
+    )
   }
 }
 
