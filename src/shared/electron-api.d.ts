@@ -199,7 +199,10 @@ export interface ElectronAPI {
   localDownloadCancel: () => Promise<{ ok: boolean }>
   localEngineStart: (payload: { modelId: string; test?: boolean }) => Promise<{ ok: boolean; engineState: LocalEngineState; test?: { ok: boolean; message: string } }>
   localEngineStop: () => Promise<{ ok: boolean; wasRunning: boolean }>
-  localEngineMode: (payload?: { setMode?: 'auto' | 'cpu' | 'gpu' }) => Promise<LocalEngineRuntimeInfo>
+  localEngineMode: (payload?: {
+    setMode?: 'auto' | 'cpu' | 'gpu'
+    installVariant?: 'cpu' | 'cuda' | 'vulkan'
+  }) => Promise<LocalEngineRuntimeInfo>
   localEngineReorder: (ids: string[]) => Promise<{ ok: boolean }>
   onLocalProgress: (callback: (payload: LocalProgressPayload) => void) => Unsubscribe
 

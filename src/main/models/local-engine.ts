@@ -815,12 +815,27 @@ export async function getLocalEngineRuntimeState(): Promise<LocalEngineRuntimeIn
   return {
     mode,
     variant,
+    installedVariants: (['cpu', 'cuda', 'vulkan'] as EngineVariant[]).filter(
+      (v) => getEngineServerPath(v) !== null,
+    ),
     effectiveGpu: variant === 'cpu' ? 'cpu' : 'gpu',
     gpuVendor: gpu.vendor,
     gpuName: gpu.name,
     engineState: { ...engineState },
     models: listLocalModels(shellConfig.localModelsOrder),
   }
+}
+
+/**
+ * Download + unpack the llama.cpp binary for a compute variant (e.g. CUDA).
+ * Emits `engine-download` progress over IPC_LOCAL_PROGRESS; used by the
+ * wizard's "Where does it run" CPU/GPU section.
+ */
+export async function installEngineVariant(
+  variant: EngineVariant,
+): Promise<LocalEngineRuntimeInfo> {
+  await ensureEngineBinary(variant)
+  return getLocalEngineRuntimeState()
 }
 
 /** Switch the engine compute mode (cpu|gpu|auto); restarts a running engine. */

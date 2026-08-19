@@ -625,6 +625,8 @@ export interface LocalEngineRuntimeInfo {
   mode: 'auto' | 'cpu' | 'gpu'
   /** Resolved llama.cpp build variant */
   variant: 'cpu' | 'cuda' | 'vulkan'
+  /** Which engine binaries are already downloaded on this PC */
+  installedVariants: ('cpu' | 'cuda' | 'vulkan')[]
   /** Effective compute backend shown in the UI */
   effectiveGpu: 'cpu' | 'gpu'
   gpuVendor: 'nvidia' | 'amd' | 'intel' | 'other' | 'none'

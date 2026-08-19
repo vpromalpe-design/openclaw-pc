@@ -101,7 +101,17 @@
       "downloadFailed": "Не удалось скачать",
       "pickFile": "С диска…",
       "downloaded": "Скачено",
-      "connected": "Подключено"
+      "connected": "Подключено",
+      "whereRuns": "Где выполняется",
+      "cpuReady": "Готов к работе",
+      "gpuUnknown": "Видеокарта",
+      "gpuNone": "GPU не обнаружена — модель будет работать на CPU",
+      "cudaHint": "Для обработки на GPU (видеокарте NVIDIA) нужно скачать CUDA-движок llama.cpp. Пока он не установлен, модель работает на CPU.",
+      "vulkanHint": "Для обработки на GPU (видеокарте) нужно скачать Vulkan-движок llama.cpp. Пока он не установлен, модель работает на CPU.",
+      "downloadCuda": "Скачать CUDA",
+      "downloadVulkan": "Скачать Vulkan",
+      "engineInstalled": "Установлено",
+      "engineInstallFailed": "Не удалось скачать GPU-движок. Проверьте подключение к интернету и попробуйте ещё раз."
     },
     "channel": {
       "title": "Настройка каналов",

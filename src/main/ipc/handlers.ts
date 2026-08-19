@@ -172,6 +172,7 @@ import {
   setLocalProgressSender,
   getLocalEngineRuntimeState,
   setLocalEngineMode,
+  installEngineVariant,
 } from '../models/local-engine.js'
 export interface IpcResult<T = unknown> {
   success: boolean
@@ -1035,6 +1036,19 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
         payload && typeof payload === 'object' && !Array.isArray(payload)
           ? (payload as Record<string, unknown>)
           : {}
+      if (typeof raw.installVariant === 'string') {
+        const variant =
+          raw.installVariant === 'cpu' ||
+          raw.installVariant === 'cuda' ||
+          raw.installVariant === 'vulkan'
+            ? raw.installVariant
+            : null
+        if (variant) {
+          // Download + unpack the llama.cpp build (progress on IPC_LOCAL_PROGRESS).
+          await installEngineVariant(variant)
+          return getLocalEngineRuntimeState()
+        }
+      }
       if (typeof raw.setMode === 'string') {
         const mode =
           raw.setMode === 'cpu' || raw.setMode === 'gpu' ? raw.setMode : 'auto'

@@ -101,7 +101,17 @@
       "experimentalBadge": "Experimental",
       "pickFile": "From disk…",
       "downloaded": "Downloaded",
-      "connected": "Connected"
+      "connected": "Connected",
+      "whereRuns": "Where it runs",
+      "cpuReady": "Ready",
+      "gpuUnknown": "Graphics card",
+      "gpuNone": "No GPU detected — the model will run on CPU",
+      "cudaHint": "To run on the GPU (NVIDIA) you need to download the llama.cpp CUDA build. Until then the model runs on CPU.",
+      "vulkanHint": "To run on the GPU you need to download the llama.cpp Vulkan build. Until then the model runs on CPU.",
+      "downloadCuda": "Download CUDA",
+      "downloadVulkan": "Download Vulkan",
+      "engineInstalled": "Installed",
+      "engineInstallFailed": "Failed to download the GPU engine. Check your internet connection and try again."
     },
     "models": {
       "loadFailed": "Failed to load models",
