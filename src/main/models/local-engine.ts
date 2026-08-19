@@ -652,9 +652,15 @@ export async function startLocalEngine(
     String(LOCAL_ENGINE_PORT),
     '--no-ui',
     '-c',
-    variant === 'cpu' ? '32768' : '16384',
+    '32768',
     '-ngl',
     variant === 'cpu' ? '0' : '99',
+    // 32k context on GPU: quantize KV cache (q8_0 ≈ half of fp16) so the KV
+    // fits comfortably in VRAM next to the weights. The agent's prompt
+    // (system + tools + history) easily reaches ~10k tokens; with a 16k
+    // window the compaction reserve eats half of it and every turn overflows
+    // ("Auto-compaction could not recover this turn").
+    ...(variant === 'cpu' ? [] : ['-ctk', 'q8_0', '-ctv', 'q8_0']),
     '--log-file',
     path.join(engineDir(), 'server.log'),
   ]
@@ -732,7 +738,7 @@ export async function startLocalEngine(
         ...(existingModel ?? {}),
         id: model.id,
         name: model.id,
-        // Real engine limits (-c 16384): context window + max output tokens
+        // Real engine limits (-c 32768): context window + max output tokens
         // must fit inside the server's n_ctx or llama-server answers 400
         // "Context size has been exceeded" once the chat history grows.
         contextWindow: 30720,
