@@ -309,14 +309,7 @@ interface GpuInfo {
   name: string
 }
 
-const ENGINE_VARIANT_ZIP_SUFFIX: Record<EngineVariant, string> = {
-  cpu: 'bin-win-cpu-x64',
-  cuda: 'bin-win-cuda-x64',
-  vulkan: 'bin-win-vulkan-x64',
-}
-
 let cachedGpu: GpuInfo | null = null
-
 /** Detect the discrete GPU vendor via WMI (fast, no drivers queried). */
 export async function detectGpu(): Promise<GpuInfo> {
   if (cachedGpu) return cachedGpu
@@ -380,16 +373,57 @@ function getEngineServerPath(variant: EngineVariant): string | null {
   return fs.existsSync(exe) ? exe : null
 }
 
-/** Fetch latest llama.cpp release tag. */
-async function fetchLatestLlamaTag(): Promise<string> {
+/** Fetch latest llama.cpp release tag + asset names (cached). */
+let cachedLlamaRelease: { tag: string; assets: string[] } | null = null
+
+async function fetchLatestLlamaRelease(): Promise<{
+  tag: string
+  assets: string[]
+}> {
+  if (cachedLlamaRelease) return cachedLlamaRelease
   const { res } = await httpGetFollowRedirect(LLAMA_ZIP_URL, 3)
   let body = ''
   for await (const chunk of res) {
     body += chunk
   }
-  const json = JSON.parse(body) as { tag_name?: string }
-  if (!json.tag_name) throw new Error('Could not resolve latest llama.cpp release')
-  return json.tag_name
+  const json = JSON.parse(body) as {
+    tag_name?: string
+    assets?: { name?: string }[]
+  }
+  const tag = json.tag_name
+  if (!tag) throw new Error('Could not resolve latest llama.cpp release')
+  cachedLlamaRelease = {
+    tag,
+    assets: (json.assets ?? [])
+      .map((a) => a.name ?? '')
+      .filter((n) => n.startsWith(`llama-${tag}-`)),
+  }
+  return cachedLlamaRelease
+}
+
+/**
+ * Pick the release asset for a compute variant. llama.cpp renamed their
+ * CUDA archives to include the CUDA toolkit version (e.g.
+ * llama-b10502-bin-win-cuda-12.4-x64.zip), so exact-name matching fails.
+ * Prefer the most compatible CUDA build (12.4), then 13.x, then any match.
+ */
+function resolveEngineAssetName(
+  tag: string,
+  variant: EngineVariant,
+  assets: string[],
+): string {
+  const wanted = `bin-win-${variant}`
+  const candidates = assets.filter(
+    (n) => n.includes(wanted) && n.includes('x64') && !n.includes('arm64'),
+  )
+  if (candidates.length === 0) return ''
+  if (variant === 'cuda') {
+    const exact = candidates.find((n) => n.includes(`${wanted}-x64.zip`))
+    const v124 = candidates.find((n) => n.includes(`${wanted}-12.4-x64.zip`))
+    const v133 = candidates.find((n) => n.includes(`${wanted}-13.3-x64.zip`))
+    return exact ?? v124 ?? v133 ?? candidates[0]
+  }
+  return candidates.find((n) => n.includes(`${wanted}-x64.zip`)) ?? candidates[0]
 }
 
 /** Download + extract llama-server.exe of the requested build variant (Windows x64). */
@@ -405,9 +439,14 @@ export async function ensureEngineBinary(
   }
   const dir = path.join(engineDir(), variant)
   fs.mkdirSync(dir, { recursive: true })
-  const tag = await fetchLatestLlamaTag()
-  const zipSuffix = ENGINE_VARIANT_ZIP_SUFFIX[variant]
-  const zipUrl = `https://github.com/ggml-org/llama.cpp/releases/download/${tag}/llama-${tag}-${zipSuffix}.zip`
+  const { tag, assets } = await fetchLatestLlamaRelease()
+  const assetName = resolveEngineAssetName(tag, variant, assets)
+  if (!assetName) {
+    throw new Error(
+      `No llama.cpp ${variant} build found in release ${tag} (assets: ${assets.length})`,
+    )
+  }
+  const zipUrl = `https://github.com/ggml-org/llama.cpp/releases/download/${tag}/${assetName}`
   const zipPath = path.join(dir, 'llama.zip')
   emitProgress({ stage: 'engine-download', tag, variant, progress: 0 })
   const { res } = await httpGetFollowRedirect(zipUrl, 5)
