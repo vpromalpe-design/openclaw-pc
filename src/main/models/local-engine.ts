@@ -36,17 +36,14 @@ export interface LocalModelPreset {
   url: string
   sizeBytes: number
   description: string
-  /** Experimental presets enable tool calling (may fail on llama.cpp). */
-  experimental?: boolean
   /** Overrides the default `compat.supportsTools: false` for this preset. */
   supportsTools?: boolean
 }
 
 /**
  * Preinstalled GGUF picks (CPU-friendly sizes, stable URLs):
- * Normal (Qwen 3.5 4B, runs on any PC), Hard (Qwen 3.5 9B, best quality)
- * and an experimental Hard preset with tool calling enabled — llama.cpp may
- * reject OpenClaw's tool schemas, so it is opt-in and clearly labelled.
+ * Normal (Qwen 3.5 4B, runs on any PC) and Hard (Qwen 3.5 9B, best quality).
+ * Both enable tool calling.
  *
  * Qwen 3.5 ships as Ollama manifests; the model layer blobs are plain GGUF
  * files, served straight from the Ollama registry (no login required).
@@ -68,16 +65,6 @@ export const LOCAL_MODEL_PRESETS: LocalModelPreset[] = [
     url: 'https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/main/Qwen3.5-9B-Q4_K_M.gguf?download=true',
     sizeBytes: 5_680_522_464,
     description: '~5.3 GB · best quality, tool calling enabled',
-    supportsTools: true,
-  },
-  {
-    id: 'qwen3.5-9b-experimental',
-    name: 'Qwen 3.5 9B (Experimental)',
-    fileName: 'Qwen3.5-9B-Q4_K_M.gguf',
-    url: 'https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/main/Qwen3.5-9B-Q4_K_M.gguf?download=true',
-    sizeBytes: 5_680_522_464,
-    description: '~5.3 GB · same Hard model, but with tool calling enabled',
-    experimental: true,
     supportsTools: true,
   },
 ]
@@ -138,22 +125,6 @@ export function listLocalModels(order?: string[]): LocalModelInfo[] {
         status: 'ready',
         progress: 1,
       })
-      // Experimental presets share the same GGUF file with the base preset,
-      // but are separate model entries (they enable tool calling).
-      for (const exp of LOCAL_MODEL_PRESETS.filter(
-        (p) => p.fileName === f && p.experimental,
-      )) {
-        out.push({
-          id: exp.id,
-          name: exp.name,
-          fileName: f,
-          path: full,
-          sizeBytes: size,
-          downloaded: true,
-          status: 'ready',
-          progress: 1,
-        })
-      }
     }
   } catch {
     /* ignore */
@@ -592,10 +563,13 @@ async function syncLocalContextWindow(
 
 /** Start llama-server with a downloaded GGUF; registers `local` provider in config. */
 export async function startLocalEngine(
-  modelId: string,
+  modelIdRaw: string,
   currentConfig: OpenClawConfig,
   writeConfig: (c: OpenClawConfig) => void,
 ): Promise<LocalEngineState> {
+  // The Experimental preset was merged into the base Hard model (both have
+  // tool calling now); map a stale config id to the base preset.
+  const modelId = modelIdRaw.replace(/-experimental$/, '')
   if (engineState.running && engineState.modelId !== modelId) {
     // Model switch while the engine is up: stop the old server first, then
     // start the new model below (the gateway keeps the same baseUrl).

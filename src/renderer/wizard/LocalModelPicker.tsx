@@ -22,12 +22,6 @@ const LOCAL_PRESETS = [
     labelKey: 'wizard.model.localHard',
     size: '~6.1 GB',
   },
-  {
-    id: 'qwen3.5-9b-experimental',
-    labelKey: 'wizard.model.localExperimental',
-    size: '~6.1 GB',
-    experimental: true,
-  },
 ]
 
 const CUSTOM_OPTION = '__custom_gguf__'
@@ -143,11 +137,6 @@ export function LocalModelPicker({
               <span className="flex items-center justify-between gap-4">
                 <span>
                   {t(m.labelKey)}
-                  {m.experimental && (
-                    <span className="ml-2 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
-                      {t('wizard.model.experimentalBadge')}
-                    </span>
-                  )}
                 </span>
                 <span className="text-xs text-muted-foreground">{m.size}</span>
               </span>

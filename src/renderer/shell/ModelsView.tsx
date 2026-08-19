@@ -44,7 +44,7 @@ export interface ModelsViewProps {
   onBack?: () => void
 }
 
-const PRESET_IDS = ['qwen3.5-4b', 'qwen3.5-9b', 'qwen3.5-9b-experimental']
+const PRESET_IDS = ['qwen3.5-4b', 'qwen3.5-9b']
 
 function statusLabel(
   status: ModelTableEntry['status'],
@@ -661,11 +661,6 @@ export function ModelsView({ onBack }: ModelsViewProps) {
                   <div className="min-w-0">
                     <p className="text-sm font-medium">
                       {presetName(presetId, t)}
-                      {presetId.endsWith('-experimental') && (
-                        <span className="ml-2 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
-                          {t('shell.models.experimentalBadge')}
-                        </span>
-                      )}
                     </p>
                     <p className="text-xs text-muted-foreground">{presetDesc(presetId, t)}</p>
                     {model?.downloaded && (
@@ -1039,8 +1034,6 @@ function presetName(id: string, t: (key: string) => string): string {
       return t('shell.models.presetNormal')
     case 'qwen3.5-9b':
       return t('shell.models.presetHard')
-    case 'qwen3.5-9b-experimental':
-      return t('shell.models.presetExperimental')
     default:
       return id
   }
@@ -1052,8 +1045,6 @@ function presetDesc(id: string, t: (key: string) => string): string {
       return t('shell.models.presetNormalDesc')
     case 'qwen3.5-9b':
       return t('shell.models.presetHardDesc')
-    case 'qwen3.5-9b-experimental':
-      return t('shell.models.presetExperimentalDesc')
     default:
       return ''
   }
