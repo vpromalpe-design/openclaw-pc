@@ -93,6 +93,7 @@ export function LocalModelPicker({
         setProgress(1)
         setDownloadState('done')
         setDownloading(false)
+        void refreshRuntime()
         return
       }
       if (p.stage === 'error') {
@@ -177,6 +178,11 @@ export function LocalModelPicker({
     engineProgress !== null
       ? Math.min(100, Math.max(0, Math.round(engineProgress * 100)))
       : 0
+
+  const modelReady =
+    runtime?.models.some(
+      (m) => m.id === modelId && m.downloaded && m.status === 'ready',
+    ) ?? false
 
   const progressPct =
     progress !== null ? Math.min(100, Math.max(0, Math.round(progress * 100))) : 0
@@ -375,9 +381,30 @@ export function LocalModelPicker({
         </div>
       )}
       {!downloading && modelId && (
-        <div className="flex items-center gap-3 rounded-xl border-2 border-green-500/50 bg-green-500/10 px-4 py-3">
-          <CheckCircle2 className="h-8 w-8 shrink-0 text-green-600 dark:text-green-400" />
-          <span className="text-base font-bold text-green-700 dark:text-green-400">
+        <div
+          className={[
+            'flex items-center gap-3 rounded-xl border-2 px-4 py-3',
+            modelReady
+              ? 'border-green-500/50 bg-green-500/10'
+              : 'border-muted bg-muted/40',
+          ].join(' ')}
+        >
+          <CheckCircle2
+            className={[
+              'h-8 w-8 shrink-0',
+              modelReady
+                ? 'text-green-600 dark:text-green-400'
+                : 'text-muted-foreground/60',
+            ].join(' ')}
+          />
+          <span
+            className={[
+              'text-base font-bold',
+              modelReady
+                ? 'text-green-700 dark:text-green-400'
+                : 'text-muted-foreground',
+            ].join(' ')}
+          >
             {t('wizard.model.localPicked')}
           </span>
         </div>
