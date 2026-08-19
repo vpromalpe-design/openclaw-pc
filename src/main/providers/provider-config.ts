@@ -78,6 +78,16 @@ export function getProvidersSummary(
 }
 
 /**
+ * Known non-builtin providers and their OpenAI-compatible endpoints. The
+ * upstream gateway does not know about DeepSeek, so without an explicit
+ * baseUrl it falls back to api.openai.com and the request 403s
+ * (unsupported_country_region_territory from OpenAI).
+ */
+const PROVIDER_ENDPOINT_DEFAULTS: Record<string, { baseUrl: string; api: string }> = {
+  deepseek: { baseUrl: 'https://api.deepseek.com/v1', api: 'openai' },
+}
+
+/**
  * Save one models.providers entry
  */
 export function saveProviderConfig(
@@ -89,7 +99,17 @@ export function saveProviderConfig(
   next.models = next.models ?? { providers: {} }
   next.models.providers = next.models.providers ?? {}
   const existing = (next.models.providers[providerId] ?? {}) as ModelProviderConfig
-  next.models.providers[providerId] = { ...existing, ...config } as ModelProviderConfig
+  const endpointDefault = PROVIDER_ENDPOINT_DEFAULTS[providerId]
+  const merged = {
+    ...existing,
+    ...config,
+    // Fill in the endpoint only when the caller did not provide one (and the
+    // provider is not already configured with one).
+    ...(endpointDefault && !config.baseUrl && !existing.baseUrl
+      ? endpointDefault
+      : {}),
+  } as ModelProviderConfig
+  next.models.providers[providerId] = merged
   return next
 }
 
