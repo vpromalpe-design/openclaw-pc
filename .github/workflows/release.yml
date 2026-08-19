@@ -420,6 +420,7 @@ jobs:
         run: |
           TAG="${{ inputs.tag || github.ref_name }}"
           VERSION="${TAG#v}"
+          VERSION="${VERSION%%+*}"
           node scripts/generate-release-body.mjs --version "$VERSION" --changelog CHANGELOG.md --out dist/release-body.md
 
       - name: Publish GitHub Release
