@@ -84,7 +84,7 @@ export function getProvidersSummary(
  * (unsupported_country_region_territory from OpenAI).
  */
 const PROVIDER_ENDPOINT_DEFAULTS: Record<string, { baseUrl: string; api: string }> = {
-  deepseek: { baseUrl: 'https://api.deepseek.com/v1', api: 'openai' },
+  deepseek: { baseUrl: 'https://api.deepseek.com/v1', api: 'openai-completions' },
 }
 
 /**
@@ -103,12 +103,14 @@ export function saveProviderConfig(
   const merged = {
     ...existing,
     ...config,
-    // Fill in the endpoint only when the caller did not provide one (and the
-    // provider is not already configured with one).
-    ...(endpointDefault && !config.baseUrl && !existing.baseUrl
-      ? endpointDefault
-      : {}),
   } as ModelProviderConfig
+  if (endpointDefault) {
+    // Fill in endpoint fields one by one: baseUrl/api must never be empty or
+    // invalid for non-builtin providers (missing api is rejected by the
+    // gateway schema, e.g. api: "openai" is not a valid value).
+    if (!merged.baseUrl) merged.baseUrl = endpointDefault.baseUrl
+    if (!merged.api) merged.api = endpointDefault.api
+  }
   next.models.providers[providerId] = merged
   return next
 }
