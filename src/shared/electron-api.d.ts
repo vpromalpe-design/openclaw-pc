@@ -199,6 +199,7 @@ export interface ElectronAPI {
   localDownloadCancel: () => Promise<{ ok: boolean }>
   localEngineStart: (payload: { modelId: string; test?: boolean }) => Promise<{ ok: boolean; engineState: LocalEngineState; test?: { ok: boolean; message: string } }>
   localEngineStop: () => Promise<{ ok: boolean; wasRunning: boolean }>
+  localEngineMode: (payload?: { setMode?: 'auto' | 'cpu' | 'gpu' }) => Promise<LocalEngineRuntimeInfo>
   onLocalProgress: (callback: (payload: LocalProgressPayload) => void) => Unsubscribe
 
   skillsList: (opts?: { source?: 'all' | 'bundled' | 'user' }) => Promise<SkillRegistryItem[]>

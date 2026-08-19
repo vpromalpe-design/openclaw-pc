@@ -39,6 +39,8 @@ export interface ShellConfig {
   autoCheckUpdates?: boolean
   /** Last update check time (ISO 8601) */
   lastUpdateCheck?: string
+  /** Local engine compute mode: auto (GPU when available) | cpu | gpu */
+  localEngineMode?: 'auto' | 'cpu' | 'gpu'
   windowBounds: WindowBounds
 }
 
@@ -599,6 +601,8 @@ export interface ModelTableEntry {
 export interface LocalModelInfo {
   id: string
   fileName: string
+  /** Human-readable name (preset name or file name) */
+  name: string
   path: string
   sizeBytes: number
   downloaded: boolean
@@ -612,6 +616,19 @@ export interface LocalEngineState {
   port: number
   modelId: string | null
   error?: string
+}
+
+/** Local engine runtime snapshot for the desktop UI (CPU/GPU toggle + model bar) */
+export interface LocalEngineRuntimeInfo {
+  mode: 'auto' | 'cpu' | 'gpu'
+  /** Resolved llama.cpp build variant */
+  variant: 'cpu' | 'cuda' | 'vulkan'
+  /** Effective compute backend shown in the UI */
+  effectiveGpu: 'cpu' | 'gpu'
+  gpuVendor: 'nvidia' | 'amd' | 'intel' | 'other' | 'none'
+  gpuName: string
+  engineState: LocalEngineState
+  models: LocalModelInfo[]
 }
 
 /** Full Models page payload */

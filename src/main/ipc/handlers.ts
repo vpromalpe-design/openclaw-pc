@@ -68,6 +68,7 @@ import {
   IPC_LOCAL_DOWNLOAD_CANCEL,
   IPC_LOCAL_ENGINE_START,
   IPC_LOCAL_ENGINE_STOP,
+  IPC_LOCAL_ENGINE_MODE,
   IPC_SKILLS_LIST,
   IPC_SKILLS_TOGGLE,
   IPC_SKILLS_RELOAD,
@@ -167,6 +168,8 @@ import {
   downloadLocalModel,
   cancelLocalDownload,
   setLocalProgressSender,
+  getLocalEngineRuntimeState,
+  setLocalEngineMode,
 } from '../models/local-engine.js'
 export interface IpcResult<T = unknown> {
   success: boolean
@@ -996,6 +999,28 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
     wrapHandler('LOCAL_ENGINE_STOP', () => {
       const wasRunning = stopLocalEngine()
       return { ok: true, wasRunning }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_LOCAL_ENGINE_MODE,
+    wrapHandler('LOCAL_ENGINE_MODE', async (payload: unknown) => {
+      const raw =
+        payload && typeof payload === 'object' && !Array.isArray(payload)
+          ? (payload as Record<string, unknown>)
+          : {}
+      if (typeof raw.setMode === 'string') {
+        const mode =
+          raw.setMode === 'cpu' || raw.setMode === 'gpu' ? raw.setMode : 'auto'
+        const config = deps.openclawConfigExists()
+          ? (deps.readOpenClawConfig() ?? {})
+          : {}
+        return setLocalEngineMode(mode, config, (c) => {
+          deps.writeOpenClawConfig(c)
+          readOpenClawConfig()
+        })
+      }
+      return getLocalEngineRuntimeState()
     }),
   )
 

@@ -24,6 +24,7 @@ export function getDefaultShellConfig(): ShellConfig {
     updateChannel: 'stable',
     onboardingMainWindowExpanded: false,
     autoCheckUpdates: true,
+    localEngineMode: 'auto',
     windowBounds: {
       x: -1,
       y: -1,

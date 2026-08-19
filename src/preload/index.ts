@@ -47,6 +47,7 @@ import {
   IPC_LOCAL_DOWNLOAD_CANCEL,
   IPC_LOCAL_ENGINE_START,
   IPC_LOCAL_ENGINE_STOP,
+  IPC_LOCAL_ENGINE_MODE,
   IPC_LOCAL_PROGRESS,
   IPC_SKILLS_LIST,
   IPC_SKILLS_TOGGLE,
@@ -178,6 +179,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   localDownloadCancel: () => invoke(IPC_LOCAL_DOWNLOAD_CANCEL),
   localEngineStart: (payload: { modelId: string; test?: boolean }) => invoke(IPC_LOCAL_ENGINE_START, payload),
   localEngineStop: () => invoke(IPC_LOCAL_ENGINE_STOP),
+  localEngineMode: (payload?: { setMode?: 'auto' | 'cpu' | 'gpu' }) => invoke(IPC_LOCAL_ENGINE_MODE, payload ?? {}),
   onLocalProgress: (cb: (payload: unknown) => void) => on(IPC_LOCAL_PROGRESS, cb),
 
   skillsList: (opts?: { source?: 'all' | 'bundled' | 'user' }) =>

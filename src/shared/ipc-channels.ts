@@ -197,6 +197,9 @@ export const IPC_LOCAL_ENGINE_START = 'local:engineStart' as const
 /** Local engine: stop */
 export const IPC_LOCAL_ENGINE_STOP = 'local:engineStop' as const
 
+/** Local engine: get runtime info / set compute mode (cpu|gpu|auto) */
+export const IPC_LOCAL_ENGINE_MODE = 'local:engineMode' as const
+
 /** Local download progress event (main → renderer) */
 export const IPC_LOCAL_PROGRESS = 'local:progress' as const
 
@@ -315,6 +318,7 @@ export const IPC_INVOKE_CHANNELS = [
   IPC_LOCAL_DOWNLOAD_CANCEL,
   IPC_LOCAL_ENGINE_START,
   IPC_LOCAL_ENGINE_STOP,
+  IPC_LOCAL_ENGINE_MODE,
   IPC_PLUGINS_LIST,
   IPC_PLUGINS_TOGGLE,
   IPC_PLUGINS_INSTALL,

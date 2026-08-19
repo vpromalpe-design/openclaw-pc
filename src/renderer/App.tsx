@@ -82,6 +82,49 @@ function App() {
     return () => window.removeEventListener('message', onBridgeMessage)
   }, [configExists, handlePanelChange])
 
+  // Control UI (iframe) → shell bridge for the local engine: the CPU/GPU
+  // toggle and the model bar inside Control UI ask the desktop main process
+  // for engine state (via IPC) and get the answer posted back into the iframe.
+  useEffect(() => {
+    if (configExists !== true) return
+    const onEngineBridgeMessage = async (event: MessageEvent) => {
+      const data = event.data as
+        | { type?: string; action?: string; modelId?: string }
+        | undefined
+      if (data?.type !== 'openclaw-pc:local-engine') return
+      const iframe = document.querySelector<HTMLIFrameElement>(
+        'iframe[title="OpenClaw Control UI"]',
+      )
+      if (!iframe || event.source !== iframe.contentWindow) return
+      const respond = (payload: unknown) => {
+        iframe.contentWindow?.postMessage(
+          { type: 'openclaw-pc:local-engine:state', ...(payload as object) },
+          '*',
+        )
+      }
+      try {
+        if (data.action === 'toggle-mode') {
+          const current = await window.electronAPI.localEngineMode()
+          const next = current.effectiveGpu === 'cpu' ? 'gpu' : 'cpu'
+          respond(await window.electronAPI.localEngineMode({ setMode: next }))
+        } else if (data.action === 'switch-model' && data.modelId) {
+          await window.electronAPI.localEngineStart({
+            modelId: data.modelId,
+          })
+          respond(await window.electronAPI.localEngineMode())
+        } else {
+          respond(await window.electronAPI.localEngineMode())
+        }
+      } catch (err) {
+        respond({
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+    }
+    window.addEventListener('message', onEngineBridgeMessage)
+    return () => window.removeEventListener('message', onEngineBridgeMessage)
+  }, [configExists])
+
   /** Native title + document.title: wizard uses app name only (no「设置向导」in title bar). */
   useEffect(() => {
     if (route === null || configExists === null) {

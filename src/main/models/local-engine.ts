@@ -15,10 +15,15 @@ import { spawn, ChildProcess } from 'node:child_process'
 import type {
   LocalModelInfo,
   LocalEngineState,
+  LocalEngineRuntimeInfo,
   OpenClawConfig,
 } from '../../shared/types.js'
 import { getUserDataDir } from '../utils/paths.js'
 import { logInfo } from '../utils/logger.js'
+import {
+  readShellConfig,
+  writeShellConfig,
+} from '../config/shell-config.js'
 import { IPC_LOCAL_PROGRESS } from '../../shared/ipc-channels.js'
 
 export const LOCAL_ENGINE_PORT = 18788
@@ -123,6 +128,7 @@ export function listLocalModels(): LocalModelInfo[] {
       const preset = LOCAL_MODEL_PRESETS.find((p) => p.fileName === f)
       out.push({
         id: preset?.id ?? f.replace(/\.gguf$/i, ''),
+        name: preset?.name ?? f.replace(/\.gguf$/i, ''),
         fileName: f,
         path: full,
         sizeBytes: size,
@@ -137,6 +143,7 @@ export function listLocalModels(): LocalModelInfo[] {
       )) {
         out.push({
           id: exp.id,
+          name: exp.name,
           fileName: f,
           path: full,
           sizeBytes: size,
@@ -306,13 +313,86 @@ export function cancelLocalDownload(): boolean {
 const LLAMA_ZIP_URL =
   'https://api.github.com/repos/ggml-org/llama.cpp/releases/latest'
 
-function getEngineServerPath(): string | null {
+export type LocalEngineMode = 'auto' | 'cpu' | 'gpu'
+export type EngineVariant = 'cpu' | 'cuda' | 'vulkan'
+
+interface GpuInfo {
+  vendor: 'nvidia' | 'amd' | 'intel' | 'other' | 'none'
+  name: string
+}
+
+const ENGINE_VARIANT_ZIP_SUFFIX: Record<EngineVariant, string> = {
+  cpu: 'bin-win-cpu-x64',
+  cuda: 'bin-win-cuda-x64',
+  vulkan: 'bin-win-vulkan-x64',
+}
+
+let cachedGpu: GpuInfo | null = null
+
+/** Detect the discrete GPU vendor via WMI (fast, no drivers queried). */
+export async function detectGpu(): Promise<GpuInfo> {
+  if (cachedGpu) return cachedGpu
+  if (process.platform !== 'win32') {
+    cachedGpu = { vendor: 'none', name: '' }
+    return cachedGpu
+  }
+  try {
+    const { execFile } = await import('node:child_process')
+    const { stdout } = await new Promise<{ stdout: string }>((resolve, reject) => {
+      execFile(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          '(Get-CimInstance Win32_VideoController).Name',
+        ],
+        { windowsHide: true, timeout: 15_000 },
+        (err, out) => (err ? reject(err) : resolve({ stdout: out })),
+      )
+    })
+    const names = stdout
+      .split(/\r?\n/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .join(' ')
+    const lower = names.toLowerCase()
+    let vendor: GpuInfo['vendor'] = 'other'
+    if (/nvidia/.test(lower)) vendor = 'nvidia'
+    else if (/amd|radeon/.test(lower)) vendor = 'amd'
+    else if (/intel/.test(lower)) vendor = 'intel'
+    else if (!names) vendor = 'none'
+    cachedGpu = { vendor, name: names }
+  } catch {
+    cachedGpu = { vendor: 'none', name: '' }
+  }
+  return cachedGpu
+}
+
+/** Map the user's CPU/GPU preference to an actual llama.cpp build variant. */
+export function resolveEngineVariant(
+  mode: LocalEngineMode,
+  gpu: GpuInfo,
+): EngineVariant {
+  if (mode === 'cpu') return 'cpu'
+  if (mode === 'gpu') {
+    if (gpu.vendor === 'nvidia') return 'cuda'
+    if (gpu.vendor === 'amd') return 'vulkan'
+    return 'cpu'
+  }
+  // auto: prefer GPU, fall back to CPU when no supported GPU is present.
+  if (gpu.vendor === 'nvidia') return 'cuda'
+  if (gpu.vendor === 'amd') return 'vulkan'
+  return 'cpu'
+}
+
+function getEngineServerPath(variant: EngineVariant): string | null {
   if (process.platform !== 'win32') return null
-  const exe = path.join(engineDir(), 'llama-server.exe')
+  const exe = path.join(engineDir(), variant, 'llama-server.exe')
   return fs.existsSync(exe) ? exe : null
 }
 
-/** Fetch latest llama.cpp release tag (Windows cpu build). */
+/** Fetch latest llama.cpp release tag. */
 async function fetchLatestLlamaTag(): Promise<string> {
   const { res } = await httpGetFollowRedirect(LLAMA_ZIP_URL, 3)
   let body = ''
@@ -324,21 +404,24 @@ async function fetchLatestLlamaTag(): Promise<string> {
   return json.tag_name
 }
 
-/** Download + extract llama-server.exe (Windows x64). */
-export async function ensureEngineBinary(): Promise<string> {
-  const existing = getEngineServerPath()
+/** Download + extract llama-server.exe of the requested build variant (Windows x64). */
+export async function ensureEngineBinary(
+  variant: EngineVariant,
+): Promise<string> {
+  const existing = getEngineServerPath(variant)
   if (existing) return existing
   if (process.platform !== 'win32') {
     throw new Error(
       'Local engine is currently available on Windows only. Downloads still work on other platforms.',
     )
   }
-  const dir = engineDir()
+  const dir = path.join(engineDir(), variant)
   fs.mkdirSync(dir, { recursive: true })
   const tag = await fetchLatestLlamaTag()
-  const zipUrl = `https://github.com/ggml-org/llama.cpp/releases/download/${tag}/llama-${tag}-bin-win-cpu-x64.zip`
+  const zipSuffix = ENGINE_VARIANT_ZIP_SUFFIX[variant]
+  const zipUrl = `https://github.com/ggml-org/llama.cpp/releases/download/${tag}/llama-${tag}-${zipSuffix}.zip`
   const zipPath = path.join(dir, 'llama.zip')
-  emitProgress({ stage: 'engine-download', tag, progress: 0 })
+  emitProgress({ stage: 'engine-download', tag, variant, progress: 0 })
   const { res } = await httpGetFollowRedirect(zipUrl, 5)
   const total = Number(res.headers['content-length'] ?? 0)
   let received = 0
@@ -349,6 +432,7 @@ export async function ensureEngineBinary(): Promise<string> {
       emitProgress({
         stage: 'engine-download',
         tag,
+        variant,
         received,
         total,
         progress: total ? Math.min(1, received / total) : 0,
@@ -365,7 +449,7 @@ export async function ensureEngineBinary(): Promise<string> {
   } catch {
     /* ignore */
   }
-  const exe = getEngineServerPath()
+  const exe = getEngineServerPath(variant)
   if (!exe) {
     // llama-server.exe may sit in a subfolder (older builds) — search one level deep.
     const found = findLlamaServerExe(dir)
@@ -495,6 +579,11 @@ export async function startLocalEngine(
   currentConfig: OpenClawConfig,
   writeConfig: (c: OpenClawConfig) => void,
 ): Promise<LocalEngineState> {
+  if (engineState.running && engineState.modelId !== modelId) {
+    // Model switch while the engine is up: stop the old server first, then
+    // start the new model below (the gateway keeps the same baseUrl).
+    stopLocalEngine()
+  }
   if (engineState.running) {
     return { ...engineState }
   }
@@ -519,11 +608,70 @@ export async function startLocalEngine(
   if (process.platform !== 'win32') {
     throw new Error('Local engine is currently available on Windows only')
   }
-  const serverPath = await ensureEngineBinary()
+  const shellConfig = readShellConfig()
+  const gpu = await detectGpu()
+  let variant = resolveEngineVariant(shellConfig.localEngineMode ?? 'auto', gpu)
+  const serverPath = await ensureEngineBinary(variant)
 
+  const spawnArgs = [
+    '-m',
+    model.path,
+    '--host',
+    '127.0.0.1',
+    '--port',
+    String(LOCAL_ENGINE_PORT),
+    '--no-ui',
+    '-c',
+    '32768',
+    '-ngl',
+    variant === 'cpu' ? '0' : '99',
+    '--log-file',
+    path.join(engineDir(), 'server.log'),
+  ]
+
+  const spawnServer = (exePath: string, args: string[]): Promise<boolean> => {
+    const child = spawn(exePath, args, {
+      windowsHide: true,
+      stdio: 'ignore',
+    })
+    engineChild = child
+    child.on('exit', () => {
+      if (engineChild === child) {
+        engineChild = null
+        engineState = { running: false, port: LOCAL_ENGINE_PORT, modelId: null }
+      }
+    })
+    child.on('error', (err) => {
+      engineState = {
+        running: false,
+        port: LOCAL_ENGINE_PORT,
+        modelId: null,
+        error: err.message,
+      }
+    })
+    return waitForHealth(LOCAL_ENGINE_PORT, 120_000)
+  }
+
+  let ok = await spawnServer(serverPath, spawnArgs)
+  if (!ok && variant !== 'cpu') {
+    // GPU build failed to come up (missing driver/CUDA runtime, unsupported
+    // iGPU, …) — fall back to the CPU build exactly once, then keep the
+    // engine in CPU mode for this session.
+    logInfo(
+      `[local-engine] ${variant} engine did not become healthy, falling back to CPU`,
+    )
+    stopLocalEngine()
+    variant = 'cpu'
+    const cpuPath = await ensureEngineBinary('cpu')
+    const cpuArgs = spawnArgs.map((a) => a)
+    cpuArgs[cpuArgs.indexOf('-ngl') + 1] = '0'
+    ok = await spawnServer(cpuPath, cpuArgs)
+  }
+  if (!ok) {
+    stopLocalEngine()
+    throw new Error('llama-server did not become healthy within 120s')
+  }
   // Register the `local` provider so the gateway can reach the engine.
-  // Merge with an existing provider entry and keep the configured model id,
-  // so a previously set primary (e.g. local/qwen3.5-4b) keeps resolving.
   const next = JSON.parse(JSON.stringify(currentConfig)) as OpenClawConfig
   next.models = next.models ?? { providers: {} }
   next.models.providers = next.models.providers ?? {}
@@ -551,8 +699,8 @@ export async function startLocalEngine(
     models: [
       {
         ...(existingModel ?? {}),
-        id: existingModel?.id ?? model.id,
-        name: existingModel?.name ?? model.id,
+        id: model.id,
+        name: model.id,
         // Real engine limits (-c 16384): context window + max output tokens
         // must fit inside the server's n_ctx or llama-server answers 400
         // "Context size has been exceeded" once the chat history grows.
@@ -566,46 +714,15 @@ export async function startLocalEngine(
       },
     ],
   }
+  // Keep the agent's primary model in sync so the choice survives restarts
+  // (and the gateway routes chat requests to the local provider).
+  const prevModel = next.agents.defaults.model
+  const agentModel: { primary?: string } =
+    typeof prevModel === 'string' ? {} : { ...((prevModel as object) ?? {}) }
+  agentModel.primary = `local/${model.id}`
+  next.agents.defaults.model = agentModel
   writeConfig(next)
 
-  const child = spawn(
-    serverPath,
-    [
-      '-m',
-      model.path,
-      '--host',
-      '127.0.0.1',
-      '--port',
-      String(LOCAL_ENGINE_PORT),
-      '--no-ui',
-      '-c',
-      '32768',
-      '--log-file',
-      path.join(engineDir(), 'server.log'),
-    ],
-    { windowsHide: true, stdio: 'ignore' },
-  )
-  engineChild = child
-  child.on('exit', () => {
-    if (engineChild === child) {
-      engineChild = null
-      engineState = { running: false, port: LOCAL_ENGINE_PORT, modelId: null }
-    }
-  })
-  child.on('error', (err) => {
-    engineState = {
-      running: false,
-      port: LOCAL_ENGINE_PORT,
-      modelId: null,
-      error: err.message,
-    }
-  })
-
-  const ok = await waitForHealth(LOCAL_ENGINE_PORT, 120_000)
-  if (!ok) {
-    stopLocalEngine()
-    throw new Error('llama-server did not become healthy within 120s')
-  }
   // Belt-and-braces: if the downloaded binary defaults to a smaller n_ctx
   // than our -c request, align the config with reality instead of failing
   // later with HTTP 400.
@@ -694,6 +811,46 @@ export function stopLocalEngine(): boolean {
   const wasRunning = engineState.running
   engineState = { running: false, port: LOCAL_ENGINE_PORT, modelId: null }
   return wasRunning
+}
+
+/** Full local-engine runtime snapshot for the desktop UI (toggle + model bar). */
+export async function getLocalEngineRuntimeState(): Promise<LocalEngineRuntimeInfo> {
+  const shellConfig = readShellConfig()
+  const mode = shellConfig.localEngineMode ?? 'auto'
+  const gpu = await detectGpu()
+  const variant = resolveEngineVariant(mode, gpu)
+  return {
+    mode,
+    variant,
+    effectiveGpu: variant === 'cpu' ? 'cpu' : 'gpu',
+    gpuVendor: gpu.vendor,
+    gpuName: gpu.name,
+    engineState: { ...engineState },
+    models: listLocalModels(),
+  }
+}
+
+/** Switch the engine compute mode (cpu|gpu|auto); restarts a running engine. */
+export async function setLocalEngineMode(
+  mode: LocalEngineMode,
+  currentConfig: OpenClawConfig,
+  writeConfig: (c: OpenClawConfig) => void,
+): Promise<LocalEngineRuntimeInfo> {
+  const shellConfig = readShellConfig()
+  shellConfig.localEngineMode = mode
+  writeShellConfig(shellConfig)
+  if (engineState.running && engineState.modelId) {
+    const modelId = engineState.modelId
+    stopLocalEngine()
+    try {
+      await startLocalEngine(modelId, currentConfig, writeConfig)
+    } catch (err) {
+      logInfo(
+        `[local-engine] mode switch to ${mode} failed to restart engine: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+  }
+  return getLocalEngineRuntimeState()
 }
 
 /**
