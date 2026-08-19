@@ -1,5 +1,8 @@
 import { useTranslation } from 'react-i18next'
-import { Brain, Cpu, MessageSquare, Sparkles } from 'lucide-react'
+import { Brain, Cpu, MessageSquare } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { useWizardStore } from '@/stores/wizard-store'
+import openclawLogo from '@/assets/openclaw-logo.png'
 
 interface FeatureCardProps {
   icon: React.ReactNode
@@ -9,7 +12,7 @@ interface FeatureCardProps {
 
 function FeatureCard({ icon, title, description }: FeatureCardProps) {
   return (
-    <div className="rounded-xl border border-border bg-card p-3 space-y-2 transition-all hover:border-primary/30 hover:shadow-sm">
+    <div className="rounded-xl border border-border bg-card p-4 space-y-2 transition-all hover:border-primary/30 hover:shadow-sm">
       <div className="flex items-center gap-2.5 mb-1">
         <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
           {icon}
@@ -23,26 +26,26 @@ function FeatureCard({ icon, title, description }: FeatureCardProps) {
   )
 }
 
-const FEATURE_KEYS = ['local', 'model', 'channel', 'ready'] as const
+const FEATURE_KEYS = ['local', 'model', 'channel'] as const
 
 const FEATURE_ICONS = [
   <Cpu key="cpu" className="w-5 h-5" />,
   <Brain key="brain" className="w-5 h-5" />,
   <MessageSquare key="msg" className="w-5 h-5" />,
-  <Sparkles key="sparkles" className="w-5 h-5" />,
 ]
 
 export function WelcomeStep() {
   const { t } = useTranslation()
+  const store = useWizardStore()
 
   return (
-    <div className="flex flex-col items-center gap-5 sm:gap-6 max-w-2xl mx-auto">
+    <div className="flex flex-col items-center justify-center gap-5 sm:gap-6 max-w-3xl mx-auto min-h-[calc(100dvh-230px)]">
       <header className="text-center space-y-2.5">
-        <div className="mx-auto w-14 h-14 rounded-2xl bg-primary flex items-center justify-center shadow-md shadow-primary/20">
-          <span className="text-xl font-bold text-primary-foreground tracking-tight">
-            OC
-          </span>
-        </div>
+        <img
+          src={openclawLogo}
+          alt="OpenClaw"
+          className="mx-auto w-16 h-16 rounded-2xl object-contain shadow-md shadow-primary/10"
+        />
         <h2 className="text-xl font-semibold tracking-tight">
           {t('wizard.welcome.title')}
         </h2>
@@ -51,7 +54,7 @@ export function WelcomeStep() {
         </p>
       </header>
 
-      <section aria-label="Features" className="grid grid-cols-2 gap-3 w-full">
+      <section aria-label="Features" className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full">
         {FEATURE_KEYS.map((key, i) => (
           <FeatureCard
             key={key}
@@ -62,9 +65,11 @@ export function WelcomeStep() {
         ))}
       </section>
 
-      <p className="text-xs text-muted-foreground mt-2">
-        {t('wizard.welcome.startHint')}
-      </p>
+      <div className="flex justify-center pt-2">
+        <Button size="lg" onClick={store.nextStep}>
+          {t('wizard.nav.startSetup')}
+        </Button>
+      </div>
     </div>
   )
 }

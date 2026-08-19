@@ -21,6 +21,7 @@ import { ChannelStep } from './steps/ChannelStep'
 import { GatewayStep } from './steps/GatewayStep'
 import { CompleteStep } from './steps/CompleteStep'
 import { ChevronLeft, ChevronRight, SkipForward, Rocket } from 'lucide-react'
+import openclawLogo from '@/assets/openclaw-logo.png'
 import {
   setAppLocale,
   SHELL_SUPPORTED_LOCALES,
@@ -72,11 +73,11 @@ export function WizardLayout() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-3">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-4">
             <div className="flex items-center gap-3 min-w-0 flex-1">
-              <div className="w-8 h-8 shrink-0 rounded-xl bg-primary flex items-center justify-center shadow-sm">
-                <span className="text-xs font-bold text-primary-foreground tracking-tight">
-                  OC
-                </span>
-              </div>
+              <img
+                src={openclawLogo}
+                alt="OpenClaw"
+                className="w-8 h-8 shrink-0 rounded-lg object-contain"
+              />
               <h1 className="text-2xl sm:text-3xl font-semibold leading-tight tracking-tight">
                 {t('wizard.setupWizard')}
               </h1>
@@ -150,16 +151,16 @@ export function WizardLayout() {
                   {t('shell.status.starting')}
                 </Button>
               ) : null
-            ) : (
+            ) : !isFirstStep ? (
               <Button
                 size="lg"
                 onClick={store.nextStep}
                 disabled={!canAdvance}
               >
-                {isFirstStep ? t('wizard.nav.startSetup') : t('wizard.nav.next')}
-                {!isFirstStep && <ChevronRight className="w-5 h-5" />}
+                {t('wizard.nav.next')}
+                <ChevronRight className="w-5 h-5" />
               </Button>
-            )}
+            ) : null}
           </div>
         </div>
       </footer>
