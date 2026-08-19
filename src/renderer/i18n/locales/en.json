@@ -25,7 +25,7 @@
       "features": {
         "model": {
           "title": "Cloud AI Providers",
-          "description": "Prefer the cloud? DeepSeek, Anthropic, OpenAI, Google and other major providers with one-click API key setup."
+          "description": "Prefer the cloud? Anthropic, OpenAI, Google, DeepSeek and other major providers with one-click API key setup."
         },
         "channel": {
           "title": "Agent Connectivity",

@@ -25,7 +25,7 @@
       "features": {
         "model": {
           "title": "Облачные провайдеры",
-          "description": "Предпочитаете облако? DeepSeek, Anthropic, OpenAI, Google и другие провайдеры — настройка API-ключа в один клик."
+          "description": "Предпочитаете облако? Anthropic, OpenAI, Google, DeepSeek и другие провайдеры — настройка API-ключа в один клик."
         },
         "channel": {
           "title": "Связь с Агентом",
