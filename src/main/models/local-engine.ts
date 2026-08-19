@@ -623,7 +623,7 @@ export async function startLocalEngine(
     String(LOCAL_ENGINE_PORT),
     '--no-ui',
     '-c',
-    '32768',
+    variant === 'cpu' ? '32768' : '16384',
     '-ngl',
     variant === 'cpu' ? '0' : '99',
     '--log-file',
@@ -666,6 +666,7 @@ export async function startLocalEngine(
     const cpuPath = await ensureEngineBinary('cpu')
     const cpuArgs = spawnArgs.map((a) => a)
     cpuArgs[cpuArgs.indexOf('-ngl') + 1] = '0'
+    cpuArgs[cpuArgs.indexOf('-c') + 1] = '32768'
     ok = await spawnServer(cpuPath, cpuArgs)
   }
   if (!ok) {
