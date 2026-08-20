@@ -2,6 +2,12 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.8.15] - 2026-08-20
+
+### Changed
+
+- **Wizard preselects Qwen 3.5 4B for Local Model**: choosing "Local Model" during setup now defaults to the Qwen 3.5 4B preset (lightest, first in the picker) instead of an empty selection. Picker order stays: Qwen 3.5 4B → Qwen 3.5 9B → custom GGUF file.
+
 ## [0.8.14] - 2026-08-20
 
 ### Added

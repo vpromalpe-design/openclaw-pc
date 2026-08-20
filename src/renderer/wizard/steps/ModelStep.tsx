@@ -76,7 +76,12 @@ export function ModelStep() {
       const shouldClearApiKey = nextAuthMode === 'oauth' || nextAuthMode === 'none'
       setModelConfig({
         provider,
-        modelId: provider === 'local' ? '' : (presets?.[0]?.id ?? ''),
+        // Local: default to the first (lightest) preset — Qwen 3.5 4B.
+        // Order in the picker stays: 4B first, 9B second, then custom GGUF.
+        modelId:
+          provider === 'local'
+            ? 'qwen3.5-4b'
+            : (presets?.[0]?.id ?? ''),
         ...(shouldClearApiKey ? { apiKey: '' } : {}),
         moonshotRegion: provider === 'moonshot-cn' ? 'cn' : provider === 'moonshot' ? modelConfig.moonshotRegion ?? 'global' : 'global',
         customProviderId: provider === 'custom' ? modelConfig.customProviderId ?? '' : '',
