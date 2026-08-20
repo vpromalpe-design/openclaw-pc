@@ -8,6 +8,7 @@ import { cp, rm, readFile, writeFile, access, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { execSync } from 'node:child_process'
 import { patchOpenClawFeishuRegisterOnce } from './patch-openclaw-feishu-register-once.ts'
+import { patchOpenClawSilentReplyLocal } from './patch-openclaw-silent-reply-local.ts'
 import { patchOpenClawStripSlackChannel } from './patch-openclaw-strip-slack-channel.ts'
 import {
   ensureOpenClawFeishuLarkSdk,
@@ -222,6 +223,7 @@ async function main(): Promise<void> {
 
   await ensureOpenClawFeishuLarkSdk(SRC_OPENCLAW)
   await patchOpenClawFeishuRegisterOnce(SRC_OPENCLAW)
+  await patchOpenClawSilentReplyLocal(SRC_OPENCLAW)
 
   // --- Ensure resources directory exists ---
   await mkdir(RESOURCES_DIR, { recursive: true })
@@ -277,6 +279,9 @@ async function main(): Promise<void> {
   // Remove hardcoded "slack" from CHAT_CHANNEL_ORDER in chat-meta-*.js,
   // so the gateway doesn't crash when the Slack extension was stripped.
   await patchOpenClawStripSlackChannel(DEST_OPENCLAW)
+
+  // Stop teaching local GGUF models the NO_REPLY token (they append it to replies).
+  await patchOpenClawSilentReplyLocal(DEST_OPENCLAW)
 
   // --- Validate OpenClaw dist integrity ---
   const missingDist = await validateOpenClawDist(DEST_OPENCLAW)
