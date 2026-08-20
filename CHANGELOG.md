@@ -2,6 +2,36 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.8.12] - 2026-08-20
+
+### Fixed
+
+- **Local connection test no longer lies**: "Проверить подключение" (Test Connection) retries busy/loading/empty-reply states until the deadline instead of failing with "Модель не вернула ответ" the first time the engine is mid-generation or warming up. 503/429 and socket timeouts are retryable; a wrong model or HTTP error fails immediately with an honest message.
+- **Successful local test now shows a green "Модель ответила"** (was "Подключение установлено").
+
+### Changed
+
+- `testLocalEngineChat` verifies the `model` field of the engine response: if llama-server answers with a different GGUF than selected, the test reports it explicitly ("Движок отвечает моделью X, а не Y") instead of a generic failure.
+
+## [0.8.11] - 2026-08-20
+
+### Fixed
+
+- **Engine adoption could silently serve the wrong model**: `startLocalEngine` trusted any HTTP-200 server on port 18788 without checking which model it actually loaded. An orphaned llama-server (left over from a previous app instance or a manual start) holding the port with a different GGUF was adopted, so the UI claimed the selected model was active while replies came from the stale one. The app now adopts a server only when `/v1/models` reports the requested model; otherwise it force-kills the stale process (`netstat`+`taskkill`) and spawns its own engine with the correct model.
+- Model name matching is normalized (basename, `.gguf` stripped, Windows paths, case) with prefix matching only for stems ≥ 7 chars so `gemma` never aliases `gemma4-v2-Q4_K_M`.
+
+## [0.8.10] - 2026-08-20
+
+### Fixed
+
+- **Local GGUF models appended "NO_REPLY" to real replies**: the `## Silent Replies` system-prompt section instructed them to reply with the literal token. The section is now suppressed for models whose id starts with `local/` (cloud models keep it).
+
+## [0.8.9] - 2026-08-20
+
+### Changed
+
+- **Tool calling re-enabled for local GGUF models** after live verification against the bundled llama.cpp engine (31-tool request returned HTTP 200 with the exact schemas the app sends). Previous releases disabled tools for the `local` provider.
+
 ## [0.8.8] - 2026-08-18
 
 ### Changed
