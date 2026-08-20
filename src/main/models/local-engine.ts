@@ -974,12 +974,44 @@ export interface LocalEngineTestResult {
  * Real end-to-end check: send a minimal chat completion to llama-server and
  * require an actual model answer. Health checks only prove the server is up;
  * this proves the loaded GGUF can produce tokens.
+ *
+ * Retries transient failures (server busy / model still loading / empty
+ * reply) until the overall deadline: a local engine can legitimately take a
+ * while when its single slot is busy or the model is warming up, and a
+ * "Model did not answer" verdict must reflect the real state, not a race.
  */
 export async function testLocalEngineChat(
   port: number,
   modelId: string,
   timeoutMs = 90_000,
 ): Promise<LocalEngineTestResult> {
+  const deadline = Date.now() + timeoutMs
+  let lastTransient = 'Модель не вернула ответ'
+  while (Date.now() < deadline) {
+    const probe = await singleChatProbe(
+      port,
+      modelId,
+      Math.min(30_000, Math.max(5_000, deadline - Date.now())),
+    )
+    if (probe.ok) return { ok: true, message: 'OK' }
+    if (!probe.retryable) return { ok: false, message: probe.message }
+    lastTransient = probe.message
+    await new Promise((r) => setTimeout(r, 2500))
+  }
+  return { ok: false, message: lastTransient }
+}
+
+interface ChatProbeResult {
+  ok: boolean
+  retryable: boolean
+  message: string
+}
+
+function singleChatProbe(
+  port: number,
+  modelId: string,
+  timeoutMs: number,
+): Promise<ChatProbeResult> {
   return new Promise((resolve) => {
     const body = JSON.stringify({
       model: modelId,
@@ -1003,9 +1035,14 @@ export async function testLocalEngineChat(
         let data = ''
         res.on('data', (c) => (data += c))
         res.on('end', () => {
+          if (res.statusCode === 503 || res.statusCode === 429) {
+            resolve({ ok: false, retryable: true, message: `Движок занят (HTTP ${res.statusCode})` })
+            return
+          }
           if (res.statusCode !== 200) {
             resolve({
               ok: false,
+              retryable: false,
               message: `llama-server вернул HTTP ${res.statusCode}`,
             })
             return
@@ -1022,21 +1059,27 @@ export async function testLocalEngineChat(
               // test must report the real state of affairs.
               resolve({
                 ok: false,
+                retryable: false,
                 message: `Движок отвечает моделью «${respondedModel}», а не «${modelId}». Остановите и подключите движок заново.`,
               })
             } else if (content) {
-              resolve({ ok: true, message: 'OK' })
+              resolve({ ok: true, retryable: false, message: 'OK' })
             } else {
-              resolve({ ok: false, message: 'Модель не вернула ответ' })
+              resolve({ ok: false, retryable: true, message: 'Модель не вернула ответ' })
             }
           } catch {
-            resolve({ ok: false, message: 'Некорректный ответ движка' })
+            resolve({ ok: false, retryable: false, message: 'Некорректный ответ движка' })
           }
         })
       },
     )
-    req.on('timeout', () => req.destroy())
-    req.on('error', (err) => resolve({ ok: false, message: err.message }))
+    req.on('timeout', () => {
+      req.destroy()
+      resolve({ ok: false, retryable: true, message: 'Движок не ответил вовремя' })
+    })
+    req.on('error', (err) =>
+      resolve({ ok: false, retryable: true, message: err.message }),
+    )
     req.write(body)
     req.end()
   })

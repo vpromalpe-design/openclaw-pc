@@ -398,6 +398,7 @@
       "testing": "Проверка…",
       "connected": "Подключено",
       "connectionOk": "Подключение установлено",
+      "localTestOk": "Модель ответила",
       "testFailed": "Не удалось подключиться",
       "apiKeyRequired": "Введите API-ключ",
       "save": "Сохранить",

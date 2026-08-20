@@ -735,6 +735,7 @@
       "testing": "Testing…",
       "connected": "Connected",
       "connectionOk": "Connection established",
+      "localTestOk": "Model answered",
       "testFailed": "Connection failed",
       "apiKeyRequired": "Enter an API key",
       "save": "Save",

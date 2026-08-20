@@ -418,7 +418,7 @@ export function ModelsView({ onBack }: ModelsViewProps) {
       await load()
       if (res?.test?.ok) {
         setLocalTest('ok')
-        setLocalTestMsg(t('shell.models.connectionOk'))
+        setLocalTestMsg(t('shell.models.localTestOk'))
       } else {
         setLocalTest('fail')
         setLocalTestMsg(res?.test?.message ?? t('shell.models.testFailed'))
