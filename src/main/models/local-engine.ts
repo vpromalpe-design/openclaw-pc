@@ -365,8 +365,19 @@ export function resolveEngineVariant(
     return 'cpu'
   }
   // auto: prefer GPU, fall back to CPU when no supported GPU is present.
+  // Do NOT trust the WMI/CIM GPU probe alone: on machines where the CIM
+  // provider is broken (observed on Damir's laptop) detectGpu() reports
+  // "none" even with an NVIDIA GPU present, silently downgrading to the slow
+  // CPU build. If a CUDA build is already on disk, prefer trying it — the
+  // spawn path falls back to CPU if it does not become healthy.
   if (gpu.vendor === 'nvidia') return 'cuda'
   if (gpu.vendor === 'amd') return 'vulkan'
+  if (gpu.vendor === 'intel') {
+    // Intel iGPU: try Vulkan if the build exists, else CPU.
+    if (getEngineServerPath('vulkan')) return 'vulkan'
+    return 'cpu'
+  }
+  if (getEngineServerPath('cuda')) return 'cuda'
   return 'cpu'
 }
 
@@ -846,6 +857,13 @@ export async function startLocalEngine(
     'q8_0',
     '-ctv',
     'q8_0',
+    // Thinking/reasoning models (Qwen3.5-*) dump the whole reply into
+    // `reasoning_content` and return an empty `content`, often burning the
+    // entire token budget without ever emitting a final answer — the agent
+    // then "replies" with silence. Disable reasoning at the engine level so
+    // chat completions always produce a real `content`.
+    '--reasoning',
+    'off',
     '--log-file',
     path.join(engineDir(), 'server.log'),
   ]
@@ -1019,7 +1037,10 @@ function singleChatProbe(
     const body = JSON.stringify({
       model: modelId,
       messages: [{ role: 'user', content: 'ping' }],
-      max_tokens: 4,
+      // Small budgets are useless for reasoning models: they spend them all
+      // on `reasoning_content` and return an empty `content` even though the
+      // engine is perfectly healthy (Qwen3.5-* behave exactly like this).
+      max_tokens: 1024,
       temperature: 0,
     })
     const req = http.request(
@@ -1053,9 +1074,12 @@ function singleChatProbe(
           try {
             const j = JSON.parse(data) as {
               model?: string
-              choices?: Array<{ message?: { content?: string } }>
+              choices?: Array<{
+                message?: { content?: string; reasoning_content?: string }
+              }>
             }
-            const content = j.choices?.[0]?.message?.content?.trim()
+            const content = j.choices?.[0]?.message?.content?.trim?.()
+            const reasoning = j.choices?.[0]?.message?.reasoning_content?.trim?.()
             const respondedModel = j.model
             if (respondedModel && !modelNamesMatch(respondedModel, modelId)) {
               // The engine is serving a different model than requested — the
@@ -1065,7 +1089,9 @@ function singleChatProbe(
                 retryable: false,
                 message: `Движок отвечает моделью «${respondedModel}», а не «${modelId}». Остановите и подключите движок заново.`,
               })
-            } else if (content) {
+            } else if (content || reasoning) {
+              // `reasoning` alone proves the engine is generating tokens —
+              // accept it so the test never cries wolf on thinking models.
               resolve({ ok: true, retryable: false, message: 'OK' })
             } else {
               resolve({ ok: false, retryable: true, message: 'Модель не вернула ответ' })

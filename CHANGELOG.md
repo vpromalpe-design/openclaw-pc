@@ -2,6 +2,16 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.8.13] - 2026-08-20
+
+### Fixed
+
+- **Local engine starts BEFORE the gateway**: with a local/* primary model the engine now starts and becomes healthy (bounded 120s health wait, GPU→CPU fallback included) before the gateway accepts any chat. Previously the engine auto-start ran async after the gateway was already serving, so the first user message after setup could hit a cold port and fail with "network connection error" — with zero log lines and no UI hint.
+- **Thinking/reasoning GGUFs no longer reply with silence** (Qwen3.5-*): those models dump the whole reply into `reasoning_content` and return an empty `content`, often burning the whole token budget without a final answer. The engine now launches with `--reasoning off` so chat completions always produce real content.
+- **Connection test understands reasoning models**: the probe now sends a 1024-token budget and accepts a non-empty `reasoning_content` as proof the engine is generating, so "Проверить подключение" cannot falsely report "Модель не вернула ответ" on a healthy engine.
+- **GPU auto-detection no longer trusts a broken CIM provider**: when the WMI/CIM probe fails (observed on the user's laptop) auto mode prefers the CUDA build if present and falls back to CPU only if it does not become healthy.
+- **Engine startup is fully logged**: auto-start logs its phase (mode, model, OK/error) and engine-binary downloads are announced before they start — no more silent stalls.
+
 ## [0.8.12] - 2026-08-20
 
 ### Fixed
