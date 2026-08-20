@@ -11,6 +11,7 @@ import os from 'node:os'
 import path from 'node:path'
 import https from 'node:https'
 import http from 'node:http'
+import net from 'node:net'
 import { spawn, exec as execCb, ChildProcess } from 'node:child_process'
 import { promisify } from 'node:util'
 
@@ -59,30 +60,18 @@ export interface LocalModelPreset {
 }
 
 /**
- * Preinstalled GGUF picks (CPU-friendly sizes, stable URLs):
- * Normal (Qwen 3.5 4B, runs on any PC) and Hard (Qwen 3.5 9B, best quality).
- * Both enable tool calling.
- *
- * Qwen 3.5 ships as Ollama manifests; the model layer blobs are plain GGUF
- * files, served straight from the Ollama registry (no login required).
+ * Preinstalled GGUF pick — one model: Gemma4 v2 (Merged, 12B-class, Q4_K_M).
+ * Tool calling enabled. Custom GGUF downloads (own URL / file from disk)
+ * remain available in the picker.
  */
 export const LOCAL_MODEL_PRESETS: LocalModelPreset[] = [
   {
-    id: 'qwen3.5-4b',
-    name: 'Qwen 3.5 4B (Normal)',
-    fileName: 'Qwen3.5-4B-Q4_K_M.gguf',
-    url: 'https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf?download=true',
-    sizeBytes: 2_740_937_888,
-    description: '~2.6 GB · fastest, runs on any PC',
-    supportsTools: true,
-  },
-  {
-    id: 'qwen3.5-9b',
-    name: 'Qwen 3.5 9B (Hard)',
-    fileName: 'Qwen3.5-9B-Q4_K_M.gguf',
-    url: 'https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/main/Qwen3.5-9B-Q4_K_M.gguf?download=true',
-    sizeBytes: 5_680_522_464,
-    description: '~5.3 GB · best quality, tool calling enabled',
+    id: 'gemma4-v2',
+    name: 'Gemma 4 v2 (Q4_K_M)',
+    fileName: 'gemma4-v2-Q4_K_M.gguf',
+    url: 'https://huggingface.co/yuxinlu1/gemma-4-12B-agentic-fable5-composer2.5-v2-3.5x-tau2-GGUF/resolve/main/gemma4-v2-Q4_K_M.gguf?download=true',
+    sizeBytes: 7_381_381_664,
+    description: '~6.9 GB · best quality, tool calling enabled',
     supportsTools: true,
   },
 ]
@@ -646,6 +635,28 @@ function waitForHealth(port: number, timeoutMs: number): Promise<boolean> {
   })
 }
 
+/**
+ * v0.8.18: raw TCP probe — does anything accept connections on the port?
+ * Used to detect an engine that is already bound (and possibly still
+ * loading the model, so /health is not OK yet) before we decide to spawn.
+ */
+function canConnectTcp(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = net.connect({ host: '127.0.0.1', port }, () => {
+      socket.destroy()
+      resolve(true)
+    })
+    socket.on('error', () => {
+      socket.destroy()
+      resolve(false)
+    })
+    socket.setTimeout(1500, () => {
+      socket.destroy()
+      resolve(true) // accepts connections but stalls — still occupied
+    })
+  })
+}
+
 function fetchLoadedModelId(port: number): Promise<string | null> {
   return new Promise((resolve) => {
     http
@@ -1004,7 +1015,22 @@ export async function startLocalEngine(
   // double-spawning. Adopt ONLY when it is actually serving the requested
   // model: an orphaned llama-server holding the port with a DIFFERENT model
   // would make the UI lie about what is really loaded.
-  const backendUp = await waitForHealth(LOCAL_ENGINE_BACKEND_PORT, 3_000)
+  //
+  // v0.8.18: an orphaned engine from a previous app instance may still be
+  // LOADING the model (bound to the port but /health not OK yet). A short
+  // waitForHealth would miss it and we would spawn a SECOND engine on the
+  // same port — Windows allows the double-bind, both processes listen, and
+  // requests randomly hit the hung/last-bound one (observed live twice:
+  // two llama-server on 18792, CPU 0, empty replies). So: if the port
+  // accepts TCP connections but health is not OK yet, WAIT for health
+  // (up to 120s) instead of spawning.
+  let backendUp = await waitForHealth(LOCAL_ENGINE_BACKEND_PORT, 3_000)
+  if (!backendUp && (await canConnectTcp(LOCAL_ENGINE_BACKEND_PORT))) {
+    logInfo(
+      `[local-engine] backend port ${LOCAL_ENGINE_BACKEND_PORT} is occupied but not healthy yet (orphan engine still loading?) — waiting up to 120s instead of spawning a second engine`,
+    )
+    backendUp = await waitForHealth(LOCAL_ENGINE_BACKEND_PORT, 120_000)
+  }
   if (backendUp) {
     const loaded = await fetchLoadedModelId(LOCAL_ENGINE_BACKEND_PORT)
     const matches =
@@ -1056,7 +1082,7 @@ export async function startLocalEngine(
     'q8_0',
     '-ctv',
     'q8_0',
-    // Thinking/reasoning models (Qwen3.5-*) dump the whole reply into
+    // Thinking/reasoning models dump the whole reply into
     // `reasoning_content` and return an empty `content`, often burning the
     // entire token budget without ever emitting a final answer — the agent
     // then "replies" with silence. Disable reasoning at the engine level so
@@ -1243,7 +1269,7 @@ function singleChatProbe(
       messages: [{ role: 'user', content: 'ping' }],
       // Small budgets are useless for reasoning models: they spend them all
       // on `reasoning_content` and return an empty `content` even though the
-      // engine is perfectly healthy (Qwen3.5-* behave exactly like this).
+      // engine is perfectly healthy (Gemma4-v2 behaves exactly like this).
       max_tokens: 1024,
       temperature: 0,
     })

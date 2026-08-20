@@ -2,6 +2,16 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.8.18] - 2026-08-20
+
+### Changed
+
+- **One local model instead of two**: the preinstalled Qwen 3.5 4B/9B presets are gone. The only built-in preset is now **Gemma 4 v2 (Q4_K_M)** (`gemma4-v2-Q4_K_M.gguf`, ~6.9 GB, tool calling enabled) — same model the wizard offers during first-time setup, same model on the Models page. Downloading it works exactly like the old Qwen flow. Custom GGUF options stay: paste your own model URL or pick a file from disk.
+
+### Fixed
+
+- **No more double engine on restart (the "bot thinks forever" bug)**: when an orphaned llama-server from a previous app session was still loading its model, the app could miss it (3s health check) and spawn a *second* engine on the same port — Windows allowed both to listen, requests hit the hung one and every reply timed out. Now the app first checks whether the engine port is occupied at the TCP level; if yes but `/health` is not ready yet, it waits (up to 2 minutes) for the loading engine instead of spawning a duplicate, and only kills+respaws when the port stays unhealthy.
+
 ## [0.8.17] - 2026-08-20
 
 ### Fixed

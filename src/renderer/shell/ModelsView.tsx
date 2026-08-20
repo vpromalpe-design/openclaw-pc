@@ -44,7 +44,7 @@ export interface ModelsViewProps {
   onBack?: () => void
 }
 
-const PRESET_IDS = ['qwen3.5-4b', 'qwen3.5-9b']
+const PRESET_IDS = ['gemma4-v2']
 
 function statusLabel(
   status: ModelTableEntry['status'],
@@ -1030,10 +1030,8 @@ function ProviderRowGroup({
 
 function presetName(id: string, t: (key: string) => string): string {
   switch (id) {
-    case 'qwen3.5-4b':
+    case 'gemma4-v2':
       return t('shell.models.presetNormal')
-    case 'qwen3.5-9b':
-      return t('shell.models.presetHard')
     default:
       return id
   }
@@ -1041,10 +1039,8 @@ function presetName(id: string, t: (key: string) => string): string {
 
 function presetDesc(id: string, t: (key: string) => string): string {
   switch (id) {
-    case 'qwen3.5-4b':
+    case 'gemma4-v2':
       return t('shell.models.presetNormalDesc')
-    case 'qwen3.5-9b':
-      return t('shell.models.presetHardDesc')
     default:
       return ''
   }

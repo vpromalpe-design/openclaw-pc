@@ -14,14 +14,9 @@ import type { LocalEngineRuntimeInfo } from '../../shared/types'
 
 const LOCAL_PRESETS = [
   {
-    id: 'qwen3.5-4b',
-    labelKey: 'wizard.model.localNormal',
-    size: '~3.2 GB',
-  },
-  {
-    id: 'qwen3.5-9b',
-    labelKey: 'wizard.model.localHard',
-    size: '~6.1 GB',
+    id: 'gemma4-v2',
+    labelKey: 'wizard.model.localPreset',
+    size: '~6.9 GB',
   },
 ]
 
