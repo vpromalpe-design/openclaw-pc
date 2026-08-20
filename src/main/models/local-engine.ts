@@ -1156,7 +1156,18 @@ export async function getLocalEngineRuntimeState(): Promise<LocalEngineRuntimeIn
 export async function installEngineVariant(
   variant: EngineVariant,
 ): Promise<LocalEngineRuntimeInfo> {
-  await ensureEngineBinary(variant)
+  try {
+    await ensureEngineBinary(variant)
+  } catch (err) {
+    // Never surface raw URLs / HTTP noise in the UI — log the detail here and
+    // show the user a short human-readable message instead.
+    logInfo(
+      `[local-engine] ${variant} engine install failed: ${err instanceof Error ? err.message : String(err)}`,
+    )
+    throw new Error(
+      `Failed to download the ${variant.toUpperCase()} engine. Check your internet connection and try again.`,
+    )
+  }
   return getLocalEngineRuntimeState()
 }
 

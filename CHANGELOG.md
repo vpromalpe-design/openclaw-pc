@@ -2,6 +2,12 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.8.16] - 2026-08-20
+
+### Fixed
+
+- **No raw URLs in engine install errors**: if downloading the CUDA/Vulkan engine build fails, the panel no longer shows the raw GitHub URL / HTTP status. The user sees a short message ("Failed to download the CUDA engine. Check your internet connection and try again.") and the technical detail goes to the log.
+
 ## [0.8.15] - 2026-08-20
 
 ### Changed
