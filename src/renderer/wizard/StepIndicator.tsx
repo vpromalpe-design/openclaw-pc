@@ -48,7 +48,7 @@ export function StepIndicator({
                   onClick={() => isClickable && onStepClick(index)}
                   disabled={!isClickable}
                   className={cn(
-                    'w-7 h-10 rounded-[10px] flex items-center justify-center text-xs font-semibold transition-colors shrink-0 border-2 relative',
+                    'w-10 h-10 rounded-xl flex items-center justify-center text-xs font-semibold transition-colors shrink-0 border-2 relative',
                     isCurrent &&
                       'border-primary bg-primary text-primary-foreground shadow-sm',
                     isCompleted &&

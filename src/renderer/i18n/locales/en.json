@@ -41,7 +41,7 @@
         },
         "local": {
           "title": "Local Models",
-          "description": "One-click install of open-source models (Qwen 3.5 GGUF) that run 100% offline on this PC via the built-in llama.cpp engine. Free and private."
+          "description": "One-click install of open-source models (Gemma 4 GGUF) that run 100% offline on this PC via the built-in llama.cpp engine. Free and private."
         }
       }
     },
@@ -97,7 +97,7 @@
       "downloadFailed": "Download failed",
       "localNormal": "Gemma4 v2 (Q4_K_M)",
       "localHard": "Gemma4 v2 (Q4_K_M)",
-      "localExperimental": "Qwen 3.5 9B (Experimental)",
+      "localExperimental": "Gemma 4 v2 (Experimental)",
       "experimentalBadge": "Experimental",
       "pickFile": "From disk…",
       "downloaded": "Downloaded",
@@ -153,11 +153,11 @@
       "badCustomUrl": "The URL must point to a .gguf file",
       "customUrlPlaceholder": "https://…/model.gguf (custom model URL)",
       "addCustom": "Add",
-      "presetNormal": "Qwen 2.5 0.5B (Normal)",
+      "presetNormal": "Gemma 4 v2 (Q4_K_M)",
       "presetNormalDesc": "~470 MB · fastest, runs on any PC",
-      "presetHard": "Qwen 2.5 3B (Hard)",
+      "presetHard": "Gemma 4 v2 (Q4_K_M)",
       "presetHardDesc": "~1.9 GB · best quality on CPU",
-      "presetExperimental": "Qwen 2.5 3B (Experimental)",
+      "presetExperimental": "Gemma 4 v2 (Experimental)",
       "presetExperimentalDesc": "~1.9 GB · same Hard model, but with tool calling enabled",
       "experimentalBadge": "Experimental"
     },
@@ -719,8 +719,8 @@
       "presetNormalDesc": "~6.9 GB · best quality, tool calling enabled",
       "presetHard": "Gemma4 v2 (Q4_K_M)",
       "presetHardDesc": "~6.9 GB · best quality, tool calling enabled",
-      "presetExperimental": "Qwen 3.5 9B (Experimental)",
-      "presetExperimentalDesc": "~6.1 GB · same Hard model, but with tool calling enabled",
+      "presetExperimental": "Gemma 4 v2 (Experimental)",
+      "presetExperimentalDesc": "~6.9 GB · tool calling enabled",
       "experimentalBadge": "Experimental",
       "pickFile": "From disk…",
       "configure": "Configure",

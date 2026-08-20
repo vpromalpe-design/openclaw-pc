@@ -2,6 +2,13 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.8.19] - 2026-08-20
+
+### Changed
+
+- **Wizard copy updated**: the local-model card on the first setup page now says "Gemma 4 GGUF" instead of "Qwen 3.5 GGUF".
+- **Step indicator redesign**: the wizard's step bars are now rounded squares (icons/number inside), instead of vertical pill bars.
+
 ## [0.8.18] - 2026-08-20
 
 ### Changed

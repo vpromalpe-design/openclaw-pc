@@ -41,7 +41,7 @@
         },
         "local": {
           "title": "本地 AI 模型",
-          "description": "一鍵安裝開源模型（Qwen 2.5 GGUF），透過內建 llama.cpp 引擎在本機 100% 離線執行。免費且私密。"
+          "description": "一鍵安裝開源模型（Gemma 4 GGUF），透過內建 llama.cpp 引擎在本機 100% 離線執行。免費且私密。"
         }
       }
     },

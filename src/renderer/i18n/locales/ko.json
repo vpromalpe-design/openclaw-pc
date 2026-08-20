@@ -41,7 +41,7 @@
         },
         "local": {
           "title": "로컬 AI 모델",
-          "description": "내장 llama.cpp 엔진으로 이 PC에서 100% 오프라인 실행되는 오픈소스 모델(Qwen 2.5 GGUF)을 원클릭 설치. 무료이고 비공개입니다."
+          "description": "내장 llama.cpp 엔진으로 이 PC에서 100% 오프라인 실행되는 오픈소스 모델(Gemma 4 GGUF)을 원클릭 설치. 무료이고 비공개입니다."
         }
       }
     },

@@ -41,7 +41,7 @@
         },
         "local": {
           "title": "Modelos de IA locales",
-          "description": "Instalación con un clic de modelos de código abierto (Qwen 2.5 GGUF) que funcionan 100 % sin conexión en este PC mediante el motor integrado llama.cpp. Gratis y privado."
+          "description": "Instalación con un clic de modelos de código abierto (Gemma 4 GGUF) que funcionan 100 % sin conexión en este PC mediante el motor integrado llama.cpp. Gratis y privado."
         }
       }
     },

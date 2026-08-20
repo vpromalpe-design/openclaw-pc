@@ -41,7 +41,7 @@
         },
         "local": {
           "title": "Локальные модели",
-          "description": "Установка открытых моделей (Qwen 3.5 GGUF) в один клик — работают на 100% офлайн на этом ПК через встроенный движок llama.cpp. Бесплатно и приватно."
+          "description": "Установка открытых моделей (Gemma 4 GGUF) в один клик — работают на 100% офлайн на этом ПК через встроенный движок llama.cpp. Бесплатно и приватно."
         }
       }
     },
@@ -89,7 +89,7 @@
       "selectLocalModel": "Выберите локальную модель",
       "localNormal": "Gemma4 v2 (Q4_K_M)",
       "localHard": "Gemma4 v2 (Q4_K_M)",
-      "localExperimental": "Qwen 3.5 9B (Experimental)",
+      "localExperimental": "Gemma 4 v2 (Experimental)",
       "experimentalBadge": "Experimental",
       "customGguf": "Своя модель (ссылка на GGUF)",
       "downloadModel": "Скачать модель",
@@ -375,8 +375,8 @@
       "presetNormalDesc": "~6.9 GB · best quality, tool calling enabled",
       "presetHard": "Gemma4 v2 (Q4_K_M)",
       "presetHardDesc": "~6.9 GB · best quality, tool calling enabled",
-      "presetExperimental": "Qwen 3.5 9B (Experimental)",
-      "presetExperimentalDesc": "~6.1 ГБ · та же Hard-модель, но с включённым вызовом инструментов",
+      "presetExperimental": "Gemma 4 v2 (Experimental)",
+      "presetExperimentalDesc": "~6.9 ГБ · инструменты включены",
       "experimentalBadge": "Experimental",
       "downloading": "Скачивание… {{percent}}%",
       "title": "Модели",
