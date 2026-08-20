@@ -822,6 +822,11 @@ export async function startLocalEngine(
         // descriptions as raw text (<|tool_call|>call:Read{...}<|tool_call|>).
         // Risk: llama.cpp may reject exotic JSON-schema constructs (bare
         // `pattern` → HTTP 400) — then the model errors instead of echoing.
+        // VERIFIED 2026-08-20 on the live laptop engine: full OpenClaw tool
+        // payload (31 tools incl. exec.env patternProperties '^.*$' and bare
+        // '.*') returns 200 — tools stay ON. If 400 'Pattern must start with
+        // ^ and end with $' ever comes back, re-disable here AND in
+        // sanitizeConfigPaths, then sanitize tool schemas before send.
         compat: { supportsTools: preset ? preset.supportsTools === true : true },
       },
     ],
