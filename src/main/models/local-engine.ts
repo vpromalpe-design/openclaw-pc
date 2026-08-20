@@ -636,6 +636,54 @@ function waitForHealth(port: number, timeoutMs: number): Promise<boolean> {
 }
 
 /**
+ * v0.8.20: prove the engine actually completes a chat completion, not just
+ * that /health reports ok. A wedged slot (from an un-cancelled stream)
+ * leaves /health green while every chat request queues forever.
+ */
+function verifyEngineResponds(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const body = JSON.stringify({
+      messages: [{ role: 'user', content: 'ping' }],
+      max_tokens: 1,
+      stream: false,
+    })
+    const req = http.request(
+      {
+        host: '127.0.0.1',
+        port,
+        path: '/v1/chat/completions',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+        },
+        timeout: 30_000,
+      },
+      (res) => {
+        let data = ''
+        res.on('data', (c: Buffer) => (data += c))
+        res.on('end', () => {
+          try {
+            const j = JSON.parse(data) as {
+              choices?: Array<{ message?: unknown }>
+            }
+            resolve(!!(j.choices && j.choices[0] && j.choices[0].message))
+          } catch {
+            resolve(false)
+          }
+        })
+      },
+    )
+    req.on('error', () => resolve(false))
+    req.on('timeout', () => {
+      req.destroy()
+      resolve(false)
+    })
+    req.end(body)
+  })
+}
+
+/**
  * v0.8.18: raw TCP probe — does anything accept connections on the port?
  * Used to detect an engine that is already bound (and possibly still
  * loading the model, so /health is not OK yet) before we decide to spawn.
@@ -861,6 +909,15 @@ async function startSchemaFixProxy(): Promise<void> {
         }
       })
       upstream.end(body)
+      // v0.8.20: forward client aborts (timeouts, closed tabs, cancelled
+      // replies) to the engine. Otherwise llama-server keeps the request slot
+      // busy forever streaming into the void — every later request queues
+      // behind it and the model "stops answering" until the engine is killed.
+      req.on('close', () => {
+        if (!res.writableEnded) {
+          upstream.destroy()
+        }
+      })
     })
     req.on('error', () => res.destroy())
   })
@@ -1070,14 +1127,15 @@ export async function startLocalEngine(
     String(LOCAL_ENGINE_BACKEND_PORT),
     '--no-ui',
     '-c',
-    '65536',
+    '32768',
     '-ngl',
     variant === 'cpu' ? '0' : '99',
-    // 64k context: quantize the KV cache (q8_0 ≈ half of fp16) so it fits in
-    // VRAM/RAM next to the weights. The agent's prompt (system + tools +
-    // history) easily reaches ~10k tokens; with a 32k window the compaction
-    // reserve (50% by default) leaves too little room and auto-compaction
-    // fires almost every turn.
+    // 32k context (q8_0 KV ≈ 3.2 GB for the 12B gemma4 model): the agent's
+    // prompt (system + tools + history) reaches ~10k tokens, which fits with
+    // the compaction reserve. 64k made the KV cache alone ≈ 13 GB of RSS —
+    // on 16 GB laptops the engine thrashed into the pagefile and took
+    // minutes to emit a first token (observed on Damir's Legion with the
+    // gemma4-v2 Q4_K_M 12B model).
     '-ctk',
     'q8_0',
     '-ctv',
@@ -1129,12 +1187,32 @@ export async function startLocalEngine(
     const cpuPath = await ensureEngineBinary('cpu')
     const cpuArgs = spawnArgs.map((a) => a)
     cpuArgs[cpuArgs.indexOf('-ngl') + 1] = '0'
-    cpuArgs[cpuArgs.indexOf('-c') + 1] = '65536'
+    cpuArgs[cpuArgs.indexOf('-c') + 1] = '32768'
     ok = await spawnServer(cpuPath, cpuArgs)
   }
   if (!ok) {
     stopLocalEngine()
     throw new Error('llama-server did not become healthy within 120s')
+  }
+  // v0.8.20: /health says "ok" as soon as the model is loaded, but a
+  // previously adopted engine may still be stuck (request slot wedged by an
+  // un-cancelled stream from an earlier session). Probe the real thing: a
+  // tiny chat completion must come back within 30s or we kill and respawn.
+  let verified = await verifyEngineResponds(LOCAL_ENGINE_BACKEND_PORT)
+  if (!verified) {
+    logWarn(
+      '[local-engine] engine healthy but not responding to chat — killing and respawning once',
+    )
+    await killProcessOnPort(LOCAL_ENGINE_BACKEND_PORT)
+    await new Promise((r) => setTimeout(r, 1200))
+    ok = await spawnServer(serverPath, spawnArgs)
+    if (ok) {
+      verified = await verifyEngineResponds(LOCAL_ENGINE_BACKEND_PORT)
+    }
+  }
+  if (!ok || !verified) {
+    stopLocalEngine()
+    throw new Error('llama-server did not answer a test request within 30s')
   }
   // Register the `local` provider so the gateway can reach the engine.
   // The public baseUrl stays on LOCAL_ENGINE_PORT (18788): the schema-fix

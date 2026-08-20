@@ -2,6 +2,15 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.8.20] - 2026-08-20
+
+### Fixed
+
+- **Local models stopped answering (the "bot thinks forever" issue on the Gemma 4 v2 12B)**:
+  - Engine context window reduced from 64k to 32k (q8_0 KV). The 64k KV cache alone consumed ~13 GB of RAM; on 16 GB laptops the engine thrashed into the pagefile and could take minutes to emit a first token.
+  - The schema-fix proxy now forwards client aborts to the engine. Previously a timed-out request left the engine slot busy forever, so every later message queued behind it and the model "stopped answering" until the engine was killed.
+  - After start/adoption the app now sends a tiny probe chat request; if the engine is healthy but wedged (slot stuck), it is killed and restarted once automatically.
+
 ## [0.8.19] - 2026-08-20
 
 ### Changed
