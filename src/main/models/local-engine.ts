@@ -909,14 +909,20 @@ async function startSchemaFixProxy(): Promise<void> {
         }
       })
       upstream.end(body)
-      // v0.8.20: forward client aborts (timeouts, closed tabs, cancelled
-      // replies) to the engine. Otherwise llama-server keeps the request slot
-      // busy forever streaming into the void — every later request queues
-      // behind it and the model "stops answering" until the engine is killed.
+      // Forward client aborts to the engine: otherwise a timed-out request
+      // keeps llama-server's slot busy forever and every later request queues
+      // behind it (the "model stopped answering" symptom). NB: in Node the
+      // IncomingMessage 'close' event fires as soon as the request body has
+      // been fully received — NOT only on abort — so v0.8.20's
+      // `req.on('close') -> destroy` killed every proxied request with 502
+      // "local engine unreachable". Correct abort detection:
+      //  - req 'close' && !req.complete          -> client died mid-request
+      //  - res 'close' && !res.writableEnded     -> client died awaiting reply
       req.on('close', () => {
-        if (!res.writableEnded) {
-          upstream.destroy()
-        }
+        if (!req.complete) upstream.destroy()
+      })
+      res.on('close', () => {
+        if (!res.writableEnded) upstream.destroy()
       })
     })
     req.on('error', () => res.destroy())

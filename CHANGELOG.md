@@ -2,6 +2,12 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.8.21] - 2026-08-20
+
+### Fixed
+
+- **All requests through the local-model proxy instantly failed with 502 "local engine unreachable"** (the 0.8.20 regression): the abort-forwarding added in 0.8.20 listened for Node's `'close'` event on the incoming request, but Node fires that event as soon as the request body has been fully received — not only when the client disconnects. The proxy therefore destroyed the upstream connection on *every* request and nothing could ever reach the engine. Now the request handler only destroys the upstream when the client actually disconnected mid-request (`!req.complete`), and the response handler only when the client vanished while awaiting the reply (`!res.writableEnded`). Normal requests pass through, aborted requests still free the engine slot.
+
 ## [0.8.20] - 2026-08-20
 
 ### Fixed
