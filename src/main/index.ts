@@ -134,7 +134,7 @@ async function cleanupBeforeQuit(): Promise<void> {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   if (process.platform === 'win32') {
     app.setAppUserModelId('OpenClaw.Desktop')
   }
@@ -347,6 +347,8 @@ app.whenReady().then(() => {
   // 4.5 Auto-start the local GGUF engine when the primary agent model is local/*
   // (after IPC wiring so writeConfig/readConfig deps are live; failures are
   // non-fatal and surface in the Models panel instead of blocking startup).
+  // Note: this is a fallback for post-wizard config changes; the primary
+  // pre-gateway start happens earlier in the startup sequence.
   void maybeAutoStartLocalEngine(
     () => readOpenClawConfig(),
     (c) => {
@@ -464,6 +466,36 @@ app.whenReady().then(() => {
     )
     windowManager.showMainWindow()
     return
+  }
+
+  // 4.5 Local engine pre-start for local/* primary models.
+  // The gateway must NEVER see a dead engine port: a cold llama-server makes
+  // the first user message fail with "network connection error" (the engine
+  // auto-start used to run async AFTER the gateway was already accepting
+  // chats). When the primary agent model is local/* we start the engine here,
+  // synchronously, before the gateway spawns below (bounded by the engine's
+  // own 120s health wait; GPU→CPU fallback included).
+  if (openclawConfigExists()) {
+    const cfg0 = readOpenClawConfig()
+    const primary0 =
+      typeof cfg0?.agents?.defaults?.model === 'string'
+        ? cfg0.agents.defaults.model
+        : cfg0?.agents?.defaults?.model?.primary
+    if (primary0 && primary0.startsWith('local/')) {
+      try {
+        await maybeAutoStartLocalEngine(
+          () => readOpenClawConfig(),
+          (c) => {
+            writeOpenClawConfig(c)
+            readOpenClawConfig()
+          },
+        )
+      } catch (err) {
+        logWarn(
+          `[OpenClaw] Local engine pre-start failed: ${err instanceof Error ? err.message : String(err)}`,
+        )
+      }
+    }
   }
 
   // 6. If config exists, start gateway from main (don’t wait for renderer)

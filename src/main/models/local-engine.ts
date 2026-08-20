@@ -22,7 +22,7 @@ import type {
   OpenClawConfig,
 } from '../../shared/types.js'
 import { getUserDataDir } from '../utils/paths.js'
-import { logInfo } from '../utils/logger.js'
+import { logInfo, logWarn } from '../utils/logger.js'
 import {
   readShellConfig,
   writeShellConfig,
@@ -442,6 +442,9 @@ export async function ensureEngineBinary(
   }
   const dir = path.join(engineDir(), variant)
   fs.mkdirSync(dir, { recursive: true })
+  logInfo(
+    `[local-engine] ${variant} engine binary missing — downloading llama.cpp release…`,
+  )
   const { tag, assets } = await fetchLatestLlamaRelease()
   const assetName = resolveEngineAssetName(tag, variant, assets)
   if (!assetName) {
@@ -1201,7 +1204,15 @@ export async function maybeAutoStartLocalEngine(
   writeConfig: (c: OpenClawConfig) => void,
 ): Promise<void> {
   try {
-    const config = readConfig()
+    const shellConfig = readShellConfig()
+  logInfo(
+    `[local-engine] starting (mode=${shellConfig.localEngineMode ?? 'auto'})…`,
+  )
+  if (process.platform !== 'win32') {
+    logWarn('[local-engine] skipping auto-start: Windows only')
+    return
+  }
+  const config = readConfig()
     if (!config) return
     sanitizeConfigPaths(config, writeConfig)
     const modelCfg = config?.agents?.defaults?.model
@@ -1209,7 +1220,9 @@ export async function maybeAutoStartLocalEngine(
       typeof modelCfg === 'string' ? modelCfg : modelCfg?.primary
     if (!primary || !primary.startsWith('local/')) return
     const modelId = primary.slice('local/'.length)
+    logInfo(`[local-engine] auto-start model=${modelId}`)
     await startLocalEngine(modelId, config, writeConfig)
+    logInfo(`[local-engine] auto-start OK, engine listening on ${LOCAL_ENGINE_PORT}`)
   } catch (err) {
     // Non-fatal: engine stays off, Models panel shows the error state. But
     // surface the real reason in the log — silent failures made the
