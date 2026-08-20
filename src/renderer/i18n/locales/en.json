@@ -440,6 +440,11 @@
       "fetchingVersions": "Fetching version info…",
       "localTagline": "Private AI assistant · local models run 100% offline on this PC"
     },
+    "localFirstBanner": {
+      "title": "Model is loading into memory…",
+      "text": "The first message may take up to a minute while the model loads. Subsequent replies will be faster.",
+      "dismiss": "Got it"
+    },
     "llmApi": {
       "loading": "Loading providers and profiles…",
       "defaultModelSection": "Default model",

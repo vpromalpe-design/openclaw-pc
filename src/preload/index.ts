@@ -87,6 +87,8 @@ import {
   IPC_STREAM_GATEWAY_LOGS,
   IPC_UPDATE_AVAILABLE,
   IPC_UPDATE_PROGRESS,
+  IPC_LOCAL_FIRST_REQUEST,
+  IPC_LOCAL_FIRST_REQUEST_STATUS,
   IPC_LOGS_TAIL,
 } from '../shared/ipc-channels'
 
@@ -262,7 +264,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onGatewayStatusChange: (callback: (status: unknown) => void) =>
     on(IPC_GATEWAY_STATUS_CHANGE, callback),
   onGatewayLog: (callback: (log: unknown) => void) =>
-    on(IPC_GATEWAY_LOG, callback),
+    on(IPC_GATEWAY_LOG, callback as (...args: unknown[]) => void),
+  onLocalFirstRequest: (callback: (phase: 'start' | 'done') => void) =>
+    on(IPC_LOCAL_FIRST_REQUEST, callback as (...args: unknown[]) => void),
+  localFirstRequestStatus: () => invoke<{ pending: boolean }>(IPC_LOCAL_FIRST_REQUEST_STATUS),
   onStreamGatewayLogs: (callback: (log: unknown) => void) =>
     on(IPC_STREAM_GATEWAY_LOGS, callback),
   onUpdateAvailable: (callback: (info: unknown) => void) =>

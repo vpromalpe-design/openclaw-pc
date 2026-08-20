@@ -194,6 +194,9 @@ export const IPC_LOCAL_DOWNLOAD_CANCEL = 'local:downloadCancel' as const
 /** Local engine: start llama-server with a model */
 export const IPC_LOCAL_ENGINE_START = 'local:engineStart' as const
 
+/** Local engine: first-request pending status (cold start banner) */
+export const IPC_LOCAL_FIRST_REQUEST_STATUS = 'local:firstRequestStatus' as const
+
 /** Local engine: stop */
 export const IPC_LOCAL_ENGINE_STOP = 'local:engineStop' as const
 
@@ -244,6 +247,9 @@ export const IPC_GATEWAY_STATUS_CHANGE = 'gateway:statusChange' as const
 
 /** Gateway log line */
 export const IPC_GATEWAY_LOG = 'gateway:log' as const
+
+/** Local engine first-request lifecycle: 'start' | 'done' */
+export const IPC_LOCAL_FIRST_REQUEST = 'local:first-request' as const
 
 /** Structured gateway log stream */
 export const IPC_STREAM_GATEWAY_LOGS = 'stream:gateway-logs' as const
@@ -342,4 +348,5 @@ export const IPC_EVENT_CHANNELS = [
   IPC_UPDATE_AVAILABLE,
   IPC_UPDATE_PROGRESS,
   IPC_LOCAL_PROGRESS,
+  IPC_LOCAL_FIRST_REQUEST,
 ] as const

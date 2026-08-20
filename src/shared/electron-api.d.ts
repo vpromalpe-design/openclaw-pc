@@ -204,6 +204,7 @@ export interface ElectronAPI {
     installVariant?: 'cpu' | 'cuda' | 'vulkan'
   }) => Promise<LocalEngineRuntimeInfo>
   localEngineReorder: (ids: string[]) => Promise<{ ok: boolean }>
+  localFirstRequestStatus: () => Promise<{ pending: boolean }>
   onLocalProgress: (callback: (payload: LocalProgressPayload) => void) => Unsubscribe
 
   skillsList: (opts?: { source?: 'all' | 'bundled' | 'user' }) => Promise<SkillRegistryItem[]>
@@ -249,6 +250,7 @@ export interface ElectronAPI {
   // ─── Event subscriptions ───────────────────────────────────────────────────
   onGatewayStatusChange: (callback: (status: GatewayStatus) => void) => Unsubscribe
   onGatewayLog: (callback: (log: GatewayLogPayload) => void) => Unsubscribe
+  onLocalFirstRequest: (callback: (phase: 'start' | 'done') => void) => Unsubscribe
   onStreamGatewayLogs: (callback: (log: StructuredLogPayload) => void) => Unsubscribe
   onUpdateAvailable: (callback: (info: UpdateAvailablePayload) => void) => Unsubscribe
   onUpdateProgress: (callback: (progress: UpdateProgressPayload) => void) => Unsubscribe

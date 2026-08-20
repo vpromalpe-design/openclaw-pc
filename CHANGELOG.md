@@ -2,6 +2,13 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.8.14] - 2026-08-20
+
+### Added
+
+- **First-message banner for local models**: when a local GGUF engine is cold-started (model loading into memory), the panel shows a prominent notice that the first message may take up to a minute and that subsequent replies will be faster. The banner appears on the first launch of the panel, disappears automatically once the engine answers its first chat request (or after 3 minutes / on "Got it"), and only shows again on a fresh cold start.
+- **Installer versioning fixed**: the package version is now bumped with each release (was stuck at 0.8.8), so the installer is named `OpenClaw-PC-Setup-0.8.14.exe` and in-app auto-updates can actually detect newer versions again.
+
 ## [0.8.13] - 2026-08-20
 
 ### Fixed

@@ -810,7 +810,7 @@ export async function startLocalEngine(
       // Adopted server may run with an arbitrary `-c`; keep the config
       // honest so we never send a prompt larger than the server's n_ctx.
       await syncLocalContextWindow(LOCAL_ENGINE_PORT, currentConfig, writeConfig)
-      engineState = { running: true, port: LOCAL_ENGINE_PORT, modelId }
+      engineState = { running: true, port: LOCAL_ENGINE_PORT, modelId, adopted: true }
       return { ...engineState }
     }
     logInfo(
@@ -982,7 +982,7 @@ export async function startLocalEngine(
   // than our -c request, align the config with reality instead of failing
   // later with HTTP 400.
   await syncLocalContextWindow(LOCAL_ENGINE_PORT, next, writeConfig)
-  engineState = { running: true, port: LOCAL_ENGINE_PORT, modelId: model.id }
+  engineState = { running: true, port: LOCAL_ENGINE_PORT, modelId: model.id, adopted: false }
   return { ...engineState }
 }
 
@@ -1124,7 +1124,7 @@ export function stopLocalEngine(): boolean {
     engineChild = null
   }
   const wasRunning = engineState.running
-  engineState = { running: false, port: LOCAL_ENGINE_PORT, modelId: null }
+  engineState = { running: false, port: LOCAL_ENGINE_PORT, modelId: null, adopted: false }
   return wasRunning
 }
 
@@ -1228,7 +1228,7 @@ export function sanitizeConfigPaths(
 export async function maybeAutoStartLocalEngine(
   readConfig: () => OpenClawConfig | null,
   writeConfig: (c: OpenClawConfig) => void,
-): Promise<void> {
+): Promise<boolean | undefined> {
   try {
     const shellConfig = readShellConfig()
   logInfo(
@@ -1236,19 +1236,22 @@ export async function maybeAutoStartLocalEngine(
   )
   if (process.platform !== 'win32') {
     logWarn('[local-engine] skipping auto-start: Windows only')
-    return
+    return false
   }
   const config = readConfig()
-    if (!config) return
+    if (!config) return false
     sanitizeConfigPaths(config, writeConfig)
     const modelCfg = config?.agents?.defaults?.model
     const primary =
       typeof modelCfg === 'string' ? modelCfg : modelCfg?.primary
-    if (!primary || !primary.startsWith('local/')) return
+    if (!primary || !primary.startsWith('local/')) return false
     const modelId = primary.slice('local/'.length)
     logInfo(`[local-engine] auto-start model=${modelId}`)
-    await startLocalEngine(modelId, config, writeConfig)
+    const state = await startLocalEngine(modelId, config, writeConfig)
     logInfo(`[local-engine] auto-start OK, engine listening on ${LOCAL_ENGINE_PORT}`)
+    // true = engine was started cold (model freshly loaded into memory);
+    // the first chat message will be slow — the UI shows a hint banner.
+    return state.running && !state.adopted ? true : false
   } catch (err) {
     // Non-fatal: engine stays off, Models panel shows the error state. But
     // surface the real reason in the log — silent failures made the

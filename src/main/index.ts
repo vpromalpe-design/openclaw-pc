@@ -1,7 +1,7 @@
-import { app, dialog, Menu, Notification, nativeImage, session, screen } from 'electron'
+import { app, dialog, Menu, Notification, nativeImage, ipcMain, session, screen } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
-import { IPC_GATEWAY_LOG, IPC_GATEWAY_STATUS_CHANGE, IPC_STREAM_GATEWAY_LOGS, IPC_UPDATE_AVAILABLE } from '../shared/ipc-channels.js'
+import { IPC_GATEWAY_LOG, IPC_GATEWAY_STATUS_CHANGE, IPC_STREAM_GATEWAY_LOGS, IPC_UPDATE_AVAILABLE, IPC_LOCAL_FIRST_REQUEST, IPC_LOCAL_FIRST_REQUEST_STATUS } from '../shared/ipc-channels.js'
 import { APP_NAME, DEFAULT_GATEWAY_PORT, OPENCLAW_CONFIG_FILE } from '../shared/constants.js'
 import { getLogAggregator, runPrestartCheck } from './diagnostics/index.js'
 import {
@@ -86,6 +86,13 @@ const trayManager = new TrayManager({
 })
 
 const logAggregator = getLogAggregator()
+// First local-engine request lifecycle: pending until the engine answers one
+// chat request (or errors). Used by the UI to show the "model is loading into
+// memory, first message may take up to a minute" banner on cold starts.
+let localFirstRequestPending = false
+let localFirstRequestDone = false
+ipcMain.handle(IPC_LOCAL_FIRST_REQUEST_STATUS, () => ({ pending: localFirstRequestPending }))
+
 const gatewayManager = new GatewayProcessManager({
   onStatusChange: (status) => {
     trayManager.setGatewayStatus(status.status)
@@ -99,6 +106,17 @@ const gatewayManager = new GatewayProcessManager({
     logAggregator.append(structured.source, structured.level, structured.message)
     const mainWindow = windowManager.getMainWindow()
     if (mainWindow && !mainWindow.isDestroyed()) {
+      // First-request lifecycle for local models: the first chat message to a
+      // freshly started llama-server is slow (model loading + first prefill),
+      // so the UI shows a hint banner until the engine answers once.
+      if (!localFirstRequestDone && /\[model-fetch\] start .*provider=local/i.test(structured.message)) {
+        localFirstRequestPending = true
+        mainWindow.webContents.send(IPC_LOCAL_FIRST_REQUEST, 'start')
+      } else if (localFirstRequestPending && /\[model-fetch\] .*provider=local .*(status=|error)/i.test(structured.message)) {
+        localFirstRequestPending = false
+        localFirstRequestDone = true
+        mainWindow.webContents.send(IPC_LOCAL_FIRST_REQUEST, 'done')
+      }
       mainWindow.webContents.send(IPC_GATEWAY_LOG, { level: structured.level, message: structured.message })
       mainWindow.webContents.send(IPC_STREAM_GATEWAY_LOGS, structured)
     }
@@ -355,7 +373,15 @@ app.whenReady().then(async () => {
       writeOpenClawConfig(c)
       readOpenClawConfig()
     },
-  )
+  ).then((coldStart) => {
+    if (coldStart && localFirstRequestPending === false) {
+      localFirstRequestPending = true
+      const win = windowManager.getMainWindow()
+      if (win && !win.isDestroyed()) {
+        win.webContents.send(IPC_LOCAL_FIRST_REQUEST, 'start')
+      }
+    }
+  })
   logInfo('[OpenClaw] Main window created.')
 
   // 4.5 Post-update validation if .post-update-pending marker exists
@@ -483,13 +509,22 @@ app.whenReady().then(async () => {
         : cfg0?.agents?.defaults?.model?.primary
     if (primary0 && primary0.startsWith('local/')) {
       try {
-        await maybeAutoStartLocalEngine(
+        const coldStart = await maybeAutoStartLocalEngine(
           () => readOpenClawConfig(),
           (c) => {
             writeOpenClawConfig(c)
             readOpenClawConfig()
           },
         )
+        if (coldStart && localFirstRequestPending === false) {
+          // Engine was started cold — model is being loaded into memory;
+          // the UI shows a banner until the first chat request completes.
+          localFirstRequestPending = true
+          const win = windowManager.getMainWindow()
+          if (win && !win.isDestroyed()) {
+            win.webContents.send(IPC_LOCAL_FIRST_REQUEST, 'start')
+          }
+        }
       } catch (err) {
         logWarn(
           `[OpenClaw] Local engine pre-start failed: ${err instanceof Error ? err.message : String(err)}`,

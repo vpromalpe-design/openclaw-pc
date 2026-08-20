@@ -618,6 +618,8 @@ export interface LocalEngineState {
   port: number
   modelId: string | null
   error?: string
+  /** true when the engine was adopted from a pre-existing server (already warm) */
+  adopted?: boolean
 }
 
 /** Local engine runtime snapshot for the desktop UI (CPU/GPU toggle + model bar) */

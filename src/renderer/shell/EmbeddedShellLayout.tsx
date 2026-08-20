@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   ChevronLeft,
   Cpu,
+  Loader2,
 } from 'lucide-react'
 import { LoadingView } from './LoadingView'
 import { ErrorView, type ErrorType } from './ErrorView'
@@ -24,6 +25,9 @@ import type { GatewayStatus, GatewayStatusValue } from '../../shared/types'
 import { useUpdateNoticeStore } from '@/stores/update-store'
 
 const TIMEOUT_MS = 300_000
+
+/** Local-engine first-message banner auto-hide timeout (3 min). */
+const BANNER_AUTO_HIDE_MS = 180_000
 
 const STATUS_LABELS: Record<GatewayStatusValue, string> = {
   starting: 'Gateway is starting…',
@@ -62,6 +66,36 @@ function buildControlUIUrl(port: number, token?: string): string {
   return url
 }
 
+/**
+ * Prominent notice shown while the local GGUF engine is cold: the model is
+ * being loaded into memory, the first message may take up to a minute.
+ */
+function LocalFirstRequestBanner({ onDismiss }: { onDismiss: () => void }) {
+  const { t } = useTranslation()
+  return (
+    <div className="absolute left-1/2 top-4 z-40 w-[min(92vw,560px)] -translate-x-1/2">
+      <div className="flex items-start gap-3 rounded-2xl border border-amber-200/60 bg-gradient-to-r from-amber-400 to-orange-500 px-4 py-3 shadow-xl shadow-amber-900/25">
+        <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-white" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-white">
+            {t('shell.localFirstBanner.title')}
+          </p>
+          <p className="mt-0.5 text-xs leading-relaxed text-amber-50">
+            {t('shell.localFirstBanner.text')}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="shrink-0 rounded-lg bg-white/25 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-white/40"
+        >
+          {t('shell.localFirstBanner.dismiss')}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 const DESKTOP_NAV_ITEMS: { id: EmbeddedPanel; label: string; icon: React.ReactNode; description: string }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" />, description: 'Gateway status & versions' },
   { id: 'models', label: 'Models', icon: <Cpu className="w-4 h-4" />, description: 'Providers, priority & local models' },
@@ -96,6 +130,8 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   const prevGatewayStatusRef = useRef<GatewayStatusValue | null>(null)
   const lastRunningPidRef = useRef<number | null>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [firstRequestPending, setFirstRequestPending] = useState(false)
+  const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const updateAvailable = useUpdateNoticeStore((state) => state.available)
   const updateDismissed = useUpdateNoticeStore((state) => state.dismissed)
   const updateInfo = useUpdateNoticeStore((state) => state.info)
@@ -226,6 +262,43 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
       clearTimeoutTimer()
     }
   }, [handleStatusUpdate, startTimeoutTimer, clearTimeoutTimer, showError])
+
+  const showFirstRequestBanner = useCallback(() => {
+    setFirstRequestPending(true)
+    if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current)
+    bannerTimerRef.current = setTimeout(() => {
+      setFirstRequestPending(false)
+      bannerTimerRef.current = null
+    }, BANNER_AUTO_HIDE_MS)
+  }, [])
+
+  const hideFirstRequestBanner = useCallback(() => {
+    if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current)
+    bannerTimerRef.current = null
+    setFirstRequestPending(false)
+  }, [])
+
+  // Local-engine first-message banner: main reports 'start' when a local model
+  // was cold-started (loading into memory), 'done' once the engine answered its
+  // first chat request. On mount we poll the current state in case the event
+  // fired before the window finished loading.
+  useEffect(() => {
+    let mounted = true
+    const unsub = window.electronAPI.onLocalFirstRequest((phase) => {
+      if (!mounted) return
+      if (phase === 'start') showFirstRequestBanner()
+      else hideFirstRequestBanner()
+    })
+    void window.electronAPI.localFirstRequestStatus().then((res) => {
+      if (mounted && res?.pending) showFirstRequestBanner()
+    })
+    return () => {
+      mounted = false
+      unsub()
+      if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current)
+      bannerTimerRef.current = null
+    }
+  }, [showFirstRequestBanner, hideFirstRequestBanner])
 
   useEffect(() => {
     const unsub = window.electronAPI.onUpdateAvailable((info) => {
@@ -397,6 +470,10 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
         </div>
       )}
 
+      {/* First-message hint for cold-started local models */}
+      {firstRequestPending && (
+        <LocalFirstRequestBanner onDismiss={hideFirstRequestBanner} />
+      )}
     </main>
   )
 }
