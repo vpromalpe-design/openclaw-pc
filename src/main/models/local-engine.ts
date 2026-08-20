@@ -11,7 +11,10 @@ import os from 'node:os'
 import path from 'node:path'
 import https from 'node:https'
 import http from 'node:http'
-import { spawn, ChildProcess } from 'node:child_process'
+import { spawn, exec as execCb, ChildProcess } from 'node:child_process'
+import { promisify } from 'node:util'
+
+const exec = promisify(execCb)
 import type {
   LocalModelInfo,
   LocalEngineState,
@@ -614,6 +617,86 @@ function waitForHealth(port: number, timeoutMs: number): Promise<boolean> {
   })
 }
 
+function fetchLoadedModelId(port: number): Promise<string | null> {
+  return new Promise((resolve) => {
+    http
+      .get(`http://127.0.0.1:${port}/v1/models`, { timeout: 3000 }, (res) => {
+        let body = ''
+        res.on('data', (c) => (body += c))
+        res.on('end', () => {
+          try {
+            const j = JSON.parse(body) as { data?: Array<{ id?: string }> }
+            resolve(j.data?.[0]?.id ?? null)
+          } catch {
+            resolve(null)
+          }
+        })
+      })
+      .on('error', () => resolve(null))
+  })
+}
+
+/** Normalize a model name for comparison: basename, no .gguf, lowercase. */
+function normalizeModelName(name: string): string {
+  return path
+    .basename(name.replace(/\\/g, '/'))
+    .replace(/\.gguf$/i, '')
+    .toLowerCase()
+}
+
+/**
+ * True when two model identifiers refer to the same file (llama.cpp reports
+ * the loaded model as its file basename, e.g. "qwen05b-q8.gguf"). Prefix
+ * matching only accepts fairly long stems (>= 7 chars) so generic names like
+ * "gemma" never alias a different model family ("gemma4-v2-Q4_K_M").
+ */
+function modelNamesMatch(a: string, b: string): boolean {
+  const na = normalizeModelName(a)
+  const nb = normalizeModelName(b)
+  if (!na || !nb) return false
+  if (na === nb) return true
+  return (
+    (na.startsWith(nb) && nb.length >= 7) ||
+    (nb.startsWith(na) && na.length >= 7)
+  )
+}
+
+/**
+ * Force-kill every process LISTENING on the given TCP port (Windows). Used to
+ * clear a stale llama-server that holds LOCAL_ENGINE_PORT with a different
+ * model. Returns true when at least one process was terminated.
+ */
+async function killProcessOnPort(port: number): Promise<boolean> {
+  try {
+    const { stdout } = await exec(
+      `netstat -ano | findstr ":${port} " | findstr "LISTENING"`,
+      { windowsHide: true, timeout: 8000 },
+    )
+    if (!stdout) return false
+    const pids = new Set<string>()
+    for (const line of stdout.split(/\r?\n/)) {
+      const tok = line.trim().split(/\s+/).pop()
+      if (tok && /^\d+$/.test(tok)) pids.add(tok)
+    }
+    if (pids.size === 0) return false
+    let killed = false
+    for (const pid of pids) {
+      try {
+        await exec(`taskkill /PID ${pid} /F /T`, {
+          windowsHide: true,
+          timeout: 8000,
+        })
+        killed = true
+      } catch {
+        /* ignore per-pid failures */
+      }
+    }
+    return killed
+  } catch {
+    return false
+  }
+}
+
 function fetchServerContextWindow(port: number): Promise<number | null> {
   return new Promise((resolve) => {
     http
@@ -679,16 +762,6 @@ export async function startLocalEngine(
   if (engineState.running) {
     return { ...engineState }
   }
-  // Already serving on the port? (e.g. started manually, or by a previous
-  // app instance whose state we lost) — adopt it instead of double-spawning.
-  const alreadyUp = await waitForHealth(LOCAL_ENGINE_PORT, 5_000)
-  if (alreadyUp) {
-    // Adopted server may run with an arbitrary `-c`; keep the config honest
-    // so we never send a prompt larger than the server's n_ctx.
-    await syncLocalContextWindow(LOCAL_ENGINE_PORT, currentConfig, writeConfig)
-    engineState = { running: true, port: LOCAL_ENGINE_PORT, modelId }
-    return { ...engineState }
-  }
   const preset = LOCAL_MODEL_PRESETS.find((p) => p.id === modelId)
   const model = listLocalModels().find(
     (m) =>
@@ -699,6 +772,50 @@ export async function startLocalEngine(
   if (!model) throw new Error(`Model not downloaded: ${modelId}`)
   if (process.platform !== 'win32') {
     throw new Error('Local engine is currently available on Windows only')
+  }
+  // Resolve the local model file (basename, e.g. "gemma4-v2-Q4_K_M.gguf")
+  // up front — the adopt check below compares it against what the server on
+  // LOCAL_ENGINE_PORT actually reports via /v1/models.
+  const expectedModelName = path.basename(model.path)
+  // Already serving on the port? (e.g. started manually, or by a previous
+  // app instance whose state we lost) — adopt it instead of double-spawning.
+  const alreadyUp = await waitForHealth(LOCAL_ENGINE_PORT, 5_000)
+  if (alreadyUp) {
+    // A server is already listening on the port. Adopt it ONLY when it is
+    // actually serving the requested model. An orphaned llama-server (left
+    // over from a previous app instance or started manually) may hold the
+    // port with a DIFFERENT model — adopting it would make the UI lie about
+    // what is really loaded and chat answers would come from the wrong
+    // model. In that case kill the stale process and start ours below.
+    const loaded = await fetchLoadedModelId(LOCAL_ENGINE_PORT)
+    const matches =
+      loaded != null &&
+      (modelNamesMatch(loaded, modelId) ||
+        modelNamesMatch(loaded, expectedModelName))
+    if (matches) {
+      // Adopted server may run with an arbitrary `-c`; keep the config
+      // honest so we never send a prompt larger than the server's n_ctx.
+      await syncLocalContextWindow(LOCAL_ENGINE_PORT, currentConfig, writeConfig)
+      engineState = { running: true, port: LOCAL_ENGINE_PORT, modelId }
+      return { ...engineState }
+    }
+    logInfo(
+      `[local-engine] port ${LOCAL_ENGINE_PORT} is held by a server serving "${loaded ?? 'unknown'}", expected "${expectedModelName}" — killing stale process`,
+    )
+    const killed = await killProcessOnPort(LOCAL_ENGINE_PORT)
+    if (killed) {
+      await new Promise((r) => setTimeout(r, 800))
+      const stillUp = await waitForHealth(LOCAL_ENGINE_PORT, 5_000)
+      if (stillUp) {
+        throw new Error(
+          `Порт ${LOCAL_ENGINE_PORT} занят другим процессом и не освобождается. Закройте его вручную (Диспетчер задач) и повторите.`,
+        )
+      }
+    } else {
+      throw new Error(
+        `На порту ${LOCAL_ENGINE_PORT} обнаружен чужой сервер (модель «${loaded ?? 'неизвестна'}») вместо «${expectedModelName}». Не удалось остановить его автоматически — закройте процесс вручную (Диспетчер задач) и повторите.`,
+      )
+    }
   }
   const shellConfig = readShellConfig()
   const gpu = await detectGpu()
@@ -895,10 +1012,19 @@ export async function testLocalEngineChat(
           }
           try {
             const j = JSON.parse(data) as {
+              model?: string
               choices?: Array<{ message?: { content?: string } }>
             }
             const content = j.choices?.[0]?.message?.content?.trim()
-            if (content) {
+            const respondedModel = j.model
+            if (respondedModel && !modelNamesMatch(respondedModel, modelId)) {
+              // The engine is serving a different model than requested — the
+              // test must report the real state of affairs.
+              resolve({
+                ok: false,
+                message: `Движок отвечает моделью «${respondedModel}», а не «${modelId}». Остановите и подключите движок заново.`,
+              })
+            } else if (content) {
               resolve({ ok: true, message: 'OK' })
             } else {
               resolve({ ok: false, message: 'Модель не вернула ответ' })
