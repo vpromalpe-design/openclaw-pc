@@ -2,6 +2,12 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.8.17] - 2026-08-20
+
+### Fixed
+
+- **Local models answer again — permanently**. The real llama-server now runs on an internal port (18792) and a built-in schema-fix proxy owns the port the app writes into openclaw.json (18788). The proxy rewrites tool-call JSON-schema `pattern`s that llama.cpp rejects (shorthand classes like `\S`, unanchored regexes → HTTP 400 "Pattern must start with '^' and end with '$'") before forwarding to the engine. Previously the fix relied on an external proxy on a different port, which the app wiped from the config on every restart — the gateway then talked straight to the engine and every tool call failed with 400, so the bot showed "connected" but never replied.
+
 ## [0.8.16] - 2026-08-20
 
 ### Fixed

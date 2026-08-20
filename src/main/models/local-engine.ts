@@ -32,6 +32,21 @@ import { IPC_LOCAL_PROGRESS } from '../../shared/ipc-channels.js'
 export const LOCAL_ENGINE_PORT = 18788
 export const LOCAL_PROVIDER_ID = 'local'
 
+/**
+ * v0.8.17: the real llama-server listens on LOCAL_ENGINE_BACKEND_PORT while
+ * LOCAL_ENGINE_PORT (18788) is owned by the built-in schema-fix proxy.
+ *
+ * Why: the app rewrites openclaw.json on every start with
+ * `baseUrl: http://127.0.0.1:${LOCAL_ENGINE_PORT}/v1`, so any external proxy
+ * on a different port is wiped from the config on restart (observed live:
+ * laptop baseUrl reverted to 18788 at 12:55Z). The gateway must therefore
+ * always reach 18788 — and 18788 must be OUR proxy, which sanitizes tool
+ * JSON-schema `pattern`s that llama.cpp rejects (e.g. bare `\S` in the cron
+ * tool's job.declarationKey) before forwarding to the real engine.
+ */
+export const LOCAL_ENGINE_BACKEND_PORT = 18792
+const PROXY_HEALTH_PATH = '/__proxy__/health'
+
 export interface LocalModelPreset {
   id: string
   name: string
@@ -711,6 +726,158 @@ async function killProcessOnPort(port: number): Promise<boolean> {
   }
 }
 
+// ─── Built-in schema-fix proxy (v0.8.17) ──────────────────────────────────────
+//
+// llama.cpp's JSON-schema→grammar converter (build 10514) rejects several
+// constructs that OpenClaw's tool schemas legitimately contain:
+//   * Nested `pattern`s must be anchored (`^…$`) — a bare `\S` (cron tool's
+//     job.declarationKey) yields HTTP 400 "JSON schema conversion failed:
+//     Pattern must start with '^' and end with '$'".
+//   * Shorthand character classes (`\S \s \d \D \w \W`) fail even when
+//     anchored; only explicit char classes are accepted.
+// The proxy rewrites every `pattern` string in POST /v1/chat/completions
+// bodies (shorthand → char class, unanchored → wrapped in ^(?:…)$) and
+// forwards everything else transparently. Health/model probes used by the
+// adoption logic talk to the backend port directly.
+
+let schemaFixProxy: http.Server | null = null
+
+/** Replace shorthand classes and anchor unanchored patterns (verified on live engine). */
+function fixToolPattern(pattern: string): string {
+  let out = pattern
+    .replace(/\\S/g, '[^ \\t\\r\\n]')
+    .replace(/\\s/g, '[ \\t\\r\\n]')
+    .replace(/\\d/g, '[0-9]')
+    .replace(/\\D/g, '[^0-9]')
+    .replace(/\\w/g, '[A-Za-z0-9_]')
+    .replace(/\\W/g, '[^A-Za-z0-9_]')
+  if (!out.startsWith('^') || !out.endsWith('$')) {
+    out = `^(?:${out})$`
+  }
+  return out
+}
+
+/** Recursively rewrite `pattern` strings inside a JSON-schema (tools payload). */
+function sanitizeToolsSchema(node: unknown, changed: string[]): void {
+  if (Array.isArray(node)) {
+    for (const item of node) sanitizeToolsSchema(item, changed)
+    return
+  }
+  if (node && typeof node === 'object') {
+    for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+      if (key === 'pattern' && typeof value === 'string') {
+        const fixed = fixToolPattern(value)
+        if (fixed !== value) {
+          ;(node as Record<string, unknown>)[key] = fixed
+          changed.push(`${value} -> ${fixed}`)
+        }
+      } else {
+        sanitizeToolsSchema(value, changed)
+      }
+    }
+  }
+}
+
+/** True when OUR proxy already owns LOCAL_ENGINE_PORT. */
+function isSchemaFixProxyUp(): Promise<boolean> {
+  return new Promise((resolve) => {
+    http
+      .get(`http://127.0.0.1:${LOCAL_ENGINE_PORT}${PROXY_HEALTH_PATH}`, { timeout: 1500 }, (res) => {
+        res.resume()
+        res.on('end', () => resolve(res.statusCode === 200))
+      })
+      .on('error', () => resolve(false))
+  })
+}
+
+/** Start the schema-fix proxy on LOCAL_ENGINE_PORT (throws on EADDRINUSE). */
+async function startSchemaFixProxy(): Promise<void> {
+  if (schemaFixProxy) return
+  const server = http.createServer((req, res) => {
+    // Liveness marker for the adoption logic.
+    if (req.method === 'GET' && (req.url ?? '').startsWith(PROXY_HEALTH_PATH)) {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end('{"ok":true}')
+      return
+    }
+    const chunks: Buffer[] = []
+    req.on('data', (c: Buffer) => chunks.push(c))
+    req.on('end', () => {
+      let body = Buffer.concat(chunks)
+      const changed: string[] = []
+      if (
+        req.method === 'POST' &&
+        (req.url ?? '').includes('/chat/completions') &&
+        body.length > 0
+      ) {
+        try {
+          const json = JSON.parse(body.toString('utf8')) as unknown
+          if (json && typeof json === 'object') {
+            sanitizeToolsSchema(json, changed)
+            if (changed.length > 0) {
+              body = Buffer.from(JSON.stringify(json), 'utf8')
+              logInfo(
+                `[local-engine] proxy patched ${changed.length} pattern(s): ${changed.join('; ')}`,
+              )
+            }
+          }
+        } catch {
+          /* pass through unparseable bodies unchanged */
+        }
+      }
+      const headers = { ...req.headers }
+      delete headers.host
+      headers['content-length'] = String(body.length)
+      const upstream = http.request(
+        {
+          host: '127.0.0.1',
+          port: LOCAL_ENGINE_BACKEND_PORT,
+          path: req.url ?? '/',
+          method: req.method ?? 'GET',
+          headers,
+        },
+        (up) => {
+          res.writeHead(up.statusCode ?? 502, up.headers)
+          up.pipe(res)
+        },
+      )
+      upstream.on('error', () => {
+        if (!res.headersSent) {
+          res.writeHead(502, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: { message: 'local engine unreachable' } }))
+        } else {
+          res.destroy()
+        }
+      })
+      upstream.end(body)
+    })
+    req.on('error', () => res.destroy())
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(LOCAL_ENGINE_PORT, '127.0.0.1', () => {
+      server.removeListener('error', reject)
+      resolve()
+    })
+  })
+  schemaFixProxy = server
+  logInfo(
+    `[local-engine] schema-fix proxy listening on ${LOCAL_ENGINE_PORT} -> backend ${LOCAL_ENGINE_BACKEND_PORT}`,
+  )
+}
+
+/** Stop the schema-fix proxy (called on app quit paths). */
+export function stopSchemaFixProxy(): void {
+  if (schemaFixProxy) {
+    try {
+      schemaFixProxy.close()
+    } catch {
+      /* ignore */
+    }
+    schemaFixProxy = null
+  }
+}
+
 function fetchServerContextWindow(port: number): Promise<number | null> {
   return new Promise((resolve) => {
     http
@@ -789,19 +956,57 @@ export async function startLocalEngine(
   }
   // Resolve the local model file (basename, e.g. "gemma4-v2-Q4_K_M.gguf")
   // up front — the adopt check below compares it against what the server on
-  // LOCAL_ENGINE_PORT actually reports via /v1/models.
+  // the backend port actually reports via /v1/models.
   const expectedModelName = path.basename(model.path)
-  // Already serving on the port? (e.g. started manually, or by a previous
-  // app instance whose state we lost) — adopt it instead of double-spawning.
-  const alreadyUp = await waitForHealth(LOCAL_ENGINE_PORT, 5_000)
-  if (alreadyUp) {
-    // A server is already listening on the port. Adopt it ONLY when it is
-    // actually serving the requested model. An orphaned llama-server (left
-    // over from a previous app instance or started manually) may hold the
-    // port with a DIFFERENT model — adopting it would make the UI lie about
-    // what is really loaded and chat answers would come from the wrong
-    // model. In that case kill the stale process and start ours below.
-    const loaded = await fetchLoadedModelId(LOCAL_ENGINE_PORT)
+
+  // v0.8.17: LOCAL_ENGINE_PORT (18788) belongs to OUR schema-fix proxy; the
+  // real llama-server runs on LOCAL_ENGINE_BACKEND_PORT (18792). The gateway
+  // and the config always talk to 18788, so a foreign/legacy server squatting
+  // there (old app instance, manual llama-server start) must be cleared
+  // before the proxy can claim the port.
+  const proxyUp = await isSchemaFixProxyUp()
+  if (!proxyUp) {
+    const foreignUp = await waitForHealth(LOCAL_ENGINE_PORT, 3_000)
+    if (foreignUp) {
+      const loaded = await fetchLoadedModelId(LOCAL_ENGINE_PORT)
+      logInfo(
+        `[local-engine] port ${LOCAL_ENGINE_PORT} is held by a foreign server ("${loaded ?? 'unknown'}") — killing to install schema-fix proxy`,
+      )
+      const killed = await killProcessOnPort(LOCAL_ENGINE_PORT)
+      if (killed) {
+        await new Promise((r) => setTimeout(r, 800))
+        const stillUp = await waitForHealth(LOCAL_ENGINE_PORT, 5_000)
+        if (stillUp) {
+          throw new Error(
+            `Порт ${LOCAL_ENGINE_PORT} занят другим процессом и не освобождается. Закройте его вручную (Диспетчер задач) и повторите.`,
+          )
+        }
+      } else {
+        throw new Error(
+          `На порту ${LOCAL_ENGINE_PORT} обнаружен чужой сервер (модель «${loaded ?? 'неизвестна'}»). Не удалось остановить его автоматически — закройте процесс вручную (Диспетчер задач) и повторите.`,
+        )
+      }
+    }
+    try {
+      await startSchemaFixProxy()
+    } catch (err) {
+      logInfo(
+        `[local-engine] proxy failed to bind ${LOCAL_ENGINE_PORT}: ${err instanceof Error ? err.message : String(err)}`,
+      )
+      throw new Error(
+        `Порт ${LOCAL_ENGINE_PORT} занят другим процессом. Закройте его вручную (Диспетчер задач) и повторите.`,
+      )
+    }
+  }
+
+  // Already serving on the backend port? (e.g. started manually, or by a
+  // previous app instance whose state we lost) — adopt it instead of
+  // double-spawning. Adopt ONLY when it is actually serving the requested
+  // model: an orphaned llama-server holding the port with a DIFFERENT model
+  // would make the UI lie about what is really loaded.
+  const backendUp = await waitForHealth(LOCAL_ENGINE_BACKEND_PORT, 3_000)
+  if (backendUp) {
+    const loaded = await fetchLoadedModelId(LOCAL_ENGINE_BACKEND_PORT)
     const matches =
       loaded != null &&
       (modelNamesMatch(loaded, modelId) ||
@@ -809,25 +1014,19 @@ export async function startLocalEngine(
     if (matches) {
       // Adopted server may run with an arbitrary `-c`; keep the config
       // honest so we never send a prompt larger than the server's n_ctx.
-      await syncLocalContextWindow(LOCAL_ENGINE_PORT, currentConfig, writeConfig)
+      await syncLocalContextWindow(LOCAL_ENGINE_BACKEND_PORT, currentConfig, writeConfig)
       engineState = { running: true, port: LOCAL_ENGINE_PORT, modelId, adopted: true }
       return { ...engineState }
     }
     logInfo(
-      `[local-engine] port ${LOCAL_ENGINE_PORT} is held by a server serving "${loaded ?? 'unknown'}", expected "${expectedModelName}" — killing stale process`,
+      `[local-engine] backend port ${LOCAL_ENGINE_BACKEND_PORT} serves "${loaded ?? 'unknown'}", expected "${expectedModelName}" — killing stale process`,
     )
-    const killed = await killProcessOnPort(LOCAL_ENGINE_PORT)
+    const killed = await killProcessOnPort(LOCAL_ENGINE_BACKEND_PORT)
     if (killed) {
       await new Promise((r) => setTimeout(r, 800))
-      const stillUp = await waitForHealth(LOCAL_ENGINE_PORT, 5_000)
-      if (stillUp) {
-        throw new Error(
-          `Порт ${LOCAL_ENGINE_PORT} занят другим процессом и не освобождается. Закройте его вручную (Диспетчер задач) и повторите.`,
-        )
-      }
     } else {
       throw new Error(
-        `На порту ${LOCAL_ENGINE_PORT} обнаружен чужой сервер (модель «${loaded ?? 'неизвестна'}») вместо «${expectedModelName}». Не удалось остановить его автоматически — закройте процесс вручную (Диспетчер задач) и повторите.`,
+        `На порту ${LOCAL_ENGINE_BACKEND_PORT} обнаружен чужой сервер (модель «${loaded ?? 'неизвестна'}») вместо «${expectedModelName}». Не удалось остановить его автоматически — закройте процесс вручную (Диспетчер задач) и повторите.`,
       )
     }
   }
@@ -842,7 +1041,7 @@ export async function startLocalEngine(
     '--host',
     '127.0.0.1',
     '--port',
-    String(LOCAL_ENGINE_PORT),
+    String(LOCAL_ENGINE_BACKEND_PORT),
     '--no-ui',
     '-c',
     '65536',
@@ -888,7 +1087,7 @@ export async function startLocalEngine(
         error: err.message,
       }
     })
-    return waitForHealth(LOCAL_ENGINE_PORT, 120_000)
+    return waitForHealth(LOCAL_ENGINE_BACKEND_PORT, 120_000)
   }
 
   let ok = await spawnServer(serverPath, spawnArgs)
@@ -912,6 +1111,11 @@ export async function startLocalEngine(
     throw new Error('llama-server did not become healthy within 120s')
   }
   // Register the `local` provider so the gateway can reach the engine.
+  // The public baseUrl stays on LOCAL_ENGINE_PORT (18788): the schema-fix
+  // proxy owns that port and forwards to the real engine, and the app
+  // rewrites this exact URL into openclaw.json on every start — so the
+  // proxy is always in the path, permanently fixing llama.cpp's tool-schema
+  // 400s without relying on external processes or manual config edits.
   const next = JSON.parse(JSON.stringify(currentConfig)) as OpenClawConfig
   next.models = next.models ?? { providers: {} }
   next.models.providers = next.models.providers ?? {}
@@ -981,7 +1185,7 @@ export async function startLocalEngine(
   // Belt-and-braces: if the downloaded binary defaults to a smaller n_ctx
   // than our -c request, align the config with reality instead of failing
   // later with HTTP 400.
-  await syncLocalContextWindow(LOCAL_ENGINE_PORT, next, writeConfig)
+  await syncLocalContextWindow(LOCAL_ENGINE_BACKEND_PORT, next, writeConfig)
   engineState = { running: true, port: LOCAL_ENGINE_PORT, modelId: model.id, adopted: false }
   return { ...engineState }
 }
