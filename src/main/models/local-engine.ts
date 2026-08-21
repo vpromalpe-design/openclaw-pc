@@ -566,7 +566,7 @@ const CUDA_RUNTIME_DLLS = ['cudart64_12.dll', 'cublas64_12.dll', 'cublasLt64_12.
 async function ensureCudaRuntime(dir: string): Promise<void> {
   const have = CUDA_RUNTIME_DLLS.every((dll) => fs.existsSync(path.join(dir, dll)))
   if (have) return
-  const zipUrl = `https://github.com/vpromalpe-design/openclaw-pc/releases/download/${CUDA_RUNTIME_TAG}/${CUDA_RUNTIME_ASSET}`
+  const zipUrl = `https://github.com/vpromalpe-design/llama-runtime/releases/download/${CUDA_RUNTIME_TAG}/${CUDA_RUNTIME_ASSET}`
   const zipPath = path.join(dir, 'cuda-runtime.zip')
   emitProgress({
     stage: 'cuda-runtime-download',

@@ -30,7 +30,10 @@ env:
     }}
   # Caching: setup-node `cache: pnpm` restores the pnpm store (keyed by lockfile); it does not substitute repo source.
   # `pnpm install --frozen-lockfile` links node_modules for the checked-out tree. package_win `Cache Electron` only caches
-  # Electron/electron-builder download dirs (not app code). Control UI comes from this run's upload-artifact + run-id-scoped download.
+  # Electron/electron-builder download dirs (not app code).
+  # NOTE: no actions/upload-artifact anywhere in this workflow — GitHub artifact storage quota hit in 0.8.22/0.8.23
+  # ("Artifact storage quota has been hit", recalculated every 6-12 h). Control UI is built inside package_win and the
+  # installer is published straight from the Windows job. Re-enable artifacts only if the quota problem is solved.
 
 jobs:
   release_gate:
@@ -44,56 +47,6 @@ jobs:
             echo "::error::手动发布时必须在输入框填写 tag（与 Git 标签一致，例如 v0.7.0+openclaw.2026.4.2）。否则会按当前分支打包，极易与 Release 标签错配并导致安装包内 OpenClaw / Control UI 混拼。"
             exit 1
           fi
-
-  build_control_ui:
-    name: Build OpenClaw Control UI (Linux)
-    needs: release_gate
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref_name, 'v')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ env.CHECKOUT_REF }}
-          fetch-depth: 1
-
-      - name: Print build identity (ref + SHA)
-        run: |
-          echo "CHECKOUT_REF=${{ env.CHECKOUT_REF }}"
-          echo "GITHUB_REF=$GITHUB_REF"
-          echo "GITHUB_SHA=$GITHUB_SHA"
-          git rev-parse HEAD
-          git log -1 --oneline
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION_CI }}
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build Control UI for bundle
-        env:
-          NODE_OPTIONS: '--max-old-space-size=4096'
-        run: pnpm exec tsx scripts/ci-build-openclaw-control-ui.ts
-
-      - name: Upload Control UI dist
-        uses: actions/upload-artifact@v4
-        with:
-          name: openclaw-control-ui-dist
-          path: build/_ci_openclaw_control_ui_root/dist/control-ui
-          retention-days: 2
-          if-no-files-found: error
 
   verify:
     name: Verify (lint, type-check, build)
@@ -152,23 +105,21 @@ jobs:
         run: pnpm run check-openclaw-versions
 
   package_win:
-    name: Package Windows Installer
+    name: Package Windows Installer + Publish Release
     needs:
       - verify
-      - build_control_ui
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref_name, 'v')
     runs-on: windows-latest
     permissions:
-      contents: read
-    outputs:
-      artifact-id: ${{ steps.upload-installer.outputs.artifact-id }}
+      contents: write
     # SignPath 模式：vars.USE_SIGNPATH=true 时构建未签名包；否则用 CSC_LINK 签名
     env:
       CSC_LINK: ${{ vars.USE_SIGNPATH == 'true' && '' || secrets.CSC_LINK }}
       CSC_KEY_PASSWORD: ${{ vars.USE_SIGNPATH == 'true' && '' || secrets.CSC_KEY_PASSWORD }}
       ELECTRON_CACHE: ~\AppData\Local\electron\Cache
       ELECTRON_BUILDER_CACHE: ~\AppData\Local\electron-builder\Cache
-      # Whole job: any script that touches OpenClaw must not leave npm control-ui before Linux artifact merge
+      # Any script that touches OpenClaw must not leave npm control-ui behind;
+      # the Control UI is built in this job (ci-build-openclaw-control-ui) and merged over the stripped dist.
       OPENCLAW_SKIP_CONTROL_UI_BUILD: '1'
 
     steps:
@@ -216,6 +167,12 @@ jobs:
       - name: Build Electron app
         run: pnpm run build
 
+      - name: Build OpenClaw Control UI for bundle
+        shell: pwsh
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+        run: pnpm exec tsx scripts/ci-build-openclaw-control-ui.ts
+
       - name: Prepare apple-touch-icon for generate-resources
         run: |
           if (Test-Path resources/apple-touch-icon.png) {
@@ -235,30 +192,27 @@ jobs:
       - name: Assert OpenClaw npm bundle matches desktop pin
         run: pnpm exec tsx scripts/assert-openclaw-pin-aligns.ts
 
-      # download-artifact merges into the path: leaves orphan assets/*.js from npm or self-hosted runners.
-      # download-openclaw strips dist/control-ui when SKIP_CONTROL_UI_BUILD=1; this step is a second line of defense.
-      - name: Ensure empty dist/control-ui before merge
+      # download-openclaw strips dist/control-ui when SKIP_CONTROL_UI_BUILD=1; merge our own build over it.
+      - name: Merge built Control UI into bundle
         shell: pwsh
         run: |
-          $p = Join-Path "build/openclaw/dist" "control-ui"
-          if (Test-Path -LiteralPath $p) {
-            Remove-Item -LiteralPath $p -Recurse -Force -ErrorAction Stop
+          $src = Join-Path "build/_ci_openclaw_control_ui_root/dist" "control-ui"
+          $dst = Join-Path "build/openclaw/dist" "control-ui"
+          if (-not (Test-Path -LiteralPath (Join-Path $src "index.html"))) {
+            Write-Error "Control UI build missing $src/index.html"
+            exit 1
           }
-
-      # run-id: bind to this workflow run only (never pick artifact from another run / fork confusion)
-      - name: Merge OpenClaw Control UI (Linux-built)
-        uses: actions/download-artifact@v4
-        with:
-          name: openclaw-control-ui-dist
-          path: build/openclaw/dist/control-ui
-          run-id: ${{ github.run_id }}
+          if (Test-Path -LiteralPath $dst) {
+            Remove-Item -LiteralPath $dst -Recurse -Force -ErrorAction Stop
+          }
+          Copy-Item -LiteralPath $src -Destination $dst -Recurse -Force
 
       - name: Assert merged Control UI layout
         shell: pwsh
         run: |
           $idx = Join-Path "build/openclaw/dist/control-ui" "index.html"
           if (-not (Test-Path -LiteralPath $idx)) {
-            Write-Error "Control UI artifact merge failed: missing $idx (check upload/download paths)."
+            Write-Error "Control UI merge failed: missing $idx"
             exit 1
           }
 
@@ -283,109 +237,8 @@ jobs:
       - name: Copy bundle manifest to dist
         run: Copy-Item resources/bundle-manifest.json dist/ -Force
 
-      - name: Upload installer artifact
-        id: upload-installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: openclaw-pc-build
-          path: |
-            dist/OpenClaw-PC-Setup-*.exe
-            dist/bundle-manifest.json
-
-  sign_path:
-    name: Sign with SignPath Foundation
-    needs:
-      - package_win
-    # 设置仓库变量 USE_SIGNPATH=true 时启用；否则使用 CSC_LINK 开发者签名
-    if: (github.event_name == 'workflow_dispatch' || startsWith(github.ref_name, 'v')) && vars.USE_SIGNPATH == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-
-    steps:
-      - name: Submit to SignPath for signing
-        id: signpath
-        uses: signpath/github-action-submit-signing-request@v2
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
-          signing-policy-slug: ${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}
-          artifact-configuration-slug: openclaw-pc
-          github-artifact-id: ${{ needs.package_win.outputs.artifact-id }}
-          wait-for-completion: true
-          output-artifact-directory: dist-signed-raw
-
-      - name: Extract signed exe from zip
-        run: |
-          cd dist-signed-raw
-          shopt -s nullglob
-          for z in *.zip; do
-            unzip -o "$z"
-            rm -f "$z"
-          done
-
-      - name: Download build artifact for bundle manifest
-        uses: actions/download-artifact@v4
-        with:
-          name: openclaw-pc-build
-          path: manifest-temp
-
-      - name: Copy bundle manifest into signed artifact
-        run: |
-          if [ -f manifest-temp/dist/bundle-manifest.json ]; then
-            cp manifest-temp/dist/bundle-manifest.json dist-signed-raw/
-          fi
-
-      - name: Upload signed installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: openclaw-pc-setup
-          path: dist-signed-raw/
-
-  publish_release:
-    name: Publish GitHub Release
-    needs:
-      - package_win
-      - sign_path
-    # sign_path is skipped when USE_SIGNPATH≠true; without `skipped`, this job would never run.
-    if: ${{ (github.event_name == 'workflow_dispatch' || startsWith(github.ref_name, 'v')) && always() && needs.package_win.result == 'success' && (needs.sign_path.result == 'success' || needs.sign_path.result == 'skipped') }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ env.CHECKOUT_REF }}
-          fetch-depth: 0
-          fetch-tags: true
-          submodules: false
-
-      - name: Print build identity (ref + SHA)
-        run: |
-          echo "CHECKOUT_REF=${{ env.CHECKOUT_REF }}"
-          echo "GITHUB_SHA=$GITHUB_SHA"
-          git rev-parse HEAD
-          git log -1 --oneline
-
-      - name: Download signed installer
-        if: needs.sign_path.result == 'success'
-        uses: actions/download-artifact@v4
-        with:
-          name: openclaw-pc-setup
-          path: dist
-
-      - name: Download build artifact (unsigned)
-        if: needs.sign_path.result == 'skipped'
-        uses: actions/download-artifact@v4
-        with:
-          name: openclaw-pc-build
-          path: dist
-
       - name: Generate SHA-256 checksums
+        shell: bash
         run: |
           cd dist
           for file in OpenClaw-PC-Setup-*.exe; do
@@ -395,6 +248,7 @@ jobs:
 
       - name: Generate latest.yml for electron-updater
         id: gen-yml
+        shell: bash
         run: |
           TAG="${{ inputs.tag || github.ref_name }}"
           VERSION="${TAG#v}"
@@ -421,6 +275,7 @@ jobs:
 
       - name: Generate release body from CHANGELOG
         id: gen-body
+        shell: bash
         run: |
           TAG="${{ inputs.tag || github.ref_name }}"
           VERSION="${TAG#v}"
@@ -440,11 +295,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-
   # Publishes the CUDA 12.x runtime DLLs used by the local GGUF engine.
-  # Triggered by the dedicated tag `cuda-runtime-v1` (never force-pushed;
-  # independent from app version tags). The app downloads this asset when a
-  # CUDA llama-server build is present but cudart/cublas are missing.
+  # Triggered by the dedicated tag `cuda-runtime-v1` on THIS repo; the asset is
+  # uploaded to the PUBLIC repo `vpromalpe-design/llama-runtime` so any machine
+  # can download it without auth (this repo is private → anonymous downloads 404).
   cuda_runtime_publish:
     name: Publish CUDA 12 runtime DLLs
     if: github.ref_name == 'cuda-runtime-v1'
@@ -472,9 +326,10 @@ jobs:
           zip -q -r ../llama-runtime-cuda12-win-x64.zip cudart64_12.dll cublas64_12.dll cublasLt64_12.dll
           sha256sum ../llama-runtime-cuda12-win-x64.zip | tee ../llama-runtime-cuda12-win-x64.zip.sha256
 
-      - name: Publish release asset
+      - name: Publish release asset (public repo)
         uses: softprops/action-gh-release@v2
         with:
+          repo: vpromalpe-design/llama-runtime
           tag_name: cuda-runtime-v1
           name: cuda-runtime-v1
           body: "CUDA 12.x runtime DLLs (cudart64_12, cublas64_12, cublasLt64_12) for the local GGUF engine."
