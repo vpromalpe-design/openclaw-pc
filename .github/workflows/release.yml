@@ -236,18 +236,14 @@ jobs:
       - name: Build Electron app
         run: pnpm run build
 
-      - name: Download OpenClaw Control UI bundle (API asset download — releases/download 404s on private repos)
+      - name: Download OpenClaw Control UI bundle (gh CLI — Invoke-RestMethod got 401 with same token)
         shell: pwsh
         run: |
           $v = node -p "require('./package.json').openclawBundleVersion"
-          $headers = @{ Authorization = "Bearer $env:GITHUB_TOKEN" }
-          $rel = Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/vpromalpe-design/openclaw-pc/releases/tags/control-ui-$v"
-          $zip = $rel.assets | Where-Object { $_.name -eq 'control-ui.zip' }
-          $sha = $rel.assets | Where-Object { $_.name -eq 'control-ui.zip.sha256' }
-          if (-not $zip) { Write-Error "control-ui.zip asset not found on tag control-ui-$v"; exit 1 }
-          Write-Host "Downloading $($zip.name) ($($zip.size) bytes)"
-          Invoke-WebRequest -Headers ($headers + @{ Accept = 'application/octet-stream' }) -Uri $zip.url -OutFile control-ui.zip
-          Invoke-WebRequest -Headers ($headers + @{ Accept = 'application/octet-stream' }) -Uri $sha.url -OutFile control-ui.zip.sha256
+          Write-Host "GITHUB_TOKEN len: $($env:GITHUB_TOKEN.Length)"
+          gh --version
+          gh release download "control-ui-$v" --repo vpromalpe-design/openclaw-pc --pattern "control-ui.zip" --pattern "control-ui.zip.sha256" --clobber
+          if (-not (Test-Path control-ui.zip)) { Write-Error "control-ui.zip not downloaded"; exit 1 }
           $actual = (Get-FileHash control-ui.zip -Algorithm SHA256).Hash.ToLower()
           $expected = $null
           try { $expected = (Get-Content control-ui.zip.sha256 -ErrorAction Stop | ForEach-Object { ($_ -split '\s+')[0] }) } catch {}
