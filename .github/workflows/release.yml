@@ -461,7 +461,7 @@ jobs:
           sudo apt-get update -qq && sudo apt-get install -y -qq zstd >/dev/null
           unzip -q cudart.conda
           tar --zstd -xf pkg-cuda-cudart-12.6.77-0.tar.zst
-          cp runtimes/win-x64/native/cudart64_12.dll runtime/
+          cp Library/bin/cudart64_12.dll runtime/
           tar -xjf libcublas.tar.bz2
           cp Library/bin/cublas64_12.dll Library/bin/cublasLt64_12.dll runtime/
           ls -la runtime/
