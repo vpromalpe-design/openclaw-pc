@@ -161,10 +161,9 @@ jobs:
           sha256sum ../control-ui.zip > ../control-ui.zip.sha256
           ls -la ..
 
-      - name: Publish Control UI bundle (public builds repo)
+      - name: Publish Control UI bundle (same repo — GITHUB_TOKEN has no cross-repo rights)
         uses: softprops/action-gh-release@v2
         with:
-          repo: vpromalpe-design/openclaw-pc-builds
           tag_name: ${{ steps.ui-tag.outputs.tag }}
           name: ${{ steps.ui-tag.outputs.tag }}
           body: "OpenClaw Control UI dist bundle built on Linux for OpenClaw PC release packaging."
@@ -241,16 +240,18 @@ jobs:
         shell: pwsh
         run: |
           $v = node -p "require('./package.json').openclawBundleVersion"
-          $url = "https://github.com/vpromalpe-design/openclaw-pc-builds/releases/download/control-ui-$v/control-ui-$v.zip"
+          $url = "https://github.com/vpromalpe-design/openclaw-pc/releases/download/control-ui-$v/control-ui-$v.zip"
           Write-Host "Downloading $url"
-          curl.exe -fL --retry 3 --connect-timeout 30 -o control-ui.zip $url
+          curl.exe -fL --retry 3 --connect-timeout 30 -H "Authorization: Bearer $env:GITHUB_TOKEN" -o control-ui.zip $url
+          curl.exe -fL --retry 3 --connect-timeout 30 -H "Authorization: Bearer $env:GITHUB_TOKEN" -s -o control-ui.zip.sha256 "$url.sha256"
           $actual = (Get-FileHash control-ui.zip -Algorithm SHA256).Hash.ToLower()
           $expected = $null
-          try { $expected = (Get-Content build/control-ui.zip.sha256 -ErrorAction Stop | ForEach-Object { ($_ -split '\s+')[0] }) } catch {}
+          try { $expected = (Get-Content control-ui.zip.sha256 -ErrorAction Stop | ForEach-Object { ($_ -split '\s+')[0] }) } catch {}
           if ($expected -and $expected -ne $actual) {
             Write-Error "Control UI sha256 mismatch: got $actual expected $expected"
             exit 1
           }
+          Write-Host "Control UI zip OK ($((Get-Item control-ui.zip).Length) bytes)"
           Expand-Archive control-ui.zip -DestinationPath build/openclaw/dist -Force
 
       - name: Prepare apple-touch-icon for generate-resources
