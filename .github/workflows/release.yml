@@ -253,7 +253,7 @@ jobs:
             exit 1
           }
           Write-Host "Control UI zip OK ($((Get-Item control-ui.zip).Length) bytes)"
-          Expand-Archive control-ui.zip -DestinationPath build/openclaw/dist -Force
+          Expand-Archive control-ui.zip -DestinationPath build/_ci_openclaw_control_ui_root -Force
 
       - name: Prepare apple-touch-icon for generate-resources
         run: |
