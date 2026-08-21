@@ -2,6 +2,12 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.8.22] - 2026-08-21
+
+### Fixed
+
+- **Two llama-server engines could be spawned on app launch, freezing the model** ("model does not answer"): the local engine was started twice concurrently at startup — a pre-gateway pre-start and a post-window auto-start. Both calls saw the engine as not running and each spawned its own llama-server; Windows allows both to bind the same port (18792), so two engine processes each loaded the 12B model into memory (~13 GB RSS each) and a 16 GB laptop thrashed into the pagefile — the model took minutes per token or hung entirely. Engine startup is now serialized through a single in-flight promise (the second caller awaits the first), and the port is re-checked right before spawning so a foreign/manual engine is adopted or killed instead of double-binding.
+
 ## [0.8.21] - 2026-08-20
 
 ### Fixed

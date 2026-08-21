@@ -86,6 +86,11 @@ let sendProgress: ((channel: string, ...args: unknown[]) => void) | null = null
 let activeDownload: DownloadHandle | null = null
 let engineChild: ChildProcess | null = null
 let engineState: LocalEngineState = { running: false, port: LOCAL_ENGINE_PORT, modelId: null }
+// v0.8.22: serializes concurrent startLocalEngine calls (app-launch pre-start
+// + post-window auto-start raced and spawned TWO llama-server processes;
+// Windows allows the double-bind on 18792 and both loaded the model — on a
+// 16 GB laptop that is a pagefile death spiral).
+let engineStartPromise: Promise<LocalEngineState> | null = null
 
 export function setLocalProgressSender(
   fn: ((channel: string, ...args: unknown[]) => void) | null,
@@ -1001,7 +1006,31 @@ async function syncLocalContextWindow(
 }
 
 /** Start llama-server with a downloaded GGUF; registers `local` provider in config. */
-export async function startLocalEngine(
+/**
+ * Start the local GGUF engine (schema-fix proxy on 18788 + llama-server on
+ * 18792). Serialized by a module-level promise: two concurrent callers (the
+ * pre-gateway pre-start and the post-window auto-start on app launch) used
+ * to race — both saw `engineState.running === false` and both spawned a
+ * llama-server. Windows allows the double-bind on 18792, both processes
+ * loaded the model into memory (~13 GB RSS each on a 16 GB laptop) and the
+ * machine thrashed into the pagefile: the model "did not answer" for
+ * minutes (observed twice on Damir's Legion with gemma4-v2 Q4_K_M).
+ */
+export function startLocalEngine(
+  modelIdRaw: string,
+  currentConfig: OpenClawConfig,
+  writeConfig: (c: OpenClawConfig) => void,
+): Promise<LocalEngineState> {
+  if (engineStartPromise) return engineStartPromise
+  engineStartPromise = startLocalEngineInner(modelIdRaw, currentConfig, writeConfig).finally(
+    () => {
+      engineStartPromise = null
+    },
+  )
+  return engineStartPromise
+}
+
+async function startLocalEngineInner(
   modelIdRaw: string,
   currentConfig: OpenClawConfig,
   writeConfig: (c: OpenClawConfig) => void,
@@ -1178,6 +1207,38 @@ export async function startLocalEngine(
       }
     })
     return waitForHealth(LOCAL_ENGINE_BACKEND_PORT, 120_000)
+  }
+
+  // v0.8.22: re-check the port right before spawning — a foreign/manual
+  // llama-server (or a second app instance) may have claimed 18792 while we
+  // were resolving the engine binary. Double-binding on Windows lets both
+  // processes listen and both load the model: on a 16 GB laptop that is a
+  // pagefile death spiral. Adopt (or kill the stale process) instead.
+  if (await canConnectTcp(LOCAL_ENGINE_BACKEND_PORT)) {
+    const healthy = await waitForHealth(LOCAL_ENGINE_BACKEND_PORT, 120_000)
+    if (healthy) {
+      const loaded = await fetchLoadedModelId(LOCAL_ENGINE_BACKEND_PORT)
+      const matches =
+        loaded != null &&
+        (modelNamesMatch(loaded, modelId) ||
+          modelNamesMatch(loaded, expectedModelName))
+      if (matches) {
+        await syncLocalContextWindow(LOCAL_ENGINE_BACKEND_PORT, currentConfig, writeConfig)
+        engineState = { running: true, port: LOCAL_ENGINE_PORT, modelId, adopted: true }
+        return { ...engineState }
+      }
+      logInfo(
+        `[local-engine] pre-spawn recheck: port ${LOCAL_ENGINE_BACKEND_PORT} serves "${loaded ?? 'unknown'}", expected "${expectedModelName}" — killing stale process`,
+      )
+      await killProcessOnPort(LOCAL_ENGINE_BACKEND_PORT)
+      await new Promise((r) => setTimeout(r, 800))
+    } else {
+      logInfo(
+        `[local-engine] pre-spawn recheck: port ${LOCAL_ENGINE_BACKEND_PORT} occupied but never became healthy — killing stale process`,
+      )
+      await killProcessOnPort(LOCAL_ENGINE_BACKEND_PORT)
+      await new Promise((r) => setTimeout(r, 800))
+    }
   }
 
   let ok = await spawnServer(serverPath, spawnArgs)
