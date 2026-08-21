@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+      - 'cuda-runtime*'
   workflow_dispatch:
     inputs:
       tag:
@@ -47,6 +48,7 @@ jobs:
   build_control_ui:
     name: Build OpenClaw Control UI (Linux)
     needs: release_gate
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref_name, 'v')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -96,6 +98,7 @@ jobs:
   verify:
     name: Verify (lint, type-check, build)
     needs: release_gate
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref_name, 'v')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -153,6 +156,7 @@ jobs:
     needs:
       - verify
       - build_control_ui
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref_name, 'v')
     runs-on: windows-latest
     permissions:
       contents: read
@@ -293,7 +297,7 @@ jobs:
     needs:
       - package_win
     # 设置仓库变量 USE_SIGNPATH=true 时启用；否则使用 CSC_LINK 开发者签名
-    if: vars.USE_SIGNPATH == 'true'
+    if: (github.event_name == 'workflow_dispatch' || startsWith(github.ref_name, 'v')) && vars.USE_SIGNPATH == 'true'
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -346,7 +350,7 @@ jobs:
       - package_win
       - sign_path
     # sign_path is skipped when USE_SIGNPATH≠true; without `skipped`, this job would never run.
-    if: ${{ always() && needs.package_win.result == 'success' && (needs.sign_path.result == 'success' || needs.sign_path.result == 'skipped') }}
+    if: ${{ (github.event_name == 'workflow_dispatch' || startsWith(github.ref_name, 'v')) && always() && needs.package_win.result == 'success' && (needs.sign_path.result == 'success' || needs.sign_path.result == 'skipped') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -436,3 +440,46 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+
+  # Publishes the CUDA 12.x runtime DLLs used by the local GGUF engine.
+  # Triggered by the dedicated tag `cuda-runtime-v1` (never force-pushed;
+  # independent from app version tags). The app downloads this asset when a
+  # CUDA llama-server build is present but cudart/cublas are missing.
+  cuda_runtime_publish:
+    name: Publish CUDA 12 runtime DLLs
+    if: github.ref_name == 'cuda-runtime-v1'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download CUDA runtime packages (conda)
+        run: |
+          set -euxo pipefail
+          mkdir -p runtime
+          curl -fsSL -o cudart.conda "https://conda.anaconda.org/nvidia/win-64/cuda-cudart-12.6.77-0.conda"
+          curl -fsSL -o libcublas.tar.bz2 "https://conda.anaconda.org/nvidia/win-64/libcublas-12.6.1.4-0.tar.bz2"
+          sudo apt-get update -qq && sudo apt-get install -y -qq zstd >/dev/null
+          unzip -q cudart.conda
+          tar --zstd -xf pkg-cuda-cudart-12.6.77-0.tar.zst
+          cp runtimes/win-x64/native/cudart64_12.dll runtime/
+          tar -xjf libcublas.tar.bz2
+          cp Library/bin/cublas64_12.dll Library/bin/cublasLt64_12.dll runtime/
+          ls -la runtime/
+
+      - name: Package zip
+        run: |
+          cd runtime
+          zip -q -r ../llama-runtime-cuda12-win-x64.zip cudart64_12.dll cublas64_12.dll cublasLt64_12.dll
+          sha256sum ../llama-runtime-cuda12-win-x64.zip | tee ../llama-runtime-cuda12-win-x64.zip.sha256
+
+      - name: Publish release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: cuda-runtime-v1
+          name: cuda-runtime-v1
+          body: "CUDA 12.x runtime DLLs (cudart64_12, cublas64_12, cublasLt64_12) for the local GGUF engine."
+          files: |
+            llama-runtime-cuda12-win-x64.zip
+            llama-runtime-cuda12-win-x64.zip.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

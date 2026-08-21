@@ -91,6 +91,28 @@ let engineState: LocalEngineState = { running: false, port: LOCAL_ENGINE_PORT, m
 // Windows allows the double-bind on 18792 and both loaded the model — on a
 // 16 GB laptop that is a pagefile death spiral).
 let engineStartPromise: Promise<LocalEngineState> | null = null
+let engineWatchdogStarted = false
+
+function ensureEngineWatchdog(): void {
+  if (engineWatchdogStarted) return
+  engineWatchdogStarted = true
+  setInterval(() => {
+    if (!engineState.running) return
+    void waitForHealth(LOCAL_ENGINE_BACKEND_PORT, 3000).then((up) => {
+      if (!up && engineState.running) {
+        logWarn(
+          `[local-engine] watchdog: engine stopped responding on ${LOCAL_ENGINE_BACKEND_PORT} — marking stopped`,
+        )
+        engineChild = null
+        engineState = {
+          running: false,
+          port: LOCAL_ENGINE_PORT,
+          modelId: null,
+        }
+      }
+    })
+  }, 30_000)
+}
 
 export function setLocalProgressSender(
   fn: ((channel: string, ...args: unknown[]) => void) | null,
@@ -454,7 +476,20 @@ export async function ensureEngineBinary(
   variant: EngineVariant,
 ): Promise<string> {
   const existing = getEngineServerPath(variant)
-  if (existing) return existing
+  if (existing) {
+    // v0.8.23: the CUDA build may be on disk WITHOUT its runtime DLLs (a
+    // previous run downloaded the engine but the runtime asset 404'd on our
+    // release). Without cudart/cublas the GPU binary dies on start and we
+    // silently fall back to the slow CPU build. Top up the DLLs first.
+    if (variant === 'cuda') {
+      await ensureCudaRuntime(path.dirname(existing)).catch((err) => {
+        logInfo(
+          `[local-engine] CUDA runtime top-up failed: ${err instanceof Error ? err.message : String(err)}`,
+        )
+      })
+    }
+    return existing
+  }
   if (process.platform !== 'win32') {
     throw new Error(
       'Local engine is currently available on Windows only. Downloads still work on other platforms.',
@@ -752,6 +787,28 @@ function modelNamesMatch(a: string, b: string): boolean {
     (na.startsWith(nb) && nb.length >= 7) ||
     (nb.startsWith(na) && na.length >= 7)
   )
+}
+
+/**
+ * Count the processes LISTENING on a TCP port (Windows, via netstat).
+ * More than one means a double-bind (llama-server on Windows tolerates it).
+ */
+async function countListenersOnPort(port: number): Promise<number> {
+  try {
+    const { stdout } = await exec(
+      `netstat -ano | findstr ":${port} " | findstr "LISTENING"`,
+      { windowsHide: true, timeout: 8000 },
+    )
+    if (!stdout) return 0
+    const pids = new Set<string>()
+    for (const line of stdout.split(/\r?\n/)) {
+      const tok = line.trim().split(/\s+/).pop()
+      if (tok && /^\d+$/.test(tok)) pids.add(tok)
+    }
+    return pids.size
+  } catch {
+    return 0
+  }
 }
 
 /**
@@ -1116,6 +1173,18 @@ async function startLocalEngineInner(
   // two llama-server on 18792, CPU 0, empty replies). So: if the port
   // accepts TCP connections but health is not OK yet, WAIT for health
   // (up to 120s) instead of spawning.
+  // v0.8.23: Windows allows a second llama-server to bind the SAME port
+  // (observed live: two processes LISTENING on 18792, each loading the model
+  // — pagefile death spiral on 16 GB laptops). If more than one process
+  // listens on the backend port, kill them ALL and spawn fresh: adopting
+  // one and leaving the other would keep 13 GB of RSS hostage.
+  if ((await countListenersOnPort(LOCAL_ENGINE_BACKEND_PORT)) > 1) {
+    logWarn(
+      `[local-engine] ${await countListenersOnPort(LOCAL_ENGINE_BACKEND_PORT)} processes listening on ${LOCAL_ENGINE_BACKEND_PORT} (double-bind) — killing all and spawning a fresh engine`,
+    )
+    await killProcessOnPort(LOCAL_ENGINE_BACKEND_PORT)
+    await new Promise((r) => setTimeout(r, 1500))
+  }
   let backendUp = await waitForHealth(LOCAL_ENGINE_BACKEND_PORT, 3_000)
   if (!backendUp && (await canConnectTcp(LOCAL_ENGINE_BACKEND_PORT))) {
     logInfo(
@@ -1357,6 +1426,13 @@ async function startLocalEngineInner(
   // than our -c request, align the config with reality instead of failing
   // later with HTTP 400.
   await syncLocalContextWindow(LOCAL_ENGINE_BACKEND_PORT, next, writeConfig)
+  // v0.8.23: if the engine dies while the app is running (adopted orphan or
+  // our own child crashing), /health goes dark but nothing notices: the
+  // proxy keeps returning 502 "local engine unreachable" forever. Watch the
+  // backend port and mark the engine stopped so the UI shows the truth and
+  // the user can restart it.
+  ensureEngineWatchdog()
+
   engineState = { running: true, port: LOCAL_ENGINE_PORT, modelId: model.id, adopted: false }
   return { ...engineState }
 }

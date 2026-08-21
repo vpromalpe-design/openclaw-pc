@@ -2,6 +2,14 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.8.23] - 2026-08-21
+
+### Fixed
+
+- **Orphaned double-bound engines were adopted instead of cleared**: when two llama-server processes were left listening on the same port (from the 0.8.21 double-spawn bug), the app adopted one and left the other eating ~13 GB of RAM — the machine kept thrashing into the pagefile. On start the app now counts the listeners on the engine port; if more than one process is bound, all are killed and a fresh engine is spawned.
+- **Engine death while the app is running was invisible**: if the adopted/own engine process died, the proxy kept returning 502 "local engine unreachable" forever and the UI kept showing the engine as running. A watchdog now probes the engine every 30 s and marks it stopped when it stops responding.
+- **CUDA build could silently fall back to CPU**: when the CUDA llama-server binary was already on disk but its runtime DLLs (cudart64_12, cublas64_12, cublasLt64_12) were missing (the runtime asset used to 404 on our releases), the GPU build died on start and the app fell back to the slow CPU build. The runtime is now topped up before spawn, and the runtime DLLs are published as a release asset (`cuda-runtime-v1`) built automatically by CI.
+
 ## [0.8.22] - 2026-08-21
 
 ### Fixed
