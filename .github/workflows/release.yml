@@ -240,10 +240,10 @@ jobs:
         shell: pwsh
         run: |
           $v = node -p "require('./package.json').openclawBundleVersion"
-          $url = "https://github.com/vpromalpe-design/openclaw-pc/releases/download/control-ui-$v/control-ui-$v.zip"
-          Write-Host "Downloading $url"
-          curl.exe -fL --retry 3 --connect-timeout 30 -H "Authorization: Bearer $env:GITHUB_TOKEN" -o control-ui.zip $url
-          curl.exe -fL --retry 3 --connect-timeout 30 -H "Authorization: Bearer $env:GITHUB_TOKEN" -s -o control-ui.zip.sha256 "$url.sha256"
+                    $base = "https://github.com/vpromalpe-design/openclaw-pc/releases/download/control-ui-$v"
+          Write-Host "Downloading $base/control-ui.zip"
+          curl.exe -fL --retry 3 --connect-timeout 30 -H "Authorization: Bearer $env:GITHUB_TOKEN" -o control-ui.zip "$base/control-ui.zip"
+          curl.exe -fL --retry 3 --connect-timeout 30 -H "Authorization: Bearer $env:GITHUB_TOKEN" -s -o control-ui.zip.sha256 "$base/control-ui.zip.sha256"
           $actual = (Get-FileHash control-ui.zip -Algorithm SHA256).Hash.ToLower()
           $expected = $null
           try { $expected = (Get-Content control-ui.zip.sha256 -ErrorAction Stop | ForEach-Object { ($_ -split '\s+')[0] }) } catch {}
