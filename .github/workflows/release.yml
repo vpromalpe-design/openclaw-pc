@@ -236,12 +236,13 @@ jobs:
       - name: Build Electron app
         run: pnpm run build
 
-      - name: Download OpenClaw Control UI bundle (gh CLI — Invoke-RestMethod got 401 with same token)
+      - name: Download OpenClaw Control UI bundle (gh CLI, explicit GITHUB_TOKEN — auto env is empty in this job)
         shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $v = node -p "require('./package.json').openclawBundleVersion"
           Write-Host "GITHUB_TOKEN len: $($env:GITHUB_TOKEN.Length)"
-          gh --version
           gh release download "control-ui-$v" --repo vpromalpe-design/openclaw-pc --pattern "control-ui.zip" --pattern "control-ui.zip.sha256" --clobber
           if (-not (Test-Path control-ui.zip)) { Write-Error "control-ui.zip not downloaded"; exit 1 }
           $actual = (Get-FileHash control-ui.zip -Algorithm SHA256).Hash.ToLower()
