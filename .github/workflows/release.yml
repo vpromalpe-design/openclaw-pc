@@ -32,8 +32,9 @@ env:
   # `pnpm install --frozen-lockfile` links node_modules for the checked-out tree. package_win `Cache Electron` only caches
   # Electron/electron-builder download dirs (not app code).
   # NOTE: no actions/upload-artifact anywhere in this workflow — GitHub artifact storage quota hit in 0.8.22/0.8.23
-  # ("Artifact storage quota has been hit", recalculated every 6-12 h). Control UI is built inside package_win and the
-  # installer is published straight from the Windows job. Re-enable artifacts only if the quota problem is solved.
+  # ("Artifact storage quota has been hit", recalculated every 6-12 h). Intermediate bundles (Control UI) are
+  # published as release assets of the PUBLIC repo vpromalpe-design/openclaw-pc-builds (anonymous download works,
+  # unlike this private repo), and the installer is published straight from the Windows job.
 
 jobs:
   release_gate:
@@ -104,10 +105,80 @@ jobs:
       - name: Check OpenClaw version consistency (pin vs bundle-manifest)
         run: pnpm run check-openclaw-versions
 
+  # Vite 8 + Rolldown native bindings often fail on GitHub windows-latest, and Git-for-Windows tar cannot
+  # create symlinks (speech-core/node_modules/.bin/openclaw) → UI is built on Linux and published as a public
+  # release asset (openclaw-pc-builds) that package_win downloads anonymously.
+  build_control_ui:
+    name: Build OpenClaw Control UI (Linux)
+    needs: verify
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref_name, 'v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      ui_tag: ${{ steps.ui-tag.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
+          fetch-depth: 0
+          fetch-tags: true
+          submodules: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION_CI }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve Control UI tag (openclaw core version)
+        id: ui-tag
+        shell: bash
+        run: |
+          V=$(node -p "require('./package.json').openclawBundleVersion")
+          echo "tag=control-ui-$V" >> "$GITHUB_OUTPUT"
+
+      - name: Build OpenClaw Control UI
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
+        run: pnpm exec tsx scripts/ci-build-openclaw-control-ui.ts
+
+      - name: Package Control UI bundle
+        shell: bash
+        run: |
+          cd build/_ci_openclaw_control_ui_root
+          zip -qr ../control-ui.zip dist/control-ui
+          sha256sum ../control-ui.zip > ../control-ui.zip.sha256
+          ls -la ..
+
+      - name: Publish Control UI bundle (public builds repo)
+        uses: softprops/action-gh-release@v2
+        with:
+          repo: vpromalpe-design/openclaw-pc-builds
+          tag_name: ${{ steps.ui-tag.outputs.tag }}
+          name: ${{ steps.ui-tag.outputs.tag }}
+          body: "OpenClaw Control UI dist bundle built on Linux for OpenClaw PC release packaging."
+          files: |
+            build/control-ui.zip
+            build/control-ui.zip.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   package_win:
     name: Package Windows Installer + Publish Release
     needs:
       - verify
+      - build_control_ui
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref_name, 'v')
     runs-on: windows-latest
     permissions:
@@ -118,8 +189,7 @@ jobs:
       CSC_KEY_PASSWORD: ${{ vars.USE_SIGNPATH == 'true' && '' || secrets.CSC_KEY_PASSWORD }}
       ELECTRON_CACHE: ~\AppData\Local\electron\Cache
       ELECTRON_BUILDER_CACHE: ~\AppData\Local\electron-builder\Cache
-      # Any script that touches OpenClaw must not leave npm control-ui behind;
-      # the Control UI is built in this job (ci-build-openclaw-control-ui) and merged over the stripped dist.
+      # download-openclaw strips dist/control-ui (we serve our own build from openclaw-pc-builds).
       OPENCLAW_SKIP_CONTROL_UI_BUILD: '1'
 
     steps:
@@ -167,11 +237,21 @@ jobs:
       - name: Build Electron app
         run: pnpm run build
 
-      - name: Build OpenClaw Control UI for bundle
+      - name: Download OpenClaw Control UI bundle (public builds repo)
         shell: pwsh
-        env:
-          NODE_OPTIONS: "--max-old-space-size=4096"
-        run: pnpm exec tsx scripts/ci-build-openclaw-control-ui.ts
+        run: |
+          $v = node -p "require('./package.json').openclawBundleVersion"
+          $url = "https://github.com/vpromalpe-design/openclaw-pc-builds/releases/download/control-ui-$v/control-ui-$v.zip"
+          Write-Host "Downloading $url"
+          curl.exe -fL --retry 3 --connect-timeout 30 -o control-ui.zip $url
+          $actual = (Get-FileHash control-ui.zip -Algorithm SHA256).Hash.ToLower()
+          $expected = $null
+          try { $expected = (Get-Content build/control-ui.zip.sha256 -ErrorAction Stop | ForEach-Object { ($_ -split '\s+')[0] }) } catch {}
+          if ($expected -and $expected -ne $actual) {
+            Write-Error "Control UI sha256 mismatch: got $actual expected $expected"
+            exit 1
+          }
+          Expand-Archive control-ui.zip -DestinationPath build/openclaw/dist -Force
 
       - name: Prepare apple-touch-icon for generate-resources
         run: |
