@@ -2,6 +2,12 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.8.24] - 2026-08-22
+
+### Fixed
+
+- **Silent install (`/S`) reported success but installed nothing** (and the interactive installer rejected the default install folder): a custom NSIS page (`PathValidateLeave`) blocked installation whenever the last path segment contained a space — which is exactly the default folder "OpenClaw PC". Windows and electron-builder handle spaces in paths fine, so the check was pure breakage. The page and its helper functions have been removed; installation into "OpenClaw PC" (and any other folder with spaces) now works both interactively and silently.
+
 ## [0.8.23] - 2026-08-21
 
 ### Fixed

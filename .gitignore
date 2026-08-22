@@ -4,7 +4,7 @@ out
 build/*
 !build/installer.nsh
 resources/node/
-resources/openclaw/
+resources/openclaw
 .DS_Store
 Thumbs.db
 *.log
