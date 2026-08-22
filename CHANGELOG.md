@@ -2,6 +2,21 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.8.25] - 2026-08-22
+
+### Fixed
+
+- **Local engine could hang forever on a stalled llama-server** (v0.8.20+ regression): `http.get` with the `timeout` option but no `'timeout'` listener never settles — the socket is never destroyed, so `waitForHealth` (incl. the 120 s orphan-adoption wait), `fetchLoadedModelId`, `isSchemaFixProxyUp` and `fetchServerContextWindow` hung indefinitely on an accept-but-stall server (observed as two llama-server processes on the backend port, CPU 0, empty replies). All four probes now destroy the request on timeout and fall through to their retry/failure path, so deadlines are actually enforced.
+- **Liveness watchdog did not cover adopted engines** (v0.8.23 regression): `ensureEngineWatchdog()` ran only on the cold-spawn path; engines adopted from a previous instance (orphan on the backend port) never got the watchdog, so a dying adopted engine left the UI reporting "running" forever. The watchdog is now armed on both adoption branches too.
+- **Quitting the app left the local engine and schema-fix proxy running**: `cleanupBeforeQuit` stopped the gateway, tray and IPC handlers but not the llama-server child (~13 GB RSS) nor the schema-fix proxy on 18788 (`stopSchemaFixProxy` had no callers at all). Quit now stops the engine and the proxy.
+- **A corrupt `auth-profiles.json` silently wiped every provider's API keys**: the store is the single credential vault, and both `loadStore` (auth-profile-store) and `loadExistingStore` (wizard writer) returned an empty store on parse failure — the next save then overwrote the file with one profile, destroying all other keys. Both writers now (a) write atomically (tmp + rename, no more torn files on crash) and (b) back the corrupt file up to `auth-profiles.json.bad-<ts>` before falling back to an empty store.
+- **A corrupt `openclaw.json` could be silently overwritten**: a parse failure returned `{}` with no backup, and the next write (migration / settings save / wizard) replaced the user's config — including `gateway.auth.token`. The unparseable file is now copied to `openclaw.json.bad-<ts>` before defaults are used.
+- **Wizard could leave a broken config on disk**: `openclaw.json` was written before validation; when validation failed the invalid config stayed, so the next app launch booted the gateway into a crash loop. The previous config is now snapshotted and restored (or the new file removed) on validation failure.
+- **"Save model settings" with an empty API key reported success but every request 401'd**: the config referenced an auth profile that was never written. Both the renderer (Save button stays disabled) and the main-process IPC handler (explicit error) now require a non-empty key for API-key providers.
+- **Telegram bot test through an `http://` proxy always failed with `socket hang up`**: after a CONNECT tunnel the socket was used raw for `https` when the proxy scheme was plain `http` — Node then sent plaintext HTTP into the TLS port. The tunnel socket is now always wrapped in `tls.connect` (the target is always TLS regardless of proxy scheme).
+- **Gateway RPC client could never reconnect after a gateway restart**: the cached resolved `connectPromise` was never cleared and there was no post-connect `ws.on('close')`, so a reused client kept failing `GATEWAY_NOT_CONNECTED` forever. Connection state is now cleared when the socket closes or errors.
+- **Window bounds written to disk on every mouse move**: `persistWindowBounds` ran on every `resize`/`move` event with no debounce. Writes are now debounced (500 ms).
+
 ## [0.8.24] - 2026-08-22
 
 ### Fixed

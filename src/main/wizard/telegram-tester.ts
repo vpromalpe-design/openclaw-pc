@@ -96,9 +96,14 @@ function getMeViaProxy(token: string, proxyUrl: string, timeoutMs: number): Prom
         fail(new Error(`proxy-http-${res.statusCode}`))
         return
       }
-      const tlsSocket = parsed.secure
-        ? tls.connect({ socket, servername: targetHost })
-        : socket
+      // v0.8.25: the tunnel socket is a PLAIN TCP pipe to the target in both
+      // cases — `parsed.secure` describes the proxy scheme (https proxy = TLS
+      // between client and proxy, terminated there), not the target. The target
+      // (api.telegram.org:443) is always TLS, so the socket must ALWAYS be
+      // wrapped in tls.connect. Before this fix, an http:// proxy handed
+      // https.request a raw socket and Node sent plaintext HTTP into the TLS
+      // port → "socket hang up" on every attempt (verified empirically).
+      const tlsSocket = tls.connect({ socket, servername: targetHost })
 
       const getReq = https.request(
         {

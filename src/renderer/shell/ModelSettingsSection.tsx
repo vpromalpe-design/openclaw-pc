@@ -208,6 +208,10 @@ export function ModelSettingsSection() {
     if (modelConfig.provider === 'cloudflare-ai-gateway') {
       if (!modelConfig.cloudflareAccountId?.trim() || !modelConfig.cloudflareGatewayId?.trim()) return false
     }
+    // v0.8.25: an API-key provider with an empty key saved "successfully" but
+    // produced a config whose auth profile is missing → every model call 401.
+    // Block saving until the key is entered (mirrors main-side validation).
+    if (requiresApiKey(modelConfig.provider) && !modelConfig.apiKey.trim()) return false
     if (targetKind === 'agent' && !agentId.trim()) return false
     return true
   }, [modelConfig, targetKind, agentId])

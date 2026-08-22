@@ -198,6 +198,26 @@ export class GatewayRpcClient {
             clearTimeout(timeout)
             if (parsed.ok) {
               this.ws = ws
+              // v0.8.25: without a post-connect close handler a reused client
+              // survives a gateway restart with a stale resolved connectPromise
+              // and a dead ws — every later call fails GATEWAY_NOT_CONNECTED
+              // forever. Clear cached state so the next connect() reconnects.
+              ws.on('close', () => {
+                if (this.ws === ws) {
+                  this.ws = null
+                }
+                if (this.connectPromise) {
+                  this.connectPromise = null
+                }
+              })
+              ws.on('error', () => {
+                if (this.ws === ws) {
+                  this.ws = null
+                }
+                if (this.connectPromise) {
+                  this.connectPromise = null
+                }
+              })
               resolve()
             } else {
               const msg = parsed.error?.message ?? 'connect failed'

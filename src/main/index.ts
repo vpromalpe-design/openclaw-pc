@@ -40,7 +40,12 @@ import { startBackgroundUpdateCheck, stopBackgroundUpdateCheck } from './update/
 import { parseGatewayLogLine } from './logs/index.js'
 import { migrateAuthProfilesIfNeeded } from './wizard/index.js'
 import { listAuthProfiles } from './providers/index.js'
-import { maybeAutoStartLocalEngine, sanitizeConfigPaths } from './models/local-engine.js'
+import {
+  maybeAutoStartLocalEngine,
+  sanitizeConfigPaths,
+  stopLocalEngine,
+  stopSchemaFixProxy,
+} from './models/local-engine.js'
 import { syncLoginItemToSystem, getLoginItemOpenAtLogin, clearLoginItem } from './login-item/index.js'
 import { patchGatewayResponseHeaders } from './security/gateway-response-headers.js'
 import { rewriteGatewayRequestUrlWithToken } from './security/gateway-request-auth.js'
@@ -132,6 +137,13 @@ async function cleanupBeforeQuit(): Promise<void> {
 
   // 2. Stop child processes (gateway)
   await gatewayManager.stop(5000)
+
+  // 2b. v0.8.25: stop the local engine and its schema-fix proxy so quitting
+  // the app does not leave an orphaned llama-server (~13 GB RSS) holding the
+  // backend port and the proxy port. (Before 0.8.25 the engine child was only
+  // stopped via the IPC stop handler, and stopSchemaFixProxy had no callers.)
+  stopLocalEngine()
+  stopSchemaFixProxy()
 
   // 3. Tear down tray
   trayManager.destroy()

@@ -652,8 +652,10 @@ function waitForHealth(port: number, timeoutMs: number): Promise<boolean> {
         resolve(false)
         return
       }
-      http
-        .get(`http://127.0.0.1:${port}/health`, { timeout: 2000 }, (res) => {
+      const req = http.get(
+        `http://127.0.0.1:${port}/health`,
+        { timeout: 2000 },
+        (res) => {
           let body = ''
           res.on('data', (c) => (body += c))
           res.on('end', () => {
@@ -668,8 +670,15 @@ function waitForHealth(port: number, timeoutMs: number): Promise<boolean> {
             }
             setTimeout(tryOnce, 1500)
           })
-        })
-        .on('error', () => setTimeout(tryOnce, 1500))
+        },
+      )
+      // v0.8.25: `timeout` option alone does NOT settle the request — without
+      // a 'timeout' listener the socket is never destroyed and the promise
+      // hangs forever on an accept-but-stall server (e.g. an orphan llama-server
+      // still loading). Destroying here fires 'error' (ECONNRESET), which the
+      // handler below turns into a retry — so the deadline is actually enforced.
+      req.on('error', () => setTimeout(tryOnce, 1500))
+      req.on('timeout', () => req.destroy())
     }
     tryOnce()
   })
@@ -747,8 +756,10 @@ function canConnectTcp(port: number): Promise<boolean> {
 
 function fetchLoadedModelId(port: number): Promise<string | null> {
   return new Promise((resolve) => {
-    http
-      .get(`http://127.0.0.1:${port}/v1/models`, { timeout: 3000 }, (res) => {
+    const req = http.get(
+      `http://127.0.0.1:${port}/v1/models`,
+      { timeout: 3000 },
+      (res) => {
         let body = ''
         res.on('data', (c) => (body += c))
         res.on('end', () => {
@@ -759,8 +770,12 @@ function fetchLoadedModelId(port: number): Promise<string | null> {
             resolve(null)
           }
         })
-      })
-      .on('error', () => resolve(null))
+      },
+    )
+    // v0.8.25: without a 'timeout' listener the request never settles (see
+    // waitForHealth). destroy() → 'error' → resolve(null) instead of a hang.
+    req.on('error', () => resolve(null))
+    req.on('timeout', () => req.destroy())
   })
 }
 
@@ -902,12 +917,18 @@ function sanitizeToolsSchema(node: unknown, changed: string[]): void {
 /** True when OUR proxy already owns LOCAL_ENGINE_PORT. */
 function isSchemaFixProxyUp(): Promise<boolean> {
   return new Promise((resolve) => {
-    http
-      .get(`http://127.0.0.1:${LOCAL_ENGINE_PORT}${PROXY_HEALTH_PATH}`, { timeout: 1500 }, (res) => {
+    const req = http.get(
+      `http://127.0.0.1:${LOCAL_ENGINE_PORT}${PROXY_HEALTH_PATH}`,
+      { timeout: 1500 },
+      (res) => {
         res.resume()
         res.on('end', () => resolve(res.statusCode === 200))
-      })
-      .on('error', () => resolve(false))
+      },
+    )
+    // v0.8.25: timeout listener required — destroy() → 'error' → resolve(false)
+    // (otherwise an accept-but-stall listener on the port hangs forever).
+    req.on('error', () => resolve(false))
+    req.on('timeout', () => req.destroy())
   })
 }
 
@@ -1016,8 +1037,10 @@ export function stopSchemaFixProxy(): void {
 
 function fetchServerContextWindow(port: number): Promise<number | null> {
   return new Promise((resolve) => {
-    http
-      .get(`http://127.0.0.1:${port}/props`, { timeout: 3000 }, (res) => {
+    const req = http.get(
+      `http://127.0.0.1:${port}/props`,
+      { timeout: 3000 },
+      (res) => {
         let body = ''
         res.on('data', (c) => (body += c))
         res.on('end', () => {
@@ -1031,8 +1054,12 @@ function fetchServerContextWindow(port: number): Promise<number | null> {
             resolve(null)
           }
         })
-      })
-      .on('error', () => resolve(null))
+      },
+    )
+    // v0.8.25: timeout listener required — destroy() → 'error' → resolve(null)
+    // (otherwise a stall on /props hangs the context-window sync forever).
+    req.on('error', () => resolve(null))
+    req.on('timeout', () => req.destroy())
   })
 }
 
@@ -1202,6 +1229,10 @@ async function startLocalEngineInner(
       // Adopted server may run with an arbitrary `-c`; keep the config
       // honest so we never send a prompt larger than the server's n_ctx.
       await syncLocalContextWindow(LOCAL_ENGINE_BACKEND_PORT, currentConfig, writeConfig)
+      // v0.8.25: adopt paths must arm the liveness watchdog too (v0.8.23's
+      // fix only covered the cold-spawn path) — otherwise a dying adopted
+      // engine leaves the UI lying "running" forever.
+      ensureEngineWatchdog()
       engineState = { running: true, port: LOCAL_ENGINE_PORT, modelId, adopted: true }
       return { ...engineState }
     }
@@ -1293,6 +1324,8 @@ async function startLocalEngineInner(
           modelNamesMatch(loaded, expectedModelName))
       if (matches) {
         await syncLocalContextWindow(LOCAL_ENGINE_BACKEND_PORT, currentConfig, writeConfig)
+        // v0.8.25: arm the watchdog on this pre-spawn adopt branch as well.
+        ensureEngineWatchdog()
         engineState = { running: true, port: LOCAL_ENGINE_PORT, modelId, adopted: true }
         return { ...engineState }
       }

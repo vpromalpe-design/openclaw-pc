@@ -13,6 +13,7 @@ import type { PortCheckResult } from '../utils/port-check.js'
 import { testModelConnection } from '../wizard/model-tester.js'
 import { testTelegramConnection } from '../wizard/telegram-tester.js'
 import {
+  API_KEY_PROVIDER_SET,
   handleWizardCompleteSetup,
   mergeModelIntoOpenClawConfig,
   sanitizeWizardState,
@@ -752,6 +753,17 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
         if (!cfg.cloudflareAccountId?.trim() || !cfg.cloudflareGatewayId?.trim()) {
           throw new Error('Cloudflare AI Gateway requires Account ID and Gateway ID')
         }
+      }
+      // v0.8.25: empty API key for a key-auth provider used to "save" fine
+      // while producing a config that references a non-existent auth profile
+      // → gateway restarts, every model call 401, UI shows success. Reject
+      // loudly instead (renderer now also blocks Save for the same case).
+      if (
+        cfg.provider !== 'custom' &&
+        (API_KEY_PROVIDER_SET.has(cfg.provider) || cfg.provider === 'moonshot-cn') &&
+        !cfg.apiKey.trim()
+      ) {
+        throw new Error('API Key is required for this provider')
       }
       const targetRaw = raw.target
       if (!targetRaw || typeof targetRaw !== 'object' || Array.isArray(targetRaw)) {

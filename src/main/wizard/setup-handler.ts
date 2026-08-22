@@ -18,6 +18,8 @@ import { writeAuthProfile, writeAuthProfileToken } from './auth-profile-writer.j
 import { runConfigValidate, readOpenClawConfig } from '../config/index.js'
 import { getUserDataDir } from '../utils/paths.js'
 import path from 'node:path'
+import fs from 'node:fs'
+import { OPENCLAW_CONFIG_FILE } from '../../shared/constants.js'
 import { addProfileToAuthOrder } from '../providers/provider-config.js'
 
 export interface WizardCompleteResult {
@@ -965,6 +967,18 @@ export async function handleWizardCompleteSetup(
   deps: SetupDeps,
 ): Promise<WizardCompleteResult> {
   const sanitized = sanitizeWizardState(state)
+  // v0.8.25: snapshot the previous openclaw.json so a failed validation (step 4)
+  // can restore it — otherwise an invalid wizard result leaves a broken config
+  // on disk and the next app launch boots the gateway into a crash loop.
+  const configFilePath = path.join(getUserDataDir(), OPENCLAW_CONFIG_FILE)
+  let previousConfigRaw: string | null = null
+  try {
+    if (fs.existsSync(configFilePath)) {
+      previousConfigRaw = fs.readFileSync(configFilePath, 'utf-8')
+    }
+  } catch {
+    /* ignore */
+  }
   // 1. Write openclaw.json
   try {
     const config = buildOpenClawConfig(sanitized)
@@ -1007,6 +1021,23 @@ export async function handleWizardCompleteSetup(
       .map((i) => `${i.path}: ${i.message}`)
       .join('; ')
     console.warn('[wizard] Config validate failed after setup:', issuesSummary)
+    // v0.8.25: roll the config back so the app does not boot into a broken
+    // gateway. Auth profiles written in step 2 are harmless leftovers (no
+    // config references them after rollback); shellConfig.lastGatewayPort is
+    // re-synced on the next successful run.
+    try {
+      if (previousConfigRaw !== null) {
+        fs.writeFileSync(configFilePath, previousConfigRaw, 'utf-8')
+        readOpenClawConfig()
+        console.warn('[wizard] Restored previous openclaw.json after failed validation')
+      } else {
+        fs.rmSync(configFilePath, { force: true })
+        readOpenClawConfig()
+        console.warn('[wizard] Removed newly written openclaw.json after failed validation')
+      }
+    } catch (rollbackErr) {
+      console.warn('[wizard] Config rollback failed:', rollbackErr instanceof Error ? rollbackErr.message : String(rollbackErr))
+    }
     return {
       ok: false,
       error: `Configuration validation failed: ${issuesSummary}`,

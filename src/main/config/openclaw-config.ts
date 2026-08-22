@@ -613,6 +613,18 @@ export function readOpenClawConfig(): OpenClawConfig {
       `[config] OpenClaw config parse failed, using defaults: ${configPath}`,
       err instanceof Error ? err.message : String(err)
     )
+    // v0.8.25: never let a parse failure be followed by a silent wipe — the
+    // next write (migration, IPC save, wizard) would overwrite the unparseable
+    // file with defaults, destroying the user's config incl. gateway.auth.token.
+    // Keep a .bad copy so the data stays recoverable.
+    try {
+      if (fs.existsSync(configPath)) {
+        fs.copyFileSync(configPath, `${configPath}.bad-${Date.now()}`)
+        console.warn(`[config] Saved unparseable config copy to ${configPath}.bad-*`)
+      }
+    } catch {
+      /* ignore */
+    }
     return {}
   }
 }

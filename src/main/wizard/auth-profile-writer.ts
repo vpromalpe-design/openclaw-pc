@@ -47,6 +47,32 @@ function resolveLegacyAuthStorePath(): string {
   return path.join(getUserDataDir(), 'credentials', AUTH_PROFILE_FILENAME)
 }
 
+/** v0.8.25: atomic write (tmp + rename) — see auth-profile-store.saveStoreAtomic. */
+function saveStoreAtomic(storePath: string, store: AuthProfileStore): void {
+  const dir = path.dirname(storePath)
+  fs.mkdirSync(dir, { recursive: true })
+  const tmpPath = `${storePath}.tmp`
+  const data = JSON.stringify(store, null, 2) + '\n'
+  fs.writeFileSync(tmpPath, data, 'utf-8')
+  try {
+    fs.renameSync(tmpPath, storePath)
+  } catch {
+    fs.unlinkSync(storePath)
+    fs.renameSync(tmpPath, storePath)
+  }
+}
+
+/** v0.8.25: keep a recoverable copy of a corrupt store instead of wiping it. */
+function backupCorruptStore(storePath: string): void {
+  try {
+    if (fs.existsSync(storePath)) {
+      fs.copyFileSync(storePath, `${storePath}.bad-${Date.now()}`)
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 function loadExistingStore(): AuthProfileStore {
   const storePath = resolveAuthStorePath()
   try {
@@ -67,7 +93,7 @@ function loadExistingStore(): AuthProfileStore {
           }
           const agentAuthDir = resolveAgentAuthDir()
           fs.mkdirSync(agentAuthDir, { recursive: true })
-          fs.writeFileSync(storePath, JSON.stringify(store, null, 2) + '\n', 'utf-8')
+          saveStoreAtomic(storePath, store)
           return store as AuthProfileStore
         }
       }
@@ -86,6 +112,9 @@ function loadExistingStore(): AuthProfileStore {
     }
     return { version: AUTH_STORE_VERSION, profiles: {} }
   } catch {
+    // v0.8.25: never treat a corrupt store as empty silently — back it up so
+    // the next write cannot erase every provider's credential.
+    backupCorruptStore(storePath)
     return { version: AUTH_STORE_VERSION, profiles: {} }
   }
 }
@@ -103,10 +132,10 @@ export function migrateAuthProfilesIfNeeded(): void {
     const raw = fs.readFileSync(legacyPath, 'utf-8')
     const parsed = JSON.parse(raw)
     if (parsed && typeof parsed === 'object' && parsed.profiles && typeof parsed.profiles === 'object') {
+      const store = { version: parsed.version ?? AUTH_STORE_VERSION, profiles: parsed.profiles }
       const agentAuthDir = resolveAgentAuthDir()
       fs.mkdirSync(agentAuthDir, { recursive: true })
-      const store = { version: parsed.version ?? AUTH_STORE_VERSION, profiles: parsed.profiles }
-      fs.writeFileSync(canonicalPath, JSON.stringify(store, null, 2) + '\n', 'utf-8')
+      saveStoreAtomic(canonicalPath, store)
     }
   } catch {
     // migration failed, leave as-is
@@ -138,7 +167,7 @@ export function writeAuthProfile(
   fs.mkdirSync(agentAuthDir, { recursive: true })
 
   const storePath = resolveAuthStorePath()
-  fs.writeFileSync(storePath, JSON.stringify(store, null, 2) + '\n', 'utf-8')
+  saveStoreAtomic(storePath, store)
 }
 
 /**
@@ -155,5 +184,5 @@ export function writeAuthProfileToken(profileId: string, provider: string, token
   const agentAuthDir = resolveAgentAuthDir()
   fs.mkdirSync(agentAuthDir, { recursive: true })
   const storePath = resolveAuthStorePath()
-  fs.writeFileSync(storePath, JSON.stringify(store, null, 2) + '\n', 'utf-8')
+  saveStoreAtomic(storePath, store)
 }

@@ -42,6 +42,36 @@ function resolveLegacyAuthStorePath(): string {
   return path.join(getUserDataDir(), 'credentials', AUTH_PROFILE_FILENAME)
 }
 
+/**
+ * v0.8.25: atomic write (tmp + rename). A plain writeFileSync can leave a
+ * truncated file on power loss / crash, and the next loadStore would silently
+ * return an EMPTY store — the next save then destroys every provider's key.
+ */
+function saveStoreAtomic(storePath: string, store: AuthProfileStore): void {
+  const dir = path.dirname(storePath)
+  fs.mkdirSync(dir, { recursive: true })
+  const tmpPath = `${storePath}.tmp`
+  const data = JSON.stringify(store, null, 2) + '\n'
+  fs.writeFileSync(tmpPath, data, 'utf-8')
+  try {
+    fs.renameSync(tmpPath, storePath)
+  } catch {
+    fs.unlinkSync(storePath)
+    fs.renameSync(tmpPath, storePath)
+  }
+}
+
+/** v0.8.25: keep a recoverable copy of a corrupt store instead of wiping it. */
+function backupCorruptStore(storePath: string): void {
+  try {
+    if (fs.existsSync(storePath)) {
+      fs.copyFileSync(storePath, `${storePath}.bad-${Date.now()}`)
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 function loadStore(): AuthProfileStore {
   const storePath = resolveAuthStorePath()
   try {
@@ -63,7 +93,7 @@ function loadStore(): AuthProfileStore {
           const agentAuthDir = resolveAgentAuthDir()
           fs.mkdirSync(agentAuthDir, { recursive: true })
           const { store: migrated } = migrateShorthandProfileKeys(store)
-          fs.writeFileSync(storePath, JSON.stringify(migrated, null, 2) + '\n', 'utf-8')
+          saveStoreAtomic(storePath, migrated)
           return migrated
         }
       }
@@ -86,15 +116,15 @@ function loadStore(): AuthProfileStore {
     }
     return { version: AUTH_STORE_VERSION, profiles: {} }
   } catch {
+    // v0.8.25: corrupt/unreadable store must NOT be silently treated as
+    // empty — the next save would erase every credential. Back it up first.
+    backupCorruptStore(storePath)
     return { version: AUTH_STORE_VERSION, profiles: {} }
   }
 }
 
 function saveStore(store: AuthProfileStore): void {
-  const agentAuthDir = resolveAgentAuthDir()
-  fs.mkdirSync(agentAuthDir, { recursive: true })
-  const storePath = resolveAuthStorePath()
-  fs.writeFileSync(storePath, JSON.stringify(store, null, 2) + '\n', 'utf-8')
+  saveStoreAtomic(resolveAuthStorePath(), store)
 }
 
 /**

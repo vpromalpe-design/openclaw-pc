@@ -366,8 +366,18 @@ export class WindowManager {
   }
 
   private attachBoundsPersistence(window: BrowserWindow): void {
+    // v0.8.25: debounce — persistWindowBounds used to run on EVERY 'resize'
+    // and 'move' event (i.e. every mouse drag), writing shell-config.json to
+    // disk on each frame. Now it writes at most once per 500ms of quiet.
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
     const persist = () => {
-      this.persistWindowBounds()
+      if (debounceTimer) {
+        clearTimeout(debounceTimer)
+      }
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null
+        this.persistWindowBounds()
+      }, 500)
     }
 
     window.on('resize', persist)
