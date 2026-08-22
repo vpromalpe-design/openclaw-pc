@@ -48,7 +48,12 @@ export function sanitizeWizardState(state: WizardState): WizardState {
     ...gw,
     authToken: gw.authToken.trim(),
   }
-  return { ...state, modelConfig, gatewayConfig }
+  const vc = state.voiceConfig
+  const voiceConfig: WizardState['voiceConfig'] = {
+    ...vc,
+    apiKey: (vc.apiKey ?? '').trim(),
+  }
+  return { ...state, modelConfig, gatewayConfig, voiceConfig }
 }
 
 interface SetupDeps {
@@ -755,6 +760,43 @@ function buildOpenClawConfig(state: WizardState): OpenClawConfig {
   }
   config.skills = {
     allowBundled: [],
+  }
+
+  // Voice (realtime talk): optional step. Only write when the user actually
+  // provided a key (or explicitly configured a provider with an existing key).
+  const vc = state.voiceConfig
+  const voiceKey = (vc?.apiKey ?? '').trim()
+  const voiceProvider = vc?.provider === 'openai' ? 'openai' : vc?.provider === 'google' ? 'google' : ''
+  if (!vc?.skipVoice && voiceProvider && voiceKey) {
+    const existingTalk = (config.talk ?? {}) as NonNullable<OpenClawConfig['talk']>
+    const existingRealtime =
+      existingTalk.realtime && typeof existingTalk.realtime === 'object'
+        ? (existingTalk.realtime as Record<string, unknown>)
+        : {}
+    const existingProviders =
+      existingRealtime.providers && typeof existingRealtime.providers === 'object'
+        ? (existingRealtime.providers as Record<string, Record<string, unknown>>)
+        : {}
+    const providerCfg: Record<string, unknown> = {
+      ...(existingProviders[voiceProvider] ?? {}),
+      apiKey: voiceKey,
+    }
+    if (voiceProvider === 'google') {
+      // Gemini Live defaults (docs: plugins/voice-call.md)
+      providerCfg.model = typeof providerCfg.model === 'string' ? providerCfg.model : 'gemini-2.5-flash-native-audio-preview-12-2025'
+      providerCfg.speakerVoice = typeof providerCfg.speakerVoice === 'string' ? providerCfg.speakerVoice : 'Kore'
+    }
+    config.talk = {
+      ...existingTalk,
+      realtime: {
+        ...existingRealtime,
+        provider: voiceProvider,
+        providers: {
+          ...existingProviders,
+          [voiceProvider]: providerCfg,
+        },
+      },
+    }
   }
 
   return config

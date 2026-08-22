@@ -243,6 +243,26 @@ export interface OpenClawConfig {
   channels?: ChannelsConfig
   auth?: AuthConfig
   models?: ModelsConfig
+  talk?: TalkConfig
+  [key: string]: unknown
+}
+
+/** Talk (voice mode) config — `talk.*` in openclaw.json */
+export interface TalkRealtimeProviderConfig {
+  apiKey?: string
+  model?: string
+  speakerVoice?: string
+  [key: string]: unknown
+}
+
+export interface TalkConfig {
+  provider?: string
+  providers?: Record<string, Record<string, unknown>>
+  realtime?: {
+    provider?: string
+    providers?: Record<string, TalkRealtimeProviderConfig>
+    [key: string]: unknown
+  }
   [key: string]: unknown
 }
 
@@ -370,12 +390,61 @@ export interface GatewayWizardConfig {
   authToken: string
 }
 
+/** Wizard voice (realtime talk) step data */
+export interface VoiceConfig {
+  /** Realtime voice provider: 'google' (Gemini Live) or 'openai' (Realtime) */
+  provider: 'google' | 'openai' | ''
+  /** Provider API key (Google AI Studio / OpenAI platform) */
+  apiKey: string
+  /** True when the user chose to skip voice setup */
+  skipVoice: boolean
+}
+
 /** Wizard progress (in-memory, Zustand) */
 export interface WizardState {
   currentStep: number
   modelConfig: ModelConfig
   channelConfig: ChannelConfig
   gatewayConfig: GatewayWizardConfig
+  voiceConfig: VoiceConfig
+}
+
+// ─── Voice settings (SettingsView section) ──────────────────────────────────
+
+/** Settings → voice editor: load snapshot */
+export interface VoiceSettingsLoadResult {
+  hasConfig: boolean
+  /** talk.realtime.provider set and non-empty */
+  enabled: boolean
+  provider: 'google' | 'openai' | ''
+  /** Non-empty apiKey present in talk.realtime.providers.<provider> */
+  hasKey: boolean
+  model?: string
+  voice?: string
+}
+
+/** Settings → voice editor: apply payload */
+export interface VoiceSettingsApplyPayload {
+  provider: 'google' | 'openai'
+  /** New API key to persist; empty string keeps the existing key; null removes it */
+  apiKey: string | null
+  /** When true, restart Gateway after write so changes take effect immediately */
+  restartGateway: boolean
+}
+
+/** Settings → voice editor: apply result */
+export interface VoiceSettingsApplyResult {
+  ok: boolean
+  error?: string
+  restarted?: boolean
+}
+
+/** Voice connection test (wizard step + settings section) */
+export interface VoiceTestResult {
+  ok: boolean
+  /** Machine-friendly status: 'ok' | 'missing-key' | 'geo-blocked' | 'invalid-key' | 'network-error' */
+  status?: string
+  message?: string
 }
 
 // ─── WizardCompleteResult ─────────────────────────────────────────────────────

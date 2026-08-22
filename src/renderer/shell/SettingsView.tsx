@@ -18,6 +18,7 @@ import {
 } from '../i18n'
 import { normalizeToShellLocale } from '../../shared/shell-locale'
 import { ModelSettingsSection } from './ModelSettingsSection'
+import { VoiceSettingsSection } from './VoiceSettingsSection'
 
 export interface SettingsViewProps {
   /** Back navigation when embedded in parent layout */
@@ -284,6 +285,8 @@ export function SettingsView({ onBack, onOpenFeishuSettings }: SettingsViewProps
         </section>
 
         <ModelSettingsSection />
+
+        <VoiceSettingsSection />
 
         {onOpenFeishuSettings && (
           <section className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4" aria-label={t('shell.settings.feishuSection')}>

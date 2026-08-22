@@ -189,6 +189,10 @@ export interface ElectronAPI {
   modelSettingsLoad: () => Promise<ModelSettingsLoadResult>
   modelSettingsApply: (payload: ModelSettingsApplyPayload) => Promise<ModelSettingsApplyResult>
 
+  voiceSettingsLoad: () => Promise<VoiceSettingsLoadResult>
+  voiceSettingsApply: (payload: VoiceSettingsApplyPayload) => Promise<VoiceSettingsApplyResult>
+  voiceTest: (opts: { provider: 'google' | 'openai'; apiKey: string }) => Promise<VoiceTestResult>
+
   modelsViewList: () => Promise<ModelsViewResult>
   modelsViewApply: (payload: ModelsViewApplyRequest) => Promise<{ ok: boolean; restarted: boolean; backupPath: string | null }>
   localList: () => Promise<{ localModels: LocalModelInfo[]; engineState: LocalEngineState }>

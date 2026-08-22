@@ -2,6 +2,18 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.8.26] - 2026-08-22
+
+### Added
+
+- **Voice input setup in the wizard**: new optional «Voice» step (after Channels, before Gateway) with Google Gemini Live (free) / OpenAI Realtime (paid) provider cards, API-key field, connection test, VPN-for-Russia warning and «Skip» (step can be skipped without configuring anything).
+- **«Voice» section in Settings**: read/write the realtime talk config (`talk.realtime`) directly — provider, API key, save, remove key, connection test; the gateway restarts automatically after saving.
+- The wizard writes `talk.realtime` into `openclaw.json` at deploy time when a key was provided, so a fresh install boots with voice ready.
+
+### Fixed
+
+- Google voice keys entered in Model settings (auth profiles only) were never picked up by realtime voice — the voice path now stores the key in `talk.realtime.providers.google.apiKey`, which the realtime provider actually reads.
+
 ## [0.8.25] - 2026-08-22
 
 ### Fixed

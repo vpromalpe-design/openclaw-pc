@@ -3,6 +3,7 @@ import type {
   ModelConfig,
   ChannelConfig,
   GatewayWizardConfig,
+  VoiceConfig,
   WizardState,
 } from '../../shared/types'
 import { requiresApiKey } from '@/utils/provider-auth'
@@ -11,7 +12,7 @@ import type { TFunction } from 'i18next'
 
 // ─── Step Definitions ────────────────────────────────────────────────────────
 
-export const WIZARD_STEP_COUNT = 5
+export const WIZARD_STEP_COUNT = 6
 
 export interface WizardStepDef {
   id: string
@@ -23,6 +24,7 @@ export const WIZARD_STEPS: readonly WizardStepDef[] = [
   { id: 'welcome', label: 'Welcome' },
   { id: 'model', label: 'Model' },
   { id: 'channel', label: 'Channels', skippable: true },
+  { id: 'voice', label: 'Voice', skippable: true },
   { id: 'gateway', label: 'Gateway' },
   { id: 'complete', label: 'Complete' },
 ] as const
@@ -56,6 +58,12 @@ const DEFAULT_CHANNEL_CONFIG: ChannelConfig = {
   skipChannels: false,
 }
 
+const DEFAULT_VOICE_CONFIG: VoiceConfig = {
+  provider: 'google',
+  apiKey: '',
+  skipVoice: false,
+}
+
 function createDefaultGatewayConfig(): GatewayWizardConfig {
   return {
     port: 18789,
@@ -79,6 +87,8 @@ interface WizardActions {
   setModelConfig: (config: Partial<ModelConfig>) => void
   /** Merge partial channel configuration into current state */
   setChannelConfig: (config: Partial<ChannelConfig>) => void
+  /** Merge partial voice configuration into current state */
+  setVoiceConfig: (config: Partial<VoiceConfig>) => void
   /** Merge partial gateway configuration into current state */
   setGatewayConfig: (config: Partial<GatewayWizardConfig>) => void
   /** Check whether a given step passes validation */
@@ -110,6 +120,7 @@ function createInitialState(): WizardInternalState {
     completedSteps: Array.from({ length: WIZARD_STEP_COUNT }, () => false),
     modelConfig: { ...DEFAULT_MODEL_CONFIG },
     channelConfig: { ...DEFAULT_CHANNEL_CONFIG },
+    voiceConfig: { ...DEFAULT_VOICE_CONFIG },
     gatewayConfig: createDefaultGatewayConfig(),
     deployPhase: 'idle',
     deployMessage: '',
@@ -156,6 +167,11 @@ export const useWizardStore = create<WizardStore>((set, get) => ({
   setChannelConfig: (config) =>
     set((state) => ({
       channelConfig: { ...state.channelConfig, ...config },
+    })),
+
+  setVoiceConfig: (config) =>
+    set((state) => ({
+      voiceConfig: { ...state.voiceConfig, ...config },
     })),
 
   setGatewayConfig: (config) =>
@@ -209,12 +225,16 @@ export const useWizardStore = create<WizardStore>((set, get) => ({
             return true
         }
       case 3:
+        // Voice step: always skippable — either the user configured a
+        // provider/key or pressed «Пропустить»; never block the wizard.
+        return true
+      case 4:
         return (
           state.gatewayConfig.port > 0 &&
           state.gatewayConfig.port <= 65535 &&
           state.gatewayConfig.authToken.trim().length > 0
         )
-      case 4:
+      case 5:
         return true
       default:
         return false
@@ -222,8 +242,8 @@ export const useWizardStore = create<WizardStore>((set, get) => ({
   },
 
   getWizardData: () => {
-    const { currentStep, modelConfig, channelConfig, gatewayConfig } = get()
-    return { currentStep, modelConfig, channelConfig, gatewayConfig }
+    const { currentStep, modelConfig, channelConfig, voiceConfig, gatewayConfig } = get()
+    return { currentStep, modelConfig, channelConfig, voiceConfig, gatewayConfig }
   },
 
   reset: () => set(createInitialState()),

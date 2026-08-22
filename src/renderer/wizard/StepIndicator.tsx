@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
-import { Check, Sparkles, Bot, MessageSquare, Server, Rocket } from 'lucide-react'
+import { Check, Sparkles, Bot, MessageSquare, Mic, Server, Rocket } from 'lucide-react'
 import type { WizardStepDef } from '@/stores/wizard-store'
 
 interface StepIndicatorProps {
@@ -14,6 +14,7 @@ const STEP_ICONS: Record<string, React.ReactNode> = {
   welcome: <Sparkles className="w-4 h-4" />,
   model: <Bot className="w-4 h-4" />,
   channel: <MessageSquare className="w-4 h-4" />,
+  voice: <Mic className="w-4 h-4" />,
   gateway: <Server className="w-4 h-4" />,
   complete: <Rocket className="w-4 h-4" />,
 }

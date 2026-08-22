@@ -37,6 +37,9 @@ import {
   IPC_PROVIDERS_SET_MODEL_DEFAULTS,
   IPC_MODEL_SETTINGS_LOAD,
   IPC_MODEL_SETTINGS_APPLY,
+  IPC_VOICE_SETTINGS_LOAD,
+  IPC_VOICE_SETTINGS_APPLY,
+  IPC_VOICE_TEST,
   IPC_MODELS_VIEW_LIST,
   IPC_MODELS_VIEW_APPLY,
   IPC_LOCAL_LIST,
@@ -170,6 +173,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   modelSettingsLoad: () => invoke(IPC_MODEL_SETTINGS_LOAD),
   modelSettingsApply: (payload: unknown) => invoke(IPC_MODEL_SETTINGS_APPLY, payload),
+
+  voiceSettingsLoad: () => invoke(IPC_VOICE_SETTINGS_LOAD),
+  voiceSettingsApply: (payload: unknown) => invoke(IPC_VOICE_SETTINGS_APPLY, payload),
+  voiceTest: (opts: unknown) => invoke(IPC_VOICE_TEST, opts),
 
   modelsViewList: () => invoke(IPC_MODELS_VIEW_LIST),
   modelsViewApply: (payload: { primary: string | null; fallbacks: string[]; restart: boolean }) =>

@@ -47,3 +47,7 @@ pnpm-debug.log*
 # OS / editor swap
 *.swp
 *~
+
+# Temporary mockups (voice feature) — not part of the product
+voice-*-mockup*.html
+voice-*-mockup*.png

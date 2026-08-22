@@ -10,7 +10,8 @@
       "model": "模型",
       "channel": "通道",
       "gateway": "网关",
-      "complete": "完成"
+      "complete": "完成",
+      "voice": "语音"
     },
     "nav": {
       "previous": "上一步",
@@ -626,6 +627,53 @@
     },
     "models": {
       "title": "模型"
+    }
+  },
+  "voice": {
+    "step": {
+      "title": "语音输入",
+      "subtitle": "使用 Control UI 中的麦克风与代理对话。可选步骤 — 可跳过并在稍后的设置中配置。"
+    },
+    "provider": {
+      "google": {
+        "name": "Google Gemini Live",
+        "badge": "Free",
+        "desc": "Live conversation with your agent. Free key from Google AI Studio.",
+        "keyHint": "(Google AI Studio → Create API key)"
+      },
+      "openai": {
+        "name": "OpenAI Realtime",
+        "badge": "Paid",
+        "desc": "Industrial realtime voice from OpenAI. Billed per minute of conversation.",
+        "keyHint": "(platform.openai.com/api-keys)"
+      }
+    },
+    "apiKeyLabel": "API key",
+    "getKey": "Get a free Google key",
+    "showKey": "Show key",
+    "hideKey": "Hide key",
+    "geoWarning": "VPN for Russia: Google rejects API requests from RU («location is not supported»). Voice needs a VPN/proxy enabled — otherwise a valid key looks broken.",
+    "keyStorageNote": "The key is stored only on this PC in the app config. It is never sent anywhere except the selected provider.",
+    "test": {
+      "run": "Test connection",
+      "testing": "Testing…",
+      "connected": "Connected",
+      "ok": "Connection established",
+      "missingKey": "Enter an API key first",
+      "invalidKey": "Provider rejected the key (invalid or expired). Check the key.",
+      "geoBlocked": "Key is valid, but the RU region is blocked by the provider. Enable VPN and retry.",
+      "networkError": "Network unreachable: {detail}"
+    },
+    "settings": {
+      "title": "Voice",
+      "desc": "Voice input and agent conversations via the Control UI mic. Changes apply after a gateway restart.",
+      "sectionAria": "Voice",
+      "active": "active",
+      "save": "Save",
+      "removeKey": "Remove key",
+      "saved": "Saved ✓ Restarting gateway…",
+      "saveFailed": "Failed to save",
+      "loadFailed": "Failed to load voice settings"
     }
   }
 }

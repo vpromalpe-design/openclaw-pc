@@ -18,6 +18,7 @@ import {
 import { WelcomeStep } from './steps/WelcomeStep'
 import { ModelStep } from './steps/ModelStep'
 import { ChannelStep } from './steps/ChannelStep'
+import { VoiceStep } from './steps/VoiceStep'
 import { GatewayStep } from './steps/GatewayStep'
 import { CompleteStep } from './steps/CompleteStep'
 import { ChevronLeft, ChevronRight, SkipForward, Rocket } from 'lucide-react'
@@ -33,6 +34,7 @@ const STEP_COMPONENTS = [
   WelcomeStep,
   ModelStep,
   ChannelStep,
+  VoiceStep,
   GatewayStep,
   CompleteStep,
 ] as const

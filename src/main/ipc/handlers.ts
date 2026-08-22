@@ -8,6 +8,9 @@ import type {
   WizardState,
   ModelSettingsApplyResult,
   ModelSettingsLoadResult,
+  VoiceSettingsLoadResult,
+  VoiceSettingsApplyResult,
+  VoiceTestResult,
 } from '../../shared/types.js'
 import type { PortCheckResult } from '../utils/port-check.js'
 import { testModelConnection } from '../wizard/model-tester.js'
@@ -21,6 +24,7 @@ import {
   type ModelSettingsTarget,
 } from '../wizard/setup-handler.js'
 import { inferModelConfigFromOpenClaw, listAgentSummariesFromConfig } from '../wizard/model-settings-load.js'
+import { testVoiceConnection } from '../wizard/voice-tester.js'
 import fs from 'node:fs'
 import path from 'node:path'
 import type { ModelsViewResult } from '../../shared/types.js'
@@ -59,6 +63,9 @@ import {
   IPC_PROVIDERS_SET_MODEL_DEFAULTS,
   IPC_MODEL_SETTINGS_LOAD,
   IPC_MODEL_SETTINGS_APPLY,
+  IPC_VOICE_SETTINGS_LOAD,
+  IPC_VOICE_SETTINGS_APPLY,
+  IPC_VOICE_TEST,
   IPC_MODELS_VIEW_LIST,
   IPC_MODELS_VIEW_APPLY,
   IPC_LOCAL_LIST,
@@ -299,6 +306,11 @@ function wizardStateForModelConfig(modelConfig: ModelConfig): WizardState {
       port: 18789,
       bind: 'loopback',
       authToken: '',
+    },
+    voiceConfig: {
+      provider: 'google',
+      apiKey: '',
+      skipVoice: true,
     },
   }
 }
@@ -819,6 +831,122 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
         restarted,
         ...(validationIssues && validationIssues.length ? { validationIssues } : {}),
       }
+    }),
+  )
+
+  // ─── Voice (talk.realtime) settings ─────────────────────────────────────
+  ipcMain.handle(
+    IPC_VOICE_SETTINGS_LOAD,
+    wrapHandler('VOICE_SETTINGS_LOAD', (): VoiceSettingsLoadResult => {
+      if (!deps.openclawConfigExists()) {
+        return { hasConfig: false, enabled: false, provider: '', hasKey: false }
+      }
+      const config = deps.readOpenClawConfig() ?? {}
+      const talk = config.talk
+      const realtime = talk?.realtime
+      const provider =
+        typeof realtime?.provider === 'string' &&
+        (realtime.provider === 'google' || realtime.provider === 'openai')
+          ? realtime.provider
+          : ''
+      const providers =
+        realtime?.providers && typeof realtime.providers === 'object'
+          ? (realtime.providers as Record<string, { apiKey?: unknown; model?: unknown; speakerVoice?: unknown }>)
+          : {}
+      const pcfg = provider ? providers[provider] : undefined
+      const hasKey = Boolean(pcfg?.apiKey && typeof pcfg.apiKey === 'string' && pcfg.apiKey.trim())
+      return {
+        hasConfig: true,
+        enabled: Boolean(provider),
+        provider,
+        hasKey,
+        ...(pcfg?.model && typeof pcfg.model === 'string' ? { model: pcfg.model } : {}),
+        ...(pcfg?.speakerVoice && typeof pcfg.speakerVoice === 'string' ? { voice: pcfg.speakerVoice } : {}),
+      }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_VOICE_SETTINGS_APPLY,
+    wrapHandler('VOICE_SETTINGS_APPLY', async (payload: unknown): Promise<VoiceSettingsApplyResult> => {
+      const raw = validatePlainObject(payload, 'voiceSettingsApply')
+      const provider = raw.provider
+      if (provider !== 'google' && provider !== 'openai') {
+        throw new Error('provider must be "google" or "openai"')
+      }
+      // apiKey: string (set/keep) | null (remove & disable) | undefined (keep)
+      let apiKey: string | null | undefined
+      if (raw.apiKey === null) {
+        apiKey = null
+      } else if (typeof raw.apiKey === 'string') {
+        apiKey = raw.apiKey.trim()
+      }
+      const restartGateway = raw.restartGateway === true
+
+      const base = deps.openclawConfigExists() ? (deps.readOpenClawConfig() ?? {}) : {}
+      const config = JSON.parse(JSON.stringify(base)) as OpenClawConfig
+      const talk = { ...(config.talk ?? {}) } as NonNullable<OpenClawConfig['talk']>
+      const realtime = {
+        ...(talk.realtime ?? {}),
+      } as NonNullable<NonNullable<OpenClawConfig['talk']>['realtime']>
+      const providers =
+        realtime.providers && typeof realtime.providers === 'object'
+          ? (realtime.providers as Record<string, Record<string, unknown>>)
+          : {}
+      const pcfg = { ...(providers[provider] ?? {}) }
+
+      if (apiKey === null) {
+        // Remove the provider key and disable voice entirely
+        delete pcfg.apiKey
+        if (Object.keys(pcfg).length === 0) delete providers[provider]
+        else providers[provider] = pcfg
+        delete realtime.provider
+      } else {
+        if (apiKey) pcfg.apiKey = apiKey
+        providers[provider] = pcfg
+        realtime.provider = provider
+        if (provider === 'google') {
+          if (typeof pcfg.model !== 'string' || !pcfg.model) {
+            pcfg.model = 'gemini-2.5-flash-native-audio-preview-12-2025'
+          }
+          if (typeof pcfg.speakerVoice !== 'string' || !pcfg.speakerVoice) {
+            pcfg.speakerVoice = 'Kore'
+          }
+        }
+      }
+
+      realtime.providers = providers
+      talk.realtime = realtime
+      config.talk = talk
+      deps.writeOpenClawConfig(config)
+      readOpenClawConfig()
+
+      let restarted = false
+      if (restartGateway) {
+        const gwCfg = deps.readOpenClawConfig()
+        const gw = gwCfg?.gateway
+        const port = gw?.port ?? DEFAULT_GATEWAY_PORT
+        const bind = gw?.bind ?? 'loopback'
+        const token = gw?.auth?.token?.trim()
+        const force = Boolean(gw?.forcePortOnConflict)
+        await gatewayManager.restart({ port, bind, token: token || undefined, force })
+        restarted = true
+      }
+
+      return { ok: true, restarted }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_VOICE_TEST,
+    wrapHandler('VOICE_TEST', async (payload: unknown): Promise<VoiceTestResult> => {
+      const raw = validatePlainObject(payload, 'voiceTest')
+      const provider = raw.provider
+      if (provider !== 'google' && provider !== 'openai') {
+        throw new Error('provider must be "google" or "openai"')
+      }
+      const apiKey = typeof raw.apiKey === 'string' ? raw.apiKey : ''
+      return testVoiceConnection(provider, apiKey)
     }),
   )
 

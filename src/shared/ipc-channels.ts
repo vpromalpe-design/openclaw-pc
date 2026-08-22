@@ -101,6 +101,15 @@ export const IPC_MODEL_SETTINGS_LOAD = 'modelSettings:load' as const
 /** Settings: apply model editor (merge config + optional gateway restart) */
 export const IPC_MODEL_SETTINGS_APPLY = 'modelSettings:apply' as const
 
+/** Settings: load voice (talk.realtime) editor snapshot */
+export const IPC_VOICE_SETTINGS_LOAD = 'voiceSettings:load' as const
+
+/** Settings: apply voice (talk.realtime) editor (write + optional gateway restart) */
+export const IPC_VOICE_SETTINGS_APPLY = 'voiceSettings:apply' as const
+
+/** Voice: test provider connectivity (wizard step + settings section) */
+export const IPC_VOICE_TEST = 'voice:test' as const
+
 /** Skills list */
 export const IPC_SKILLS_LIST = 'skills:list' as const
 
