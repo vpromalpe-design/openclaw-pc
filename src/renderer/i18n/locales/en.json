@@ -657,6 +657,8 @@
       "skillsDesc": "Skills & extensions",
       "updates": "Updates",
       "updatesDesc": "Check for updates",
+      "voice": "Voice",
+      "voiceDesc": "Voice provider & API key",
       "settings": "Settings",
       "settingsDesc": "Appearance & startup",
       "about": "About",

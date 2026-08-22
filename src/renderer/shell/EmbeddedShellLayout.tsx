@@ -9,11 +9,13 @@ import {
   LayoutDashboard,
   ChevronLeft,
   Cpu,
+  Mic,
   Loader2,
 } from 'lucide-react'
 import { LoadingView } from './LoadingView'
 import { ErrorView, type ErrorType } from './ErrorView'
 import { SettingsView } from './SettingsView'
+import { VoiceSettingsView } from './VoiceSettingsView'
 import { AboutView } from './AboutView'
 import { DashboardView } from './DashboardView'
 import { ProviderView } from './ProviderView'
@@ -45,6 +47,7 @@ interface ErrorInfo {
 export type EmbeddedPanel =
   | ''
   | 'settings'
+  | 'voice'
   | 'about'
   | 'dashboard'
   | 'models'
@@ -102,6 +105,7 @@ const DESKTOP_NAV_ITEMS: { id: EmbeddedPanel; label: string; icon: React.ReactNo
   { id: 'llm-api', label: 'LLM API', icon: <Key className="w-4 h-4" />, description: 'Providers & auth profiles' },
   { id: 'skills', label: 'Skills', icon: <Puzzle className="w-4 h-4" />, description: 'Skills & extensions' },
   { id: 'updates', label: 'Updates', icon: <RefreshCw className="w-4 h-4" />, description: 'Check for updates' },
+  { id: 'voice', label: 'Voice', icon: <Mic className="w-4 h-4" />, description: 'Voice provider & API key' },
   { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" />, description: 'Appearance & startup' },
   { id: 'about', label: 'About', icon: <Info className="w-4 h-4" />, description: 'Version info' },
 ]
@@ -113,6 +117,7 @@ const NAV_I18N_KEY: Record<string, string> = {
   'llm-api': 'shell.nav.llmApi',
   skills: 'shell.nav.skills',
   updates: 'shell.nav.updates',
+  voice: 'shell.nav.voice',
   settings: 'shell.nav.settings',
   about: 'shell.nav.about',
 }
@@ -371,6 +376,8 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
             onOpenFeishuSettings={() => onPanelChange('feishu-settings')}
           />
         )
+      case 'voice':
+        return <VoiceSettingsView onBack={() => onPanelChange('')} />
       case 'about':
         return <AboutView onBack={() => onPanelChange('')} />
       case 'dashboard':

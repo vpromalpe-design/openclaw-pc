@@ -323,6 +323,8 @@
       "skillsDesc": "스킬 및 확장",
       "updates": "업데이트",
       "updatesDesc": "업데이트 확인",
+      "voice": "음성",
+      "voiceDesc": "음성 공급자 및 API 키",
       "settings": "설정",
       "settingsDesc": "외관 및 시작",
       "about": "정보",

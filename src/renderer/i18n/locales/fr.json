@@ -323,6 +323,8 @@
       "skillsDesc": "Compétences et extensions",
       "updates": "Mises à jour",
       "updatesDesc": "Vérifier les mises à jour",
+      "voice": "Voix",
+      "voiceDesc": "Fournisseur vocal et clé API",
       "settings": "Paramètres",
       "settingsDesc": "Apparence et démarrage",
       "about": "À propos",

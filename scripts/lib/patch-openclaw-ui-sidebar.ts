@@ -73,6 +73,15 @@ export async function applyOpenClawUiSidebarDesktopPatches(uiRoot: string): Prom
                   <span class="nav-item__icon" aria-hidden="true">\${icons.cpu}</span>
                   <span class="nav-item__text">\${t("nav.models")}</span>
                 </button>
+                <button
+                  type="button"
+                  class="nav-item nav-item--desktop-voice"
+                  aria-label=\${t("nav.voice")}
+                  @click=\${this.openDesktopVoice}
+                >
+                  <span class="nav-item__icon" aria-hidden="true">\${icons.mic}</span>
+                  <span class="nav-item__text">\${t("nav.voice")}</span>
+                </button>
                 \${SIDEBAR_NAV_ROUTES.map((routeId) => this.renderRoute(routeId))}
               </div>
             </nav>`,
@@ -94,13 +103,22 @@ export async function applyOpenClawUiSidebarDesktopPatches(uiRoot: string): Prom
     }
   };
 
+  /** OpenClaw PC: "Voice" opens the desktop Голос panel (parent window bridge). */
+  private readonly openDesktopVoice = () => {
+    try {
+      window.parent.postMessage({ type: "openclaw-pc:open-panel", panel: "voice" }, "*");
+    } catch {
+      // ignored
+    }
+  };
+
   private renderChatFallback() {`,
         expectCount: 1,
       },
     ],
   )
 
-  // 2. icons.ts: add a CPU icon for the Models nav item.
+  // 2. icons.ts: add a CPU icon for the Models nav item. (Voice reuses the upstream `mic` icon.)
   await patchFile(
     join(components, 'icons.ts'),
     'icons.ts',
@@ -123,12 +141,14 @@ export async function applyOpenClawUiSidebarDesktopPatches(uiRoot: string): Prom
   await patchFile(
     join(locales, 'en.ts'),
     'en.ts',
-    [{ find: / {4}more: "More",/, replace: `    more: "More",\n    models: "Models",`, expectCount: 1 }],
+    [
+      { find: / {4}more: "More",/, replace: `    more: "More",\n    models: "Models",\n    voice: "Voice",`, expectCount: 1 },
+    ],
   )
   await patchFile(
     join(locales, 'ru.ts'),
     'ru.ts',
-    [{ find: / {4}more: "Ещё",/, replace: `    more: "Ещё",\n    models: "Модели",`, expectCount: 1 }],
+    [{ find: / {4}more: "Ещё",/, replace: `    more: "Ещё",\n    models: "Модели",\n    voice: "Голос",`, expectCount: 1 }],
   )
 
   // 4. layout.css: bigger nav items.

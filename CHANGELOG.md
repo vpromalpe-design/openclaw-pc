@@ -2,6 +2,12 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.8.27] - 2026-08-22
+
+### Added
+
+- **«Голос» item in the Control UI sidebar**: the panel menu now has a Voice entry (with a mic icon, next to «Модели») that opens the desktop voice settings directly — provider, API key, test and remove. Previously voice settings were only reachable via tray → Settings → General, and there was no voice item in the panel menu.
+
 ## [0.8.26] - 2026-08-22
 
 ### Added

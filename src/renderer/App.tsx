@@ -11,6 +11,7 @@ function getHashRoute(): string {
 
 const VALID_HASH_PANELS = new Set<string>([
   'settings',
+  'voice',
   'about',
   'dashboard',
   'models',
@@ -141,6 +142,7 @@ function App() {
         dashboard: t('shell.dashboard.title'),
         models: t('shell.models.title'),
         settings: t('shell.settings.title'),
+        voice: t('voice.settings.title'),
         about: t('shell.about.title'),
         'llm-api': t('shell.dashboard.llmApi'),
         skills: t('shell.skillsPanel.title'),
@@ -169,6 +171,7 @@ function App() {
   if (configExists) {
     const panel: EmbeddedPanel =
       route === 'settings' ||
+      route === 'voice' ||
       route === 'about' ||
       route === 'dashboard' ||
       route === 'models' ||

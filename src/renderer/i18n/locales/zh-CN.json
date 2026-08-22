@@ -607,6 +607,8 @@
       "skillsDesc": "技能与扩展",
       "updates": "更新",
       "updatesDesc": "检查更新",
+      "voice": "语音",
+      "voiceDesc": "语音提供商和 API 密钥",
       "settings": "设置",
       "settingsDesc": "外观与启动",
       "about": "关于",
