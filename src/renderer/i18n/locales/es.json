@@ -42,7 +42,7 @@
         },
         "local": {
           "title": "Modelos de IA locales",
-          "description": "Instalación con un clic de modelos de código abierto (Gemma 4 GGUF) que funcionan 100 % sin conexión en este PC mediante el motor integrado llama.cpp. Gratis y privado."
+          "description": "Instalación de tu propio modelo local (GGUF) que funciona 100 % sin conexión en este PC mediante el motor integrado llama.cpp. Añádelo por URL o desde el disco. Gratis y privado."
         }
       }
     },

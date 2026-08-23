@@ -216,6 +216,9 @@ export const IPC_LOCAL_REORDER = 'local:reorder' as const
 /** Local download progress event (main → renderer) */
 export const IPC_LOCAL_PROGRESS = 'local:progress' as const
 
+/** Plain-text chat: direct model call without the agent runtime (v0.9.0) */
+export const IPC_TEXT_CHAT_SEND = 'textChat:send' as const
+
 /** Plugins list (CLI proxy) */
 export const IPC_PLUGINS_LIST = 'plugins:list' as const
 
@@ -336,6 +339,7 @@ export const IPC_INVOKE_CHANNELS = [
   IPC_LOCAL_ENGINE_STOP,
   IPC_LOCAL_ENGINE_MODE,
   IPC_LOCAL_REORDER,
+  IPC_TEXT_CHAT_SEND,
   IPC_PLUGINS_LIST,
   IPC_PLUGINS_TOGGLE,
   IPC_PLUGINS_INSTALL,

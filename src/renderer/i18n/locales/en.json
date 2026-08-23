@@ -42,7 +42,7 @@
         },
         "local": {
           "title": "Local Models",
-          "description": "One-click install of open-source models (Gemma 4 GGUF) that run 100% offline on this PC via the built-in llama.cpp engine. Free and private."
+          "description": "Install your own local model (GGUF) that runs 100% offline on this PC via the built-in llama.cpp engine. Add by URL or from disk. Free and private."
         }
       }
     },
@@ -88,18 +88,15 @@
       "reasoningMinimum": "Minimum",
       "reasoningMedium": "Medium",
       "reasoningHigh": "High",
-      "selectLocalModel": "Select a local model",
-      "customGguf": "My own model (GGUF URL)",
+      "selectLocalModel": "Add your own model (GGUF)",
+      "customGguf": "Own model (URL or file)",
       "downloadModel": "Download model",
       "downloading": "Downloading…",
       "downloadHint": "Runs in the background; you can continue setup.",
       "localPicked": "Model selected",
-      "localNote": "The model runs fully offline on this PC via the built-in llama.cpp engine. Download it now, or later from the Models page.",
+      "localNote": "The model runs fully offline on this PC via the built-in llama.cpp engine. Paste a GGUF URL or pick a file from disk.",
       "badCustomUrl": "The URL must point to a .gguf file",
       "downloadFailed": "Download failed",
-      "localNormal": "Gemma4 v2 (Q4_K_M)",
-      "localHard": "Gemma4 v2 (Q4_K_M)",
-      "localExperimental": "Gemma 4 v2 (Experimental)",
       "experimentalBadge": "Experimental",
       "pickFile": "From disk…",
       "downloaded": "Downloaded",
@@ -114,12 +111,16 @@
       "downloadVulkan": "Download Vulkan",
       "engineInstalled": "Installed",
       "engineInstallFailed": "Failed to download the GPU engine. Check your internet connection and try again.",
-      "localPreset": "Gemma4 v2 (Q4_K_M)",
       "cpuDesc": "Works on any PC",
       "cudaDesc": "NVIDIA GPU · much faster",
       "vulkanDesc": "AMD / Intel GPU",
       "recommended": "recommended",
-      "downloadCpu": "Download CPU"
+      "downloadCpu": "Download CPU",
+      "urlPlaceholder": "https://…/model.gguf — model URL",
+      "smallModelWarningTitle": "Model under 12B parameters",
+      "smallModelWarning": "Models under 12B parameters handle agent tasks poorly: tools, files and memory — they follow instructions weakly and may invent actions instead of answering. Fine for plain text chat, but for agent tasks we recommend 12B+ models (e.g. Qwen2.5-14B, Gemma-3-27B) or cloud models (DeepSeek, OpenRouter).",
+      "unknownSizeHint": "For agent tasks, models with 12B+ parameters are recommended.",
+      "modelReadyGood": "Model is suitable for agent tasks"
     },
     "models": {
       "loadFailed": "Failed to load models",
@@ -705,7 +706,7 @@
       "applyRestart": "Apply & restart gateway",
       "localAria": "Local models",
       "localTitle": "Local models (offline, on this PC)",
-      "localDesc": "Pick one of the presets below or add your own GGUF file URL. Downloads run in the background.",
+      "localDesc": "Add your own model: paste a GGUF URL or pick a file from disk.",
       "download": "Download",
       "cancel": "Cancel",
       "run": "Run",
@@ -724,12 +725,6 @@
       "addCustom": "Add",
       "downloading": "Downloading… {{percent}}%",
       "title": "Models",
-      "presetNormal": "Gemma4 v2 (Q4_K_M)",
-      "presetNormalDesc": "~6.9 GB · best quality, tool calling enabled",
-      "presetHard": "Gemma4 v2 (Q4_K_M)",
-      "presetHardDesc": "~6.9 GB · best quality, tool calling enabled",
-      "presetExperimental": "Gemma 4 v2 (Experimental)",
-      "presetExperimentalDesc": "~6.9 GB · tool calling enabled",
       "experimentalBadge": "Experimental",
       "pickFile": "From disk…",
       "configure": "Configure",
@@ -773,7 +768,24 @@
       "engineInstalling": "Downloading…",
       "engineDownloading": "Downloading engine… {{percent}}%",
       "engineInstallFailed": "Failed to download the engine. Check your internet connection and try again.",
-      "starting": "Starting…"
+      "starting": "Starting…",
+      "disconnect": "Disconnect",
+      "connectShort": "Connect",
+      "smallModelWarning": "Models under 12B parameters are a poor fit for agent tasks (tools, files, memory). We recommend 12B+ or cloud models for agent work.",
+      "smallModelWarningTitle": "Heads-up: small model",
+      "unknownSizeHint": "For agent tasks, 12B+ parameter models are recommended."
+    },
+    "chat": {
+      "agentMode": "Agent task",
+      "textMode": "Plain text",
+      "agentModeHint": "Agent: tools, files, memory",
+      "textModeHint": "Text: straight to the model, no tools",
+      "textPlaceholder": "Message without the agent loop…",
+      "send": "Send",
+      "sending": "Model is thinking…",
+      "textError": "Request failed",
+      "textModeTitle": "Plain text",
+      "historyClear": "Clear"
     }
   },
   "voice": {

@@ -42,7 +42,7 @@
         },
         "local": {
           "title": "Локальные модели",
-          "description": "Установка открытых моделей (Gemma 4 GGUF) в один клик — работают на 100% офлайн на этом ПК через встроенный движок llama.cpp. Бесплатно и приватно."
+          "description": "Установка собственной локальной модели (GGUF) — работает на 100% офлайн на этом ПК через встроенный движок llama.cpp. Ссылка или файл с диска. Бесплатно и приватно."
         }
       }
     },
@@ -88,17 +88,14 @@
       "reasoningMinimum": "Минимум",
       "reasoningMedium": "Средне",
       "reasoningHigh": "Высоко",
-      "selectLocalModel": "Выберите локальную модель",
-      "localNormal": "Gemma4 v2 (Q4_K_M)",
-      "localHard": "Gemma4 v2 (Q4_K_M)",
-      "localExperimental": "Gemma 4 v2 (Experimental)",
+      "selectLocalModel": "Добавьте свою модель (GGUF)",
       "experimentalBadge": "Experimental",
-      "customGguf": "Своя модель (ссылка на GGUF)",
+      "customGguf": "Своя модель (ссылка или файл)",
       "downloadModel": "Скачать модель",
       "downloading": "Скачивание…",
       "downloadHint": "Идёт в фоне — можно продолжить настройку.",
       "localPicked": "Модель выбрана",
-      "localNote": "Модель работает полностью офлайн на этом ПК через встроенный движок llama.cpp. Скачайте её сейчас или позже на странице «Модели».",
+      "localNote": "Модель работает полностью офлайн на этом ПК через встроенный движок llama.cpp. Укажите ссылку на GGUF-файл или выберите файл с диска.",
       "badCustomUrl": "Ссылка должна указывать на файл .gguf",
       "downloadFailed": "Не удалось скачать",
       "pickFile": "С диска…",
@@ -114,12 +111,16 @@
       "downloadVulkan": "Скачать Vulkan",
       "engineInstalled": "Установлено",
       "engineInstallFailed": "Не удалось скачать GPU-движок. Проверьте подключение к интернету и попробуйте ещё раз.",
-      "localPreset": "Gemma4 v2 (Q4_K_M)",
       "cpuDesc": "Работает на любом ПК",
       "cudaDesc": "NVIDIA GPU · намного быстрее",
       "vulkanDesc": "AMD / Intel GPU",
       "recommended": "рекомендуется",
-      "downloadCpu": "Скачать CPU"
+      "downloadCpu": "Скачать CPU",
+      "urlPlaceholder": "https://…/model.gguf — ссылка на модель",
+      "smallModelWarningTitle": "Модель меньше 12B параметров",
+      "smallModelWarning": "Модели меньше 12B параметров плохо справляются с агентскими задачами: инструменты, файлы и память — слабо следуют инструкциям и могут «выдумывать» действия вместо ответа. Для простого текстового общения подойдёт, но для агентских задач рекомендуем модель от 12B параметров (например, Qwen2.5-14B, Gemma-3-27B, Llama-3.1-8B с осторожностью) или облачную (DeepSeek, OpenRouter).",
+      "unknownSizeHint": "Для агентских задач рекомендуются модели от 12B параметров.",
+      "modelReadyGood": "Модель подходит для агентских задач"
     },
     "channel": {
       "title": "Настройка каналов",
@@ -361,7 +362,7 @@
       "applyRestart": "Применить и перезапустить шлюз",
       "localAria": "Локальные модели",
       "localTitle": "Локальные модели (офлайн, на этом ПК)",
-      "localDesc": "Выберите одну из предложенных ниже или добавьте свою модель по ссылке на GGUF-файл. Скачивание идёт в фоне.",
+      "localDesc": "Добавьте свою модель: ссылка на GGUF-файл или выбор файла с диска.",
       "download": "Скачать",
       "cancel": "Отмена",
       "run": "Запустить",
@@ -378,12 +379,6 @@
       "badCustomUrl": "Ссылка должна указывать на файл .gguf",
       "customUrlPlaceholder": "https://…/model.gguf (ссылка на свою модель)",
       "addCustom": "Добавить",
-      "presetNormal": "Gemma4 v2 (Q4_K_M)",
-      "presetNormalDesc": "~6.9 GB · best quality, tool calling enabled",
-      "presetHard": "Gemma4 v2 (Q4_K_M)",
-      "presetHardDesc": "~6.9 GB · best quality, tool calling enabled",
-      "presetExperimental": "Gemma 4 v2 (Experimental)",
-      "presetExperimentalDesc": "~6.9 ГБ · инструменты включены",
       "experimentalBadge": "Experimental",
       "downloading": "Скачивание… {{percent}}%",
       "title": "Модели",
@@ -429,7 +424,12 @@
       "engineInstalling": "Скачивание…",
       "engineDownloading": "Скачивание движка… {{percent}}%",
       "engineInstallFailed": "Не удалось скачать движок. Проверьте подключение к интернету и попробуйте ещё раз.",
-      "starting": "Запуск…"
+      "starting": "Запуск…",
+      "disconnect": "Отключить",
+      "connectShort": "Подключить",
+      "smallModelWarning": "Модели меньше 12B параметров плохо подходят для агентских задач (инструменты, файлы, память). Рекомендуем от 12B или облачные модели для агентской работы.",
+      "smallModelWarningTitle": "Внимание: маленькая модель",
+      "unknownSizeHint": "Для агентских задач рекомендуются модели от 12B параметров."
     },
     "feishu": {
       "title": "Настройки Feishu",
@@ -727,6 +727,18 @@
       "error": "Ошибка",
       "loadingVersions": "Загрузка информации о версиях…",
       "comingSoon": "Скоро"
+    },
+    "chat": {
+      "agentMode": "Агентская задача",
+      "textMode": "Просто текст",
+      "agentModeHint": "Агент: инструменты, файлы, память",
+      "textModeHint": "Текст: напрямую в модель, без инструментов",
+      "textPlaceholder": "Сообщение без агентского цикла…",
+      "send": "Отправить",
+      "sending": "Модель думает…",
+      "textError": "Ошибка запроса",
+      "textModeTitle": "Просто текст",
+      "historyClear": "Очистить"
     }
   },
   "voice": {

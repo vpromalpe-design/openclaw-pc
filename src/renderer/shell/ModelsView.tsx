@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import {
   ArrowDown,
   ArrowUp,
+  AlertTriangle,
   CheckCircle2,
   Cpu,
   Download,
@@ -10,12 +11,10 @@ import {
   EyeOff,
   FolderOpen,
   Loader2,
-  Play,
   Plus,
   RefreshCw,
   Settings2,
   Square,
-  Trash2,
   X,
   XCircle,
   Zap,
@@ -40,12 +39,11 @@ import type {
   LocalEngineRuntimeInfo,
   ModelConfig,
 } from '../../shared/types'
-
 export interface ModelsViewProps {
   onBack?: () => void
 }
 
-const PRESET_IDS = ['gemma4-v2']
+const PRESET_IDS: string[] = []
 
 function statusLabel(
   status: ModelTableEntry['status'],
@@ -102,7 +100,6 @@ export function ModelsView({ onBack }: ModelsViewProps) {
   const [customUrl, setCustomUrl] = useState('')
   const [addingCustom, setAddingCustom] = useState(false)
   const [engineBusy, setEngineBusy] = useState(false)
-  const [startingModel, setStartingModel] = useState<string | null>(null)
   const [installingVariant, setInstallingVariant] = useState<EngineVariant | null>(null)
   const [engineProgress, setEngineProgress] = useState<number | null>(null)
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null)
@@ -111,6 +108,21 @@ export function ModelsView({ onBack }: ModelsViewProps) {
   const [selectedLocal, setSelectedLocal] = useState<string>('')
   const [localTest, setLocalTest] = useState<TestStatus>('idle')
   const [localTestMsg, setLocalTestMsg] = useState('')
+  const [smallModelWarning, setSmallModelWarning] = useState<string | null>(null)
+
+  const assessSize = (sizeBytes: number, name: string) => {
+    if (sizeBytes > 0 && sizeBytes < 6_500_000_000) {
+      setSmallModelWarning(t('shell.models.smallModelWarning'))
+      return
+    }
+    const m = name.toLowerCase().match(/([0-9]+(?:\.[0-9]+)?)b/)
+    if (m) {
+      const params = Number.parseFloat(m[1]!)
+      setSmallModelWarning(params < 12 ? t('shell.models.smallModelWarning') : null)
+      return
+    }
+    setSmallModelWarning(t('shell.models.unknownSizeHint'))
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -216,15 +228,6 @@ export function ModelsView({ onBack }: ModelsViewProps) {
     }
   }
 
-  const handleDownload = async (modelId: string) => {
-    setError(null)
-    try {
-      await window.electronAPI.localDownloadStart({ modelId })
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t('shell.models.downloadFailed'))
-    }
-  }
-
   const handleInstallEngine = async (variant: EngineVariant) => {
     if (installingVariant) return
     setInstallingVariant(variant)
@@ -250,12 +253,14 @@ export function ModelsView({ onBack }: ModelsViewProps) {
     if (!url) return
     setAddingCustom(true)
     setError(null)
+    setSmallModelWarning(null)
     try {
       const res = (await window.electronAPI.localAdd({ url })) as {
-        custom?: { id: string; fileName: string }
+        custom?: { id: string; fileName?: string; sizeBytes?: number }
       }
       const id = res.custom?.id
       if (!id) throw new Error(t('shell.models.badCustomUrl'))
+      assessSize(res.custom?.sizeBytes ?? 0, res.custom?.fileName ?? id)
       setCustomUrl('')
       await window.electronAPI.localDownloadStart({ modelId: id })
     } catch (e) {
@@ -267,42 +272,19 @@ export function ModelsView({ onBack }: ModelsViewProps) {
 
   const handlePickFile = async () => {
     setError(null)
+    setSmallModelWarning(null)
     try {
       const res = (await window.electronAPI.localPickFile()) as { path: string } | null
       if (!res) return
       const added = (await window.electronAPI.localAdd({ path: res.path })) as {
-        custom?: { id: string }
+        custom?: { id: string; fileName?: string; sizeBytes?: number }
       }
       if (!added.custom?.id) throw new Error(t('shell.models.badCustomUrl'))
+      assessSize(added.custom?.sizeBytes ?? 0, added.custom?.fileName ?? added.custom.id)
       setCustomUrl('')
       await load()
     } catch (e) {
       setError(e instanceof Error ? e.message : t('shell.models.downloadFailed'))
-    }
-  }
-
-  const handleRemoveModel = async (model: LocalModelInfo) => {
-    setError(null)
-    try {
-      await window.electronAPI.localRemove({ id: model.id })
-      await load()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t('shell.models.removeFailed'))
-    }
-  }
-
-  const handleEngineStart = async (modelId: string) => {
-    setEngineBusy(true)
-    setStartingModel(modelId)
-    setError(null)
-    try {
-      await window.electronAPI.localEngineStart({ modelId })
-      await load()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t('shell.models.engineStartFailed'))
-    } finally {
-      setEngineBusy(false)
-      setStartingModel(null)
     }
   }
 
@@ -558,10 +540,12 @@ export function ModelsView({ onBack }: ModelsViewProps) {
                       applying={applying}
                       saving={savingProvider === e.providerId}
                       connected={Boolean(engineState?.running && engineState.modelId === e.modelId)}
+                      engineBusy={engineBusy}
                       onToggle={() => toggleProviderPanel(e)}
                       onMove={(dir) => void handleMove(e, dir)}
                       onMakePrimary={() => void handleMakePrimary(e)}
                       onRemoveFromChain={() => void handleRemoveFromChain(e)}
+                      onEngineStop={() => void handleEngineStop()}
                       onDraft={(patch) => updateDraft(e.providerId, patch)}
                       onTest={() => void handleTestProvider(e)}
                       onSave={() => void handleSaveProvider(e)}
@@ -794,77 +778,20 @@ export function ModelsView({ onBack }: ModelsViewProps) {
           </div>
 
           <div className="flex flex-col gap-2">
-            {PRESET_IDS.map((presetId) => {
-              const model = localModels.find((m) => m.id === presetId)
-              const progress = downloads[presetId] ?? model?.progress ?? 0
-              const downloading = model?.status === 'downloading' || progress > 0 && progress < 1 && !model?.downloaded
-              return (
-                <div key={presetId} className="flex items-center justify-between rounded-md border border-border px-3 py-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium">
-                      {presetName(presetId, t)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{presetDesc(presetId, t)}</p>
-                    {model?.downloaded && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {formatBytes(model.sizeBytes)} · {t('shell.models.ready')}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0 ml-3">
-                    {!model?.downloaded && !downloading && (
-                      <Button variant="outline" size="sm" className="h-7" onClick={() => void handleDownload(presetId)}>
-                        <Download className="h-3.5 w-3.5 mr-1" />
-                        {t('shell.models.download')}
-                      </Button>
-                    )}
-                    {downloading && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="relative overflow-hidden h-7 min-w-[150px] border-green-500/40 text-green-700 dark:text-green-300 hover:bg-green-500/10 hover:text-green-700 dark:hover:text-green-300"
-                        onClick={() => void window.electronAPI.localDownloadCancel()}
-                        title={t('shell.models.cancel')}
-                      >
-                        <span
-                          className="absolute inset-y-0 left-0 bg-green-500/25 dark:bg-green-500/30 transition-[width] duration-300"
-                          style={{ width: `${Math.min(100, Math.round(progress * 100))}%` }}
-                          aria-hidden
-                        />
-                        <span className="relative inline-flex items-center gap-1">
-                          {t('shell.models.downloading', { percent: Math.min(100, Math.round(progress * 100)) })}
-                        </span>
-                      </Button>
-                    )}
-                    {model?.downloaded && (
-                      <>
-                        {engineState?.running && engineState.modelId === model.id ? (
-                          <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                            {t('shell.models.active')}
-                          </span>
-                        ) : (
-                          <Button variant="outline" size="sm" className="h-7" onClick={() => void handleEngineStart(model.id)} disabled={engineBusy}>
-                            {startingModel === model.id ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" aria-hidden />
-                            ) : (
-                              <Play className="h-3.5 w-3.5 mr-1" aria-hidden />
-                            )}
-                            {startingModel === model.id
-                              ? t('shell.models.starting')
-                              : t('shell.models.run')}
-                          </Button>
-                        )}
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title={t('shell.models.remove')}
-                          onClick={() => void handleRemoveModel(model)}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
+            {smallModelWarning && (
+              <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 space-y-1" role="alert">
+                <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-700 dark:text-amber-300">
+                  <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
+                  {t('shell.models.smallModelWarningTitle')}
+                </p>
+                <p className="text-xs text-amber-700/90 dark:text-amber-300/90">
+                  {smallModelWarning}
+                </p>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {t('shell.models.localDesc')}
+            </p>
           </div>
 
           {/* Custom GGUF URL */}
@@ -913,10 +840,12 @@ interface ProviderRowGroupProps {
   applying: boolean
   saving: boolean
   connected?: boolean
+  engineBusy?: boolean
   onToggle: () => void
   onMove: (dir: -1 | 1) => void
   onMakePrimary: () => void
   onRemoveFromChain: () => void
+  onEngineStop: () => void
   onDraft: (patch: Partial<ProviderDraft>) => void
   onTest: () => void
   onSave: () => void
@@ -933,10 +862,12 @@ function ProviderRowGroup({
   applying,
   saving,
   connected,
+  engineBusy,
   onToggle,
   onMove,
   onMakePrimary,
   onRemoveFromChain,
+  onEngineStop,
   onDraft,
   onTest,
   onSave,
@@ -993,18 +924,26 @@ function ProviderRowGroup({
                 {t('shell.models.configure')}
               </Button>
             )}
-            {!e.isLocal && e.status !== 'primary' && e.modelId && (
+            {/* v0.9.0: one toggle button — Connect when idle, Disconnect when in use (same for local & API). */}
+            {!e.isLocal && e.status !== 'primary' && e.status !== 'fallback' && e.modelId && (
               <Button variant="outline" size="sm" className="h-7"
                 onClick={onMakePrimary} disabled={applying}>
+                <Zap className="h-3.5 w-3.5 mr-1" />
                 {t('shell.models.connect')}
+              </Button>
+            )}
+            {!e.isLocal && (e.status === 'primary' || e.status === 'fallback') && (
+              <Button variant="outline" size="sm" className="h-7 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={onRemoveFromChain} disabled={applying}>
+                {t('shell.models.disconnect')}
               </Button>
             )}
             {e.isLocal && (
               connected ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-green-500/40 bg-green-500/10 px-2.5 py-1 text-xs font-semibold text-green-600 dark:text-green-400">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  {t('shell.models.connected')}
-                </span>
+                <Button variant="outline" size="sm" className="h-7 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={onEngineStop} disabled={applying || engineBusy}>
+                  {t('shell.models.disconnect')}
+                </Button>
               ) : (
                 <Button variant="outline" size="sm" className="h-7" onClick={onMakePrimary} disabled={applying}>
                   <Zap className="h-3.5 w-3.5 mr-1" />
@@ -1176,20 +1115,3 @@ function ProviderRowGroup({
   )
 }
 
-function presetName(id: string, t: (key: string) => string): string {
-  switch (id) {
-    case 'gemma4-v2':
-      return t('shell.models.presetNormal')
-    default:
-      return id
-  }
-}
-
-function presetDesc(id: string, t: (key: string) => string): string {
-  switch (id) {
-    case 'gemma4-v2':
-      return t('shell.models.presetNormalDesc')
-    default:
-      return ''
-  }
-}

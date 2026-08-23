@@ -196,6 +196,21 @@ export function listAuthProfiles(maskKeys = true): AuthProfileItem[] {
 }
 
 /**
+ * Return the raw credential for a profile (used by the plain-text chat
+ * mode to call cloud APIs directly, bypassing the agent runtime).
+ */
+export function getAuthProfileCredential(
+  profileId: string,
+): { type: 'api_key' | 'token'; value: string } | undefined {
+  const store = loadStore()
+  const cred = store.profiles[profileId]
+  if (!cred) return undefined
+  if (cred.type === 'api_key' && cred.key) return { type: 'api_key', value: cred.key }
+  if (cred.type === 'token' && cred.token) return { type: 'token', value: cred.token }
+  return undefined
+}
+
+/**
  * Upsert api_key profile
  */
 export function saveAuthProfile(profileId: string, provider: string, apiKey: string): void {

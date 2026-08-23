@@ -42,7 +42,7 @@
         },
         "local": {
           "title": "本地 AI 模型",
-          "description": "一键安装开源模型（Gemma 4 GGUF），通过内置 llama.cpp 引擎在本机 100% 离线运行。免费且私密。"
+          "description": "安装自己的本地模型（GGUF），通过内置 llama.cpp 引擎在本机 100% 离线运行。可通过网址或从磁盘添加。免费且私密。"
         }
       }
     },

@@ -78,6 +78,7 @@ import {
   IPC_LOCAL_ENGINE_STOP,
   IPC_LOCAL_ENGINE_MODE,
   IPC_LOCAL_REORDER,
+  IPC_TEXT_CHAT_SEND,
   IPC_SKILLS_LIST,
   IPC_SKILLS_TOGGLE,
   IPC_SKILLS_RELOAD,
@@ -170,6 +171,7 @@ import {
   applyModelsPriority,
   restoreConfigBackup,
 } from '../models/models-view.js'
+import { sendTextChat } from '../models/text-chat.js'
 import {
   listLocalModels,
   getEngineState,
@@ -1013,7 +1015,7 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
 
   ipcMain.handle(
     IPC_LOCAL_ADD,
-    wrapHandler('LOCAL_ADD', (payload: unknown) => {
+    wrapHandler('LOCAL_ADD', async (payload: unknown) => {
       const raw = validatePlainObject(payload, 'local:add')
       const presetId = typeof raw.presetId === 'string' ? raw.presetId : undefined
       const url = typeof raw.url === 'string' && raw.url.trim() ? raw.url.trim() : undefined
@@ -1028,15 +1030,18 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
         if (!fileName.toLowerCase().endsWith('.gguf')) {
           throw new Error('Custom model URL must point to a .gguf file')
         }
-        return {
-          custom: {
-            id: fileName.replace(/\.gguf$/i, ''),
-            fileName,
-            url,
-            sizeBytes: 0,
-            description: 'Custom GGUF',
-          },
+        const custom = {
+          id: fileName.replace(/\.gguf$/i, ''),
+          fileName,
+          url,
+          sizeBytes: 0,
+          description: 'Custom GGUF',
         }
+        // v0.9.0: try to learn the real size (HEAD) so the UI can warn about
+        // models below ~12B (smaller than ≈6.5 GB at Q4). Best effort only.
+        const size = await probeUrlSize(url)
+        if (size > 0) custom.sizeBytes = size
+        return { custom }
       }
       // Local file: copy it into the models dir so the engine can load it.
       if (filePath) {
@@ -1072,6 +1077,40 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
       throw new Error('Provide presetId, url or path')
     }),
   )
+
+  async function probeUrlSize(url: string): Promise<number> {
+    try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 8000)
+      try {
+        const res = await fetch(url, { method: 'HEAD', signal: controller.signal })
+        const len = res.headers.get('content-length')
+        if (len) {
+          const n = Number.parseInt(len, 10)
+          if (Number.isFinite(n) && n > 0) return n
+        }
+        // Some CDNs (HF) don't answer HEAD — try a ranged GET of 1 byte.
+        const res2 = await fetch(url, {
+          method: 'GET',
+          headers: { range: 'bytes=0-0' },
+          signal: controller.signal,
+        })
+        const cr = res2.headers.get('content-range')
+        if (cr) {
+          const m = cr.match(/\/(\d+)$/)
+          if (m) {
+            const n = Number.parseInt(m[1]!, 10)
+            if (Number.isFinite(n) && n > 0) return n
+          }
+        }
+        return 0
+      } finally {
+        clearTimeout(timer)
+      }
+    } catch {
+      return 0
+    }
+  }
 
   ipcMain.handle(
     IPC_LOCAL_PICK_FILE,
@@ -1219,6 +1258,25 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
       shell.localModelsOrder = ids
       deps.writeShellConfig(shell)
       return { ok: true }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_TEXT_CHAT_SEND,
+    wrapHandler('TEXT_CHAT_SEND', (payload: unknown) => {
+      const raw = validatePlainObject(payload, 'textChat:send')
+      const text = typeof raw.text === 'string' ? raw.text : ''
+      const history = Array.isArray(raw.history)
+        ? (raw.history as unknown[]).slice(0, 10).flatMap((m) => {
+            if (!m || typeof m !== 'object') return []
+            const mm = m as Record<string, unknown>
+            const role = mm.role
+            if (role !== 'user' && role !== 'assistant') return []
+            if (typeof mm.content !== 'string') return []
+            return [{ role: role as 'user' | 'assistant', content: mm.content }]
+          })
+        : []
+      return sendTextChat({ text, history })
     }),
   )
 

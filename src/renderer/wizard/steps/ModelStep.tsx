@@ -76,10 +76,11 @@ export function ModelStep() {
       const shouldClearApiKey = nextAuthMode === 'oauth' || nextAuthMode === 'none'
       setModelConfig({
         provider,
-        // Local: default to the single preset — Gemma4 v2 (Q4_K_M).
+        // Local: no bundled presets — the user adds their own GGUF
+        // by URL or from disk (v0.9.0).
         modelId:
           provider === 'local'
-            ? 'gemma4-v2'
+            ? ''
             : (presets?.[0]?.id ?? ''),
         ...(shouldClearApiKey ? { apiKey: '' } : {}),
         moonshotRegion: provider === 'moonshot-cn' ? 'cn' : provider === 'moonshot' ? modelConfig.moonshotRegion ?? 'global' : 'global',

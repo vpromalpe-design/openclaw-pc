@@ -2,6 +2,26 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.9.0] - 2026-08-24
+
+### Added
+
+- **«Просто текст / Plain text» chat mode** — a segmented switch (Агентская задача | Просто текст) floats at the bottom of the chat. In text mode the agent loop is bypassed entirely: messages go straight to the active model (local engine or cloud provider) with no tools, no memory and no compaction. Handy for weak local models that "rush to act" instead of answering.
+- **Connect/Disconnect toggle in the Models page** — the same «Подключить» button now toggles to «Отключить» for both local (stops the engine) and API providers (removes from the model chain); pressing it again reconnects.
+- **Own local models only** — the setup wizard and the Models page no longer suggest Gemma4. The wizard offers a free-form local-model field (GGUF URL or install from disk); the Models page lets you add, download, remove and run any GGUF model you own.
+- **<12B parameter warning** — when adding a model (URL or disk), the app detects the size (HEAD request / file size / name marker) and shows a warning that models below 12B are a poor fit for agent tasks, with recommendations (12B+, e.g. Qwen2.5-14B / Gemma-3-27B, or cloud).
+- **Liquid Glass design (full port)** — dark glassmorphism across all menus and settings pages: iOS blue accent (#0A84FF), glass panels (blur 28px, saturate 180%, top highlight), living color blob background + noise, capsule buttons (999px), 22px radii, SF Pro font stack, dense dropdowns (rgba(18,26,48,.95) + blur 40px), terminal-style status bar at the bottom.
+
+### Changed
+
+- First wizard page text rewritten: local model is described as installing your own GGUF (URL or disk) instead of the Gemma4 preset.
+- Local model size is probed at add time (HEAD/range request) so the <12B warning works for URL downloads too.
+
+### Fixed
+
+- Local picker no longer resets to an implicit Gemma4 default in the wizard.
+- Removed all Gemma4 references from the renderer UI (wizard presets, Models page presets, i18n) — the bundled engine preset remains backend-only for existing installs.
+
 ## [0.8.31] - 2026-08-24
 
 ### Fixed

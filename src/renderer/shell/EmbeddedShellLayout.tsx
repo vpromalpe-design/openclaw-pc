@@ -23,8 +23,11 @@ import { ModelsView } from './ModelsView'
 import { SkillsView } from './SkillsView'
 import { UpdateView } from './UpdateView'
 import { FeishuAccessView } from './FeishuAccessView'
+import { TextChatView } from './TextChatView'
+import { Bot, Type } from 'lucide-react'
 import type { GatewayStatus, GatewayStatusValue } from '../../shared/types'
 import { useUpdateNoticeStore } from '@/stores/update-store'
+import { cn } from '@/lib/utils'
 
 const TIMEOUT_MS = 300_000
 
@@ -137,6 +140,8 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [firstRequestPending, setFirstRequestPending] = useState(false)
   const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** v0.9.0: «Агентская задача» (embedded webchat) vs «Просто текст» (direct model call). */
+  const [chatMode, setChatMode] = useState<'agent' | 'text'>('agent')
   const updateAvailable = useUpdateNoticeStore((state) => state.available)
   const updateDismissed = useUpdateNoticeStore((state) => state.dismissed)
   const updateInfo = useUpdateNoticeStore((state) => state.info)
@@ -354,6 +359,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
 
   const showControlUIIframe = gatewayPort !== null && controlUrl !== null
   const hasActivePanel = activePanel !== ''
+  const textModeActive = chatMode === 'text' && !hasActivePanel && showControlUIIframe
 
   if (gatewayView === 'error' && errorInfo) {
     return (
@@ -418,6 +424,31 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
 
   return (
     <main className="h-screen relative overflow-hidden select-none" role="main">
+      {/* Liquid Glass background: living color blobs + noise (v0.9.0) */}
+      <div className="liquid-glass-bg" aria-hidden>
+        <div
+          className="liquid-glass-blob"
+          style={{
+            width: '34vmax',
+            height: '34vmax',
+            left: '38%',
+            top: '-14vmax',
+            background: 'radial-gradient(circle, rgba(255,55,95,0.4), transparent 62%)',
+            animation: 'blob-drift-1 24s ease-in-out infinite alternate',
+          }}
+        />
+        <div
+          className="liquid-glass-blob"
+          style={{
+            width: '30vmax',
+            height: '30vmax',
+            right: '-8vmax',
+            bottom: '8vmax',
+            background: 'radial-gradient(circle, rgba(48,209,88,0.32), transparent 60%)',
+            animation: 'blob-drift-2 30s ease-in-out infinite alternate',
+          }}
+        />
+      </div>
       {/* Full-screen Control UI iframe (always mounted when available).
           Do not use flex-1 on iframe: in column flex layouts the iframe often collapses to 0 height
           (only the dark shell body shows through — looks like a black window). */}
@@ -427,7 +458,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
           src={controlUrl}
           title="OpenClaw Control UI"
           className={`absolute inset-0 z-0 h-full w-full border-0 bg-background ${
-            hasActivePanel ? 'opacity-0 pointer-events-none' : ''
+            hasActivePanel || textModeActive ? 'opacity-0 pointer-events-none' : ''
           }`}
           referrerPolicy="no-referrer"
           allowFullScreen
@@ -446,9 +477,16 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
         )
       )}
 
+      {/* v0.9.0: plain-text chat mode (direct model call, no agent loop) */}
+      {textModeActive && (
+        <div className="absolute inset-0 z-20 min-h-0 flex-col bg-background">
+          <TextChatView onBack={() => setChatMode('agent')} />
+        </div>
+      )}
+
       {/* Desktop panel overlay: flex column + scroll region so flex-1 panels are not height-collapsed */}
       {hasActivePanel && (
-        <div className="absolute inset-0 z-30 flex min-h-0 flex-col bg-background">
+        <div className="absolute inset-0 z-30 flex min-h-0 flex-col bg-background/85 backdrop-blur-2xl">
           <div className="shrink-0 border-b border-border bg-background/95 px-4 py-2 backdrop-blur-sm flex items-center gap-2">
             <button
               type="button"
@@ -480,6 +518,58 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
       {/* First-message hint for cold-started local models */}
       {firstRequestPending && (
         <LocalFirstRequestBanner onDismiss={hideFirstRequestBanner} />
+      )}
+
+      {/* v0.9.0: mode switch — «Агентская задача | Просто текст» (floating, bottom-center) */}
+      {showControlUIIframe && !hasActivePanel && (
+        <div className="absolute bottom-4 left-1/2 z-40 -translate-x-1/2">
+          <div className="flex items-center gap-1 rounded-full border border-white/10 bg-[rgba(18,26,48,0.92)] p-1 shadow-2xl shadow-black/40 backdrop-blur-xl">
+            <button
+              type="button"
+              onClick={() => setChatMode('agent')}
+              className={cn(
+                'flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors',
+                chatMode === 'agent'
+                  ? 'bg-[#0A84FF] text-white shadow-lg shadow-[#0A84FF]/30'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+              title={t('shell.chat.agentModeHint')}
+            >
+              <Bot className="h-3.5 w-3.5" />
+              {t('shell.chat.agentMode')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setChatMode('text')}
+              className={cn(
+                'flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors',
+                chatMode === 'text'
+                  ? 'bg-[#0A84FF] text-white shadow-lg shadow-[#0A84FF]/30'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+              title={t('shell.chat.textModeHint')}
+            >
+              <Type className="h-3.5 w-3.5" />
+              {t('shell.chat.textMode')}
+            </button>
+          </div>
+        </div>
+      )}
+      {/* Terminal-style status bar (v0.9.0) */}
+      {showControlUIIframe && (
+        <div className="absolute bottom-0 left-0 right-0 z-40 flex h-6 items-center gap-3 border-t border-white/10 bg-[rgba(6,10,20,0.85)] px-3 font-mono text-[10px] tracking-wide text-green-400/90 backdrop-blur-xl">
+          <span className="inline-flex items-center gap-1.5">
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                gatewayView === 'error' ? 'bg-red-400' : 'bg-green-400'
+              } shadow-[0_0_6px_rgba(52,211,153,0.9)]`}
+            />
+            gateway:{gatewayView === 'error' ? 'error' : 'ready'}
+          </span>
+          {gatewayPort && <span>127.0.0.1:{gatewayPort}</span>}
+          <span className="hidden sm:inline">mode:{chatMode}</span>
+          <span className="ml-auto text-muted-foreground/70">openclaw-pc v0.9.0</span>
+        </div>
       )}
     </main>
   )

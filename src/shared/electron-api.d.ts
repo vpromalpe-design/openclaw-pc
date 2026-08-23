@@ -208,6 +208,10 @@ export interface ElectronAPI {
     installVariant?: 'cpu' | 'cuda' | 'vulkan'
   }) => Promise<LocalEngineRuntimeInfo>
   localEngineReorder: (ids: string[]) => Promise<{ ok: boolean }>
+  textChatSend: (payload: {
+    text: string
+    history?: { role: 'user' | 'assistant'; content: string }[]
+  }) => Promise<{ ok: boolean; text?: string; message?: string; model?: string; provider?: string }>
   localFirstRequestStatus: () => Promise<{ pending: boolean }>
   onLocalProgress: (callback: (payload: LocalProgressPayload) => void) => Unsubscribe
 

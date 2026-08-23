@@ -1,28 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Download, FolderOpen, Loader2, CheckCircle2 } from 'lucide-react'
+import { Download, FolderOpen, Loader2, CheckCircle2, AlertTriangle, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import type { LocalEngineRuntimeInfo } from '../../shared/types'
 
-const LOCAL_PRESETS = [
-  {
-    id: 'gemma4-v2',
-    labelKey: 'wizard.model.localPreset',
-    size: '~6.9 GB',
-  },
-]
-
-const CUSTOM_OPTION = '__custom_gguf__'
+/** Rough boundary for "too small for agent tasks": 12B at Q4 ≈ 6.5 GB. */
+const SMALL_MODEL_BYTES = 6_500_000_000
 
 type DownloadState = 'idle' | 'downloading' | 'done'
+
+type SmallModelKind = 'small' | 'unknown' | 'ok' | null
 
 type EngineInstallState = 'idle' | 'installing' | 'done'
 
@@ -47,6 +35,7 @@ export function LocalModelPicker({
   const [downloading, setDownloading] = useState(false)
   const [progress, setProgress] = useState<number | null>(null)
   const [downloadState, setDownloadState] = useState<DownloadState>('idle')
+  const [smallModel, setSmallModel] = useState<SmallModelKind>(null)
   const [runtime, setRuntime] = useState<LocalEngineRuntimeInfo | null>(null)
   const [engineInstall, setEngineInstall] = useState<EngineInstallState>('idle')
   const [engineProgress, setEngineProgress] = useState<number | null>(null)
@@ -98,26 +87,37 @@ export function LocalModelPicker({
     return unsub
   }, [])
 
-  const isCustom = !LOCAL_PRESETS.some((p) => p.id === modelId)
+  const assessSize = (sizeBytes: number, name: string) => {
+    if (sizeBytes > 0) {
+      setSmallModel(sizeBytes < SMALL_MODEL_BYTES ? 'small' : 'ok')
+      return
+    }
+    // Unknown size: try to read the parameter count from the model name.
+    const m = name.toLowerCase().match(/([0-9]+(?:\.[0-9]+)?)b/)
+    if (m) {
+      const params = Number.parseFloat(m[1]!)
+      setSmallModel(params < 12 ? 'small' : params < 100 ? 'ok' : 'unknown')
+      return
+    }
+    setSmallModel('unknown')
+  }
 
   const handleDownload = async () => {
-    const target = isCustom ? customUrl.trim() : modelId
+    const target = customUrl.trim()
     if (!target) return
     setDownloading(true)
     setProgress(0)
     setDownloadState('downloading')
+    setSmallModel(null)
     try {
-      if (isCustom) {
-        const res = (await window.electronAPI.localAdd({ url: target })) as {
-          custom?: { id: string }
-        }
-        const id = res.custom?.id
-        if (!id) throw new Error(t('wizard.model.badCustomUrl'))
-        onModelId(id)
-        await window.electronAPI.localDownloadStart({ modelId: id })
-      } else {
-        await window.electronAPI.localDownloadStart({ modelId: target })
+      const res = (await window.electronAPI.localAdd({ url: target })) as {
+        custom?: { id: string; fileName?: string; sizeBytes?: number }
       }
+      const id = res.custom?.id
+      if (!id) throw new Error(t('wizard.model.badCustomUrl'))
+      assessSize(res.custom?.sizeBytes ?? 0, res.custom?.fileName ?? id)
+      onModelId(id)
+      await window.electronAPI.localDownloadStart({ modelId: id })
     } catch (e) {
       onError(e instanceof Error ? e.message : t('wizard.model.downloadFailed'))
       setProgress(null)
@@ -132,10 +132,11 @@ export function LocalModelPicker({
       const res = (await window.electronAPI.localPickFile()) as { path: string } | null
       if (!res) return
       const added = (await window.electronAPI.localAdd({ path: res.path })) as {
-        custom?: { id: string }
+        custom?: { id: string; fileName?: string; sizeBytes?: number }
       }
       const id = added.custom?.id
       if (!id) throw new Error(t('wizard.model.badCustomUrl'))
+      assessSize(added.custom?.sizeBytes ?? 0, added.custom?.fileName ?? id)
       onModelId(id)
     } catch (e) {
       onError(e instanceof Error ? e.message : t('wizard.model.downloadFailed'))
@@ -178,42 +179,43 @@ export function LocalModelPicker({
 
   return (
     <div className="space-y-2.5">
-      <Select
-        value={isCustom ? CUSTOM_OPTION : modelId}
-        onValueChange={(v) => {
-          if (v === CUSTOM_OPTION) {
-            onModelId('')
-          } else {
-            onModelId(v)
-          }
-        }}
-      >
-        <SelectTrigger id="local-model-select" className="w-full">
-          <SelectValue placeholder={t('wizard.model.selectLocalModel')} />
-        </SelectTrigger>
-        <SelectContent>
-          {LOCAL_PRESETS.map((m) => (
-            <SelectItem key={m.id} value={m.id}>
-              <span className="flex items-center justify-between gap-4">
-                <span>
-                  {t(m.labelKey)}
-                </span>
-                <span className="text-xs text-muted-foreground">{m.size}</span>
-              </span>
-            </SelectItem>
-          ))}
-          <SelectItem value={CUSTOM_OPTION}>{t('wizard.model.customGguf')}</SelectItem>
-        </SelectContent>
-      </Select>
+      <p className="text-xs text-muted-foreground">
+        {t('wizard.model.selectLocalModel')}
+      </p>
+      <Input
+        type="text"
+        value={customUrl}
+        onChange={(e) => onCustomUrl(e.target.value)}
+        placeholder={t('wizard.model.urlPlaceholder')}
+        className="font-mono"
+      />
 
-      {isCustom && (
-        <Input
-          type="text"
-          value={customUrl}
-          onChange={(e) => onCustomUrl(e.target.value)}
-          placeholder="https://…/model.gguf"
-          className="font-mono"
-        />
+      {smallModel === 'small' && (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 space-y-1" role="alert">
+          <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-700 dark:text-amber-300">
+            <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
+            {t('wizard.model.smallModelWarningTitle')}
+          </p>
+          <p className="text-xs text-amber-700/90 dark:text-amber-300/90">
+            {t('wizard.model.smallModelWarning')}
+          </p>
+        </div>
+      )}
+      {smallModel === 'unknown' && (
+        <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2.5" role="note">
+          <p className="flex items-center gap-1.5 text-xs text-blue-700 dark:text-blue-300">
+            <Sparkles className="h-4 w-4 shrink-0" aria-hidden />
+            {t('wizard.model.unknownSizeHint')}
+          </p>
+        </div>
+      )}
+      {smallModel === 'ok' && (
+        <div className="rounded-xl border border-green-500/40 bg-green-500/10 px-3 py-2.5" role="note">
+          <p className="flex items-center gap-1.5 text-xs font-medium text-green-700 dark:text-green-400">
+            <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
+            {t('wizard.model.modelReadyGood')}
+          </p>
+        </div>
       )}
 
       <div className="flex items-center gap-2">
@@ -222,9 +224,7 @@ export function LocalModelPicker({
           variant="outline"
           size="sm"
           onClick={() => void handleDownload()}
-          disabled={
-            downloading || (isCustom ? !customUrl.trim() : !modelId)
-          }
+          disabled={downloading || !customUrl.trim()}
           className={[
             'relative overflow-hidden',
             downloadState === 'done' && 'btn-success',
