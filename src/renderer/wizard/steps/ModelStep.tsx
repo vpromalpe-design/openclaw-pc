@@ -86,6 +86,10 @@ export function ModelStep() {
         customProviderId: provider === 'custom' ? modelConfig.customProviderId ?? '' : '',
         customBaseUrl: provider === 'custom' ? modelConfig.customBaseUrl ?? '' : '',
         customCompatibility: provider === 'custom' ? modelConfig.customCompatibility ?? 'openai' : undefined,
+        openrouterBaseUrl:
+          provider === 'openrouter'
+            ? (modelConfig.openrouterBaseUrl ?? 'https://openrouter.ai/api/v1')
+            : '',
         cloudflareAccountId: provider === 'cloudflare-ai-gateway' ? modelConfig.cloudflareAccountId ?? '' : '',
         cloudflareGatewayId: provider === 'cloudflare-ai-gateway' ? modelConfig.cloudflareGatewayId ?? '' : '',
       })
@@ -99,6 +103,7 @@ export function ModelStep() {
       modelConfig.customCompatibility,
       modelConfig.customProviderId,
       modelConfig.moonshotRegion,
+      modelConfig.openrouterBaseUrl,
       setModelConfig,
     ],
   )
@@ -145,6 +150,7 @@ export function ModelStep() {
       (modelConfig.apiKey.trim() &&
         modelConfig.customProviderId?.trim() &&
         modelConfig.customBaseUrl?.trim())) &&
+    (modelConfig.provider !== 'openrouter' || Boolean((modelConfig.openrouterBaseUrl ?? '').trim())) &&
     (!requiresApiKey(modelConfig.provider) || modelConfig.apiKey.trim())
 
   const getProviderOptionLabel = useCallback(
@@ -338,6 +344,26 @@ export function ModelStep() {
               />
             </div>
           </div>
+        </fieldset>
+      )}
+
+      {modelConfig.provider === 'openrouter' && (
+        <fieldset className="space-y-1.5">
+          <label htmlFor="openrouter-base-url" className="text-sm font-medium">
+            {t('wizard.model.apiBaseUrl')} <span className="text-destructive">*</span>
+          </label>
+          <Input
+            id="openrouter-base-url"
+            type="text"
+            value={modelConfig.openrouterBaseUrl ?? 'https://openrouter.ai/api/v1'}
+            onChange={(e) => {
+              setModelConfig({ openrouterBaseUrl: e.target.value })
+              setTestState({ status: 'idle', message: '' })
+            }}
+            placeholder="https://openrouter.ai/api/v1"
+            className="font-mono"
+          />
+          <p className="text-xs text-muted-foreground">{t('wizard.model.openrouterBaseUrlHint')}</p>
         </fieldset>
       )}
 

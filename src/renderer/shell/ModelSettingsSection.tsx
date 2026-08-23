@@ -122,6 +122,10 @@ export function ModelSettingsSection() {
         customProviderId: provider === 'custom' ? modelConfig.customProviderId ?? '' : '',
         customBaseUrl: provider === 'custom' ? modelConfig.customBaseUrl ?? '' : '',
         customCompatibility: provider === 'custom' ? modelConfig.customCompatibility ?? 'openai' : undefined,
+        openrouterBaseUrl:
+          provider === 'openrouter'
+            ? (modelConfig.openrouterBaseUrl ?? 'https://openrouter.ai/api/v1')
+            : '',
         cloudflareAccountId: provider === 'cloudflare-ai-gateway' ? modelConfig.cloudflareAccountId ?? '' : '',
         cloudflareGatewayId: provider === 'cloudflare-ai-gateway' ? modelConfig.cloudflareGatewayId ?? '' : '',
       })
@@ -137,6 +141,7 @@ export function ModelSettingsSection() {
       modelConfig.customCompatibility,
       modelConfig.customProviderId,
       modelConfig.moonshotRegion,
+      modelConfig.openrouterBaseUrl,
     ],
   )
 
@@ -204,6 +209,9 @@ export function ModelSettingsSection() {
     if (!modelConfig.modelId.trim()) return false
     if (modelConfig.provider === 'custom') {
       if (!modelConfig.customProviderId?.trim() || !modelConfig.customBaseUrl?.trim()) return false
+    }
+    if (modelConfig.provider === 'openrouter') {
+      if (!(modelConfig.openrouterBaseUrl ?? '').trim()) return false
     }
     if (modelConfig.provider === 'cloudflare-ai-gateway') {
       if (!modelConfig.cloudflareAccountId?.trim() || !modelConfig.cloudflareGatewayId?.trim()) return false
@@ -512,6 +520,24 @@ export function ModelSettingsSection() {
             />
           </fieldset>
         </div>
+      )}
+
+      {modelConfig.provider === 'openrouter' && (
+        <fieldset className="space-y-1.5">
+          <label htmlFor="settings-openrouter-url" className="text-sm font-medium">
+            {t('wizard.model.apiBaseUrl')} <span className="text-destructive">*</span>
+          </label>
+          <Input
+            id="settings-openrouter-url"
+            value={modelConfig.openrouterBaseUrl ?? 'https://openrouter.ai/api/v1'}
+            onChange={(e) =>
+              setModelConfig((m) => ({ ...m, openrouterBaseUrl: e.target.value }))
+            }
+            className="font-mono"
+            placeholder="https://openrouter.ai/api/v1"
+          />
+          <p className="text-xs text-muted-foreground">{t('wizard.model.openrouterBaseUrlHint')}</p>
+        </fieldset>
       )}
 
       <fieldset className="space-y-1.5">

@@ -271,6 +271,7 @@ function parseModelConfigPayload(raw: Record<string, unknown>): ModelConfig {
     moonshotRegion: raw.moonshotRegion === 'cn' ? 'cn' : raw.moonshotRegion === 'global' ? 'global' : undefined,
     customProviderId: typeof raw.customProviderId === 'string' ? raw.customProviderId : undefined,
     customBaseUrl: typeof raw.customBaseUrl === 'string' ? raw.customBaseUrl : undefined,
+    openrouterBaseUrl: typeof raw.openrouterBaseUrl === 'string' ? raw.openrouterBaseUrl : undefined,
     cloudflareAccountId: typeof raw.cloudflareAccountId === 'string' ? raw.cloudflareAccountId : undefined,
     cloudflareGatewayId: typeof raw.cloudflareGatewayId === 'string' ? raw.cloudflareGatewayId : undefined,
     customCompatibility:
@@ -445,6 +446,7 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
         moonshotRegion: raw.moonshotRegion === 'cn' ? 'cn' : raw.moonshotRegion === 'global' ? 'global' : undefined,
         customProviderId: typeof raw.customProviderId === 'string' ? raw.customProviderId : undefined,
         customBaseUrl: typeof raw.customBaseUrl === 'string' ? raw.customBaseUrl : undefined,
+        openrouterBaseUrl: typeof raw.openrouterBaseUrl === 'string' ? raw.openrouterBaseUrl : undefined,
         cloudflareAccountId: typeof raw.cloudflareAccountId === 'string' ? raw.cloudflareAccountId : undefined,
         cloudflareGatewayId: typeof raw.cloudflareGatewayId === 'string' ? raw.cloudflareGatewayId : undefined,
         customCompatibility:
@@ -657,6 +659,7 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
         moonshotRegion: raw.moonshotRegion === 'cn' ? 'cn' : raw.moonshotRegion === 'global' ? 'global' : undefined,
         customProviderId: typeof raw.customProviderId === 'string' ? raw.customProviderId : undefined,
         customBaseUrl: typeof raw.customBaseUrl === 'string' ? raw.customBaseUrl : undefined,
+        openrouterBaseUrl: typeof raw.openrouterBaseUrl === 'string' ? raw.openrouterBaseUrl : undefined,
         cloudflareAccountId: typeof raw.cloudflareAccountId === 'string' ? raw.cloudflareAccountId : undefined,
         cloudflareGatewayId: typeof raw.cloudflareGatewayId === 'string' ? raw.cloudflareGatewayId : undefined,
         customCompatibility:

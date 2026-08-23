@@ -69,6 +69,7 @@
       "enterModelId": "Enter model ID",
       "providerId": "Provider ID",
       "apiBaseUrl": "API Base URL",
+      "openrouterBaseUrlHint": "OpenRouter uses the OpenAI-compatible API. Keep the default endpoint or enter your own (e.g. a proxy).",
       "compatibility": "Compatibility",
       "openaiCompatible": "OpenAI-compatible",
       "anthropicCompatible": "Anthropic-compatible",

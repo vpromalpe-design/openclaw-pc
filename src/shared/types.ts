@@ -350,6 +350,8 @@ export interface ModelConfig {
   customBaseUrl?: string
   /** Custom provider: protocol compatibility */
   customCompatibility?: 'openai' | 'anthropic'
+  /** OpenRouter: custom API endpoint (default https://openrouter.ai/api/v1) */
+  openrouterBaseUrl?: string
   /** Cloudflare AI Gateway: Account ID */
   cloudflareAccountId?: string
   /** Cloudflare AI Gateway: Gateway ID */

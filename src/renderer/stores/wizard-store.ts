@@ -45,6 +45,7 @@ const DEFAULT_MODEL_CONFIG: ModelConfig = {
   customProviderId: '',
   customBaseUrl: '',
   customCompatibility: 'openai',
+  openrouterBaseUrl: '',
   reasoningLevel: 'medium',
 }
 

@@ -223,6 +223,13 @@ export async function testModelConnection(
     return runTestRequest(providerConfig, config)
   }
 
+  // OpenRouter extended settings: probe the configured endpoint (or the default).
+  if (config.provider === 'openrouter') {
+    const baseUrl = config.openrouterBaseUrl?.trim() || 'https://openrouter.ai/api/v1'
+    const providerConfig = buildCustomProviderConfig(baseUrl, 'openai')
+    return runTestRequest(providerConfig, config)
+  }
+
   const providerConfig = PROVIDER_CONFIGS[config.provider]
   if (!providerConfig) {
     return { ok: false, message: `Automatic test not supported for provider: ${config.provider}` }

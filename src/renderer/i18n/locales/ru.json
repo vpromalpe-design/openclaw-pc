@@ -69,6 +69,7 @@
       "enterModelId": "Введите ID модели",
       "providerId": "ID провайдера",
       "apiBaseUrl": "Базовый URL API",
+      "openrouterBaseUrlHint": "OpenRouter использует OpenAI-совместимый API. Оставьте стандартный адрес или укажите свой (например, прокси).",
       "compatibility": "Совместимость",
       "openaiCompatible": "Совместимо с OpenAI",
       "anthropicCompatible": "Совместимо с Anthropic",

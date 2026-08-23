@@ -40,6 +40,7 @@ export function sanitizeWizardState(state: WizardState): WizardState {
     modelId: mc.modelId.trim(),
     ...(mc.customProviderId !== undefined ? { customProviderId: mc.customProviderId.trim() } : {}),
     ...(mc.customBaseUrl !== undefined ? { customBaseUrl: mc.customBaseUrl.trim() } : {}),
+    ...(mc.openrouterBaseUrl !== undefined ? { openrouterBaseUrl: mc.openrouterBaseUrl.trim() } : {}),
     ...(mc.cloudflareAccountId !== undefined ? { cloudflareAccountId: mc.cloudflareAccountId.trim() } : {}),
     ...(mc.cloudflareGatewayId !== undefined ? { cloudflareGatewayId: mc.cloudflareGatewayId.trim() } : {}),
   }
@@ -449,8 +450,14 @@ function ensureProviderSeedConfig(config: OpenClawConfig, state: WizardState): v
     }
     return
   }
-  const seed = PROVIDER_SEEDS[provider]
-  if (!seed) return
+  const seedRaw = PROVIDER_SEEDS[provider]
+  if (!seedRaw) return
+
+  // OpenRouter extended settings: allow a custom endpoint (default https://openrouter.ai/api/v1).
+  const seed =
+    provider === 'openrouter' && state.modelConfig.openrouterBaseUrl?.trim()
+      ? { ...seedRaw, baseUrl: state.modelConfig.openrouterBaseUrl.trim() }
+      : seedRaw
 
   const modelId = state.modelConfig.modelId.trim()
   if (!modelId) return

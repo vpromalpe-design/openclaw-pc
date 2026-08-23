@@ -60,6 +60,7 @@ function emptyModelConfig(): ModelConfig {
     customProviderId: '',
     customBaseUrl: '',
     customCompatibility: 'openai',
+    openrouterBaseUrl: '',
   }
 }
 
@@ -137,6 +138,14 @@ export function inferModelConfigFromOpenClaw(config: OpenClawConfig): ModelConfi
     cloudflareGatewayId = cf.gatewayId
   }
 
+  let openrouterBaseUrl: string | undefined
+  if (provider === 'openrouter') {
+    const orBase = config.models?.providers?.openrouter?.baseUrl
+    if (typeof orBase === 'string' && orBase.trim()) {
+      openrouterBaseUrl = orBase.trim()
+    }
+  }
+
   return {
     ...emptyModelConfig(),
     provider,
@@ -144,6 +153,7 @@ export function inferModelConfigFromOpenClaw(config: OpenClawConfig): ModelConfi
     moonshotRegion,
     ...(cloudflareAccountId ? { cloudflareAccountId } : {}),
     ...(cloudflareGatewayId ? { cloudflareGatewayId } : {}),
+    ...(openrouterBaseUrl ? { openrouterBaseUrl } : {}),
     reasoningLevel: thinkingToReasoningLevel(config.agents?.defaults?.thinkingDefault),
   }
 }
