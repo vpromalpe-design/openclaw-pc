@@ -2,6 +2,18 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.9.2] - 2026-08-24
+
+### Fixed
+
+- **Wizard welcome screen was blank** — the setup wizard content (text, buttons, feature cards) was rendered *under* the animated blob background (static `main` vs fixed `z-0` background layer). The wizard body is now above the background, so the first welcome screen shows its text and buttons again.
+
+### Changed
+
+- **Dark installer theme** — the Windows installer is now fully dark (Liquid Glass): dark pages with white text (welcome, install folder, installing, finish), matching the app design.
+- **Installer sidebar** — the orange welcome bitmap is replaced with a dark glass sidebar featuring the OpenClaw PC logo and the «OpenClaw PC» wordmark (shows on every page, including the finish page).
+  - Implemented via a `pnpm.patchedDependencies` patch on the electron-builder NSIS template (`app-builder-lib@26.8.1`), see `patches/`.
+
 ## [0.9.1] - 2026-08-23
 
 ### Fixed

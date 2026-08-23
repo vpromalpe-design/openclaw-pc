@@ -1,0 +1,41 @@
+diff --git a/templates/nsis/installer.nsi b/templates/nsis/installer.nsi
+@@ -5,6 +5,30 @@
+ Var oldShortcutName
+ Var oldMenuDirectory
+ 
++
++; ── Liquid Glass dark installer theme (OpenClaw PC v0.9.2) ──
++; Dark pages (welcome/finish/header) + white text; Directory and InstFiles
++; dialogs are repainted by darkDirShow / darkInstShow below.
++!define MUI_BGCOLOR "0B1020"
++!define MUI_TEXTCOLOR "F2F4F8"
++!define MUI_DIRECTORYPAGE_BGCOLOR "0B1020"
++!define MUI_DIRECTORYPAGE_TEXTCOLOR "F2F4F8"
++!define MUI_PAGE_CUSTOMFUNCTION_SHOW darkDirShow
++
++; Repaint the "choose installation folder" page (dark background, light text).
++Function darkDirShow
++  SetCtlColors $mui.DirectoryPage "" "F2F4F8" "0B1020"
++  SetCtlColors $mui.DirectoryPage.Text "F2F4F8" "0B1020"
++  SetCtlColors $mui.DirectoryPage.SpaceRequired "F2F4F8" "0B1020"
++  SetCtlColors $mui.DirectoryPage.SpaceAvailable "F2F4F8" "0B1020"
++FunctionEnd
++
++; Repaint the "installing" page (dark background, light text, log stays light).
++Function darkInstShow
++  SetCtlColors $mui.InstFilesPage "" "F2F4F8" "0B1020"
++  SetCtlColors $mui.InstFilesPage.Text "F2F4F8" "0B1020"
++FunctionEnd
++
+ !include "common.nsh"
+ !include "MUI2.nsh"
+ !include "multiUser.nsh"
+diff --git a/templates/nsis/assistedInstaller.nsh b/templates/nsis/assistedInstaller.nsh
+@@ -43,6 +43,7 @@
+     !insertmacro customPageAfterChangeDir
+   !endif
+ 
++  !define MUI_PAGE_CUSTOMFUNCTION_SHOW darkInstShow
+   !insertmacro MUI_PAGE_INSTFILES
+   !ifmacrodef customFinishPage
+     !insertmacro customFinishPage

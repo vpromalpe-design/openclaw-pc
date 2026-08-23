@@ -568,7 +568,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
           </span>
           {gatewayPort && <span>127.0.0.1:{gatewayPort}</span>}
           <span className="hidden sm:inline">mode:{chatMode}</span>
-          <span className="ml-auto text-muted-foreground/70">openclaw-pc v0.9.1</span>
+          <span className="ml-auto text-muted-foreground/70">openclaw-pc v0.9.2</span>
         </div>
       )}
     </main>

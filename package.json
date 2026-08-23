@@ -1,6 +1,6 @@
 {
   "name": "openclaw-pc",
-  "version": "0.9.1+openclaw.2026.7.1",
+  "version": "0.9.2+openclaw.2026.7.1",
   "openclawBundleVersion": "2026.7.1",
   "openclawFeishuLarkSdkVersion": "^1.60.0",
   "description": "Community-maintained Windows desktop app and installer for OpenClaw.",
@@ -82,11 +82,9 @@
     "xlsx": "^0.18.5"
   },
   "pnpm": {
-    "onlyBuiltDependencies": [
-      "electron",
-      "esbuild",
-      "sharp"
-    ]
+    "patchedDependencies": {
+      "app-builder-lib@26.8.1": "patches/app-builder-lib@26.8.1.patch"
+    }
   },
   "keywords": [
     "openclaw",

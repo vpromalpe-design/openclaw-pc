@@ -115,7 +115,7 @@ export function WizardLayout() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto">
+      <main className="relative z-10 flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
           <StepContent />
         </div>
