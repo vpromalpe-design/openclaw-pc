@@ -2,6 +2,18 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.8.29] - 2026-08-23
+
+### Fixed
+
+- **Local models could not start** («No llama.cpp cpu build found in release v0.2.0 (assets: 0)»): llama.cpp moved its Windows binaries to prerelease per-build releases (`b10593`, …) while GitHub's «latest» endpoint now returns a stable marker release (`v0.2.0`) that contains no binaries. The engine downloader now scans recent releases and picks the newest one that actually ships `llama-<tag>-*` assets, so the CPU/CUDA engine downloads again and local GGUF models (Gemma 4) start.
+
+## [0.8.28] - 2026-08-23
+
+### Added
+
+- **OpenRouter extended settings**: the wizard's Model step and Settings → Models now show an editable «API Base URL» field for OpenRouter (default `https://openrouter.ai/api/v1`, pre-filled). Users can point OpenRouter at their own endpoint or proxy. The URL is written to `models.providers.openrouter.baseUrl`, read back when settings load and used by the connection test.
+
 ## [0.8.27] - 2026-08-22
 
 ### Added
