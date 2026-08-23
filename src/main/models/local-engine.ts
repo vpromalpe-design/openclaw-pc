@@ -332,8 +332,8 @@ export function cancelLocalDownload(): boolean {
 
 // ─── llama.cpp engine ─────────────────────────────────────────────────────────
 
-const LLAMA_ZIP_URL =
-  'https://api.github.com/repos/ggml-org/llama.cpp/releases/latest'
+const LLAMA_RELEASES_URL =
+  'https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=20'
 
 export type LocalEngineMode = 'auto' | 'cpu' | 'gpu'
 export type EngineVariant = 'cpu' | 'cuda' | 'vulkan'
@@ -426,24 +426,38 @@ async function fetchLatestLlamaRelease(): Promise<{
   assets: string[]
 }> {
   if (cachedLlamaRelease) return cachedLlamaRelease
-  const { res } = await httpGetFollowRedirect(LLAMA_ZIP_URL, 3)
+  // llama.cpp publishes its Windows binaries on per-build releases
+  // (b<number>, e.g. b10593), all marked as prerelease. GitHub's
+  // /releases/latest endpoint therefore resolves to the stable "v0.2.0"
+  // marker release which carries NO binaries — only a nightly-tag.txt file.
+  // Iterate the recent releases and pick the newest one that actually ships
+  // `llama-<tag>-*` assets.
+  const { res } = await httpGetFollowRedirect(LLAMA_RELEASES_URL, 3)
   let body = ''
   for await (const chunk of res) {
     body += chunk
   }
-  const json = JSON.parse(body) as {
+  const releases = JSON.parse(body) as Array<{
     tag_name?: string
     assets?: { name?: string }[]
-  }
-  const tag = json.tag_name
-  if (!tag) throw new Error('Could not resolve latest llama.cpp release')
-  cachedLlamaRelease = {
-    tag,
-    assets: (json.assets ?? [])
+  }>
+  for (const release of releases) {
+    const tag = release.tag_name
+    if (!tag) continue
+    const assets = (release.assets ?? [])
       .map((a) => a.name ?? '')
-      .filter((n) => n.startsWith(`llama-${tag}-`)),
+      .filter((n) => n.startsWith(`llama-${tag}-`))
+    if (assets.length > 0) {
+      cachedLlamaRelease = {
+        tag,
+        assets,
+      }
+      return cachedLlamaRelease
+    }
   }
-  return cachedLlamaRelease
+  throw new Error(
+    'Could not resolve latest llama.cpp release with Windows binaries',
+  )
 }
 
 /**
