@@ -57,6 +57,8 @@ export interface LocalModelPreset {
   description: string
   /** Overrides the default `compat.supportsTools: false` for this preset. */
   supportsTools?: boolean
+  /** Fallback download URL (e.g. hf-mirror.com) tried after the primary fails. */
+  mirrorUrl?: string
 }
 
 /**
@@ -70,6 +72,10 @@ export const LOCAL_MODEL_PRESETS: LocalModelPreset[] = [
     name: 'Gemma 4 v2 (Q4_K_M)',
     fileName: 'gemma4-v2-Q4_K_M.gguf',
     url: 'https://huggingface.co/yuxinlu1/gemma-4-12B-agentic-fable5-composer2.5-v2-3.5x-tau2-GGUF/resolve/main/gemma4-v2-Q4_K_M.gguf?download=true',
+    // huggingface.co is blocked for many Russian ISPs — fall back to the
+    // hf-mirror.com CDN (same files, reachable from RU without a VPN).
+    mirrorUrl:
+      'https://hf-mirror.com/yuxinlu1/gemma-4-12B-agentic-fable5-composer2.5-v2-3.5x-tau2-GGUF/resolve/main/gemma4-v2-Q4_K_M.gguf?download=true',
     sizeBytes: 7_381_381_664,
     description: '~6.9 GB · best quality, tool calling enabled',
     supportsTools: true,
@@ -206,6 +212,7 @@ export function getEngineState(): LocalEngineState {
 function httpGetFollowRedirect(
   url: string,
   redirectsLeft: number,
+  timeoutMs = 30_000,
 ): Promise<{ res: http.IncomingMessage }> {
   return new Promise((resolve, reject) => {
     const mod = url.startsWith('https:') ? https : http
@@ -222,7 +229,7 @@ function httpGetFollowRedirect(
         ) {
           res.resume()
           const next = new URL(res.headers.location, url).toString()
-          httpGetFollowRedirect(next, redirectsLeft - 1)
+          httpGetFollowRedirect(next, redirectsLeft - 1, timeoutMs)
             .then(resolve)
             .catch(reject)
           return
@@ -236,6 +243,12 @@ function httpGetFollowRedirect(
       },
     )
     req.on('error', reject)
+    // v0.8.30: never hang silently on a stalled connection (seen with
+    // api.github.com / huggingface.co from RU networks). Destroy the socket
+    // so the caller can fall back or surface a real error.
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error(`Request timed out after ${timeoutMs / 1000}s: ${url}`))
+    })
   })
 }
 
@@ -274,34 +287,64 @@ export async function downloadLocalModel(modelId: string): Promise<LocalModelInf
   })
 
   try {
-    const { res } = await httpGetFollowRedirect(preset.url, 5)
-    const total = Number(res.headers['content-length'] ?? preset.sizeBytes)
-    let received = 0
-    const out = fs.createWriteStream(part)
-    await new Promise<void>((resolve, reject) => {
-      handle.req = res as unknown as import('node:http').ClientRequest
-      res.on('data', (chunk: Buffer) => {
-        received += chunk.length
-        emitProgress({
-          modelId,
-          fileName: preset.fileName,
-          received,
-          total,
-          progress: Math.min(1, received / total),
-          stage: 'downloading',
+    // huggingface.co is unreachable from many RU networks (Roskomnadzor
+    // block) — fall back to the hf-mirror.com CDN on any failure. The
+    // primary URL is still tried first because it is the canonical source.
+    const candidates = [preset.url, preset.mirrorUrl].filter(
+      (u): u is string => Boolean(u),
+    )
+    let lastErr: unknown = null
+    let downloaded = false
+    for (const candidate of candidates) {
+      if (handle.cancelled) break
+      try {
+        const { res } = await httpGetFollowRedirect(candidate, 5, 45_000)
+        const total = Number(
+          res.headers['content-length'] ?? preset.sizeBytes,
+        )
+        let received = 0
+        const out = fs.createWriteStream(part)
+        await new Promise<void>((resolve, reject) => {
+          handle.req = res as unknown as import('node:http').ClientRequest
+          res.on('data', (chunk: Buffer) => {
+            received += chunk.length
+            emitProgress({
+              modelId,
+              fileName: preset.fileName,
+              received,
+              total,
+              progress: Math.min(1, received / total),
+              stage: 'downloading',
+            })
+          })
+          res.on('error', reject)
+          out.on('error', reject)
+          out.on('close', () => {
+            if (handle.cancelled) {
+              reject(new Error('Download cancelled'))
+            } else {
+              resolve()
+            }
+          })
+          res.pipe(out)
         })
-      })
-      res.on('error', reject)
-      out.on('error', reject)
-      out.on('close', () => {
-        if (handle.cancelled) {
-          reject(new Error('Download cancelled'))
-        } else {
-          resolve()
+        downloaded = true
+        break
+      } catch (err) {
+        lastErr = err
+        try {
+          if (fs.existsSync(part)) fs.unlinkSync(part)
+        } catch {
+          /* ignore */
         }
-      })
-      res.pipe(out)
-    })
+        logWarn(
+          `[local-engine] download from ${candidate} failed: ${err instanceof Error ? err.message : String(err)}`,
+        )
+      }
+    }
+    if (!downloaded) {
+      throw lastErr ?? new Error('Download failed')
+    }
     fs.renameSync(part, target)
     const info = listLocalModels().find((m) => m.fileName === preset.fileName)!
     emitProgress({ modelId, fileName: preset.fileName, progress: 1, stage: 'done' })
@@ -313,7 +356,13 @@ export async function downloadLocalModel(modelId: string): Promise<LocalModelInf
       /* ignore */
     }
     emitProgress({ modelId, fileName: preset.fileName, stage: 'error' })
-    throw err
+    // Russian users hitting the HF block get an actionable hint instead of a
+    // bare network error.
+    const message =
+      err instanceof Error ? err.message : String(err)
+    throw new Error(
+      `${message} — if you are in Russia, huggingface.co is blocked: enable a VPN or add the model via a custom URL (e.g. hf-mirror.com).`,
+    )
   } finally {
     activeDownload = null
   }
@@ -334,6 +383,15 @@ export function cancelLocalDownload(): boolean {
 
 const LLAMA_RELEASES_URL =
   'https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=20'
+// Fallback when api.github.com is unreachable (common from RU networks): a
+// known-good recent build tag + deterministic asset names. The names follow
+// llama.cpp's stable `llama-<tag>-bin-win-<variant>-x64.zip` convention.
+const LLAMA_FALLBACK_TAG = 'b10593'
+const LLAMA_FALLBACK_ASSETS = [
+  `${'llama'}-${LLAMA_FALLBACK_TAG}-bin-win-cpu-x64.zip`,
+  `${'llama'}-${LLAMA_FALLBACK_TAG}-bin-win-cuda-12.4-x64.zip`,
+  `${'llama'}-${LLAMA_FALLBACK_TAG}-bin-win-vulkan-x64.zip`,
+]
 
 export type LocalEngineMode = 'auto' | 'cpu' | 'gpu'
 export type EngineVariant = 'cpu' | 'cuda' | 'vulkan'
@@ -432,32 +490,40 @@ async function fetchLatestLlamaRelease(): Promise<{
   // marker release which carries NO binaries — only a nightly-tag.txt file.
   // Iterate the recent releases and pick the newest one that actually ships
   // `llama-<tag>-*` assets.
-  const { res } = await httpGetFollowRedirect(LLAMA_RELEASES_URL, 3)
-  let body = ''
-  for await (const chunk of res) {
-    body += chunk
-  }
-  const releases = JSON.parse(body) as Array<{
-    tag_name?: string
-    assets?: { name?: string }[]
-  }>
-  for (const release of releases) {
-    const tag = release.tag_name
-    if (!tag) continue
-    const assets = (release.assets ?? [])
-      .map((a) => a.name ?? '')
-      .filter((n) => n.startsWith(`llama-${tag}-`))
-    if (assets.length > 0) {
-      cachedLlamaRelease = {
-        tag,
-        assets,
-      }
-      return cachedLlamaRelease
+  try {
+    const { res } = await httpGetFollowRedirect(LLAMA_RELEASES_URL, 3, 15_000)
+    let body = ''
+    for await (const chunk of res) {
+      body += chunk
     }
+    const releases = JSON.parse(body) as Array<{
+      tag_name?: string
+      assets?: { name?: string }[]
+    }>
+    for (const release of releases) {
+      const tag = release.tag_name
+      if (!tag) continue
+      const assets = (release.assets ?? [])
+        .map((a) => a.name ?? '')
+        .filter((n) => n.startsWith(`llama-${tag}-`))
+      if (assets.length > 0) {
+        cachedLlamaRelease = {
+          tag,
+          assets,
+        }
+        return cachedLlamaRelease
+      }
+    }
+  } catch (err) {
+    logWarn(
+      `[local-engine] could not resolve llama.cpp release from GitHub API (${err instanceof Error ? err.message : String(err)}) — using fallback tag ${LLAMA_FALLBACK_TAG}`,
+    )
   }
-  throw new Error(
-    'Could not resolve latest llama.cpp release with Windows binaries',
-  )
+  cachedLlamaRelease = {
+    tag: LLAMA_FALLBACK_TAG,
+    assets: [...LLAMA_FALLBACK_ASSETS],
+  }
+  return cachedLlamaRelease
 }
 
 /**

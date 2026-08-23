@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Download, FolderOpen, Loader2, CheckCircle2, Cpu, MonitorUp } from 'lucide-react'
+import { Download, FolderOpen, Loader2, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -26,14 +26,7 @@ type DownloadState = 'idle' | 'downloading' | 'done'
 
 type EngineInstallState = 'idle' | 'installing' | 'done'
 
-/** Map the detected GPU vendor to the llama.cpp build it needs. */
-function gpuVariantFor(
-  gpu: LocalEngineRuntimeInfo['gpuVendor'],
-): 'cuda' | 'vulkan' | null {
-  if (gpu === 'nvidia') return 'cuda'
-  if (gpu === 'amd' || gpu === 'intel' || gpu === 'other') return 'vulkan'
-  return null
-}
+type EngineVariant = 'cpu' | 'cuda' | 'vulkan'
 
 export interface LocalModelPickerProps {
   modelId: string
@@ -57,6 +50,7 @@ export function LocalModelPicker({
   const [runtime, setRuntime] = useState<LocalEngineRuntimeInfo | null>(null)
   const [engineInstall, setEngineInstall] = useState<EngineInstallState>('idle')
   const [engineProgress, setEngineProgress] = useState<number | null>(null)
+  const [installingVariant, setInstallingVariant] = useState<EngineVariant | null>(null)
 
   const refreshRuntime = async () => {
     try {
@@ -148,27 +142,27 @@ export function LocalModelPicker({
     }
   }
 
-  const handleInstallEngine = async () => {
-    const variant = runtime ? gpuVariantFor(runtime.gpuVendor) : null
-    if (!variant) return
+  const handleInstallEngine = async (variant: EngineVariant) => {
+    if (engineInstall === 'installing') return
+    setInstallingVariant(variant)
     setEngineInstall('installing')
     setEngineProgress(0)
     try {
-      setRuntime(await window.electronAPI.localEngineMode({ installVariant: variant }))
+      const next = (await window.electronAPI.localEngineMode({
+        installVariant: variant,
+      })) as LocalEngineRuntimeInfo
+      setRuntime(next)
       setEngineInstall('done')
       setEngineProgress(null)
+      setInstallingVariant(null)
     } catch (e) {
       onError(e instanceof Error ? e.message : t('wizard.model.engineInstallFailed'))
       setEngineInstall('idle')
       setEngineProgress(null)
+      setInstallingVariant(null)
     }
   }
 
-  const gpuVariant = runtime ? gpuVariantFor(runtime.gpuVendor) : null
-  const gpuInstalled =
-    gpuVariant !== null && runtime?.installedVariants.includes(gpuVariant)
-  const isGpuAvailable =
-    runtime?.gpuVendor !== 'none' && runtime?.gpuVendor !== undefined
   const engineProgressPct =
     engineProgress !== null
       ? Math.min(100, Math.max(0, Math.round(engineProgress * 100)))
@@ -273,106 +267,110 @@ export function LocalModelPicker({
         </Button>
       </div>
 
-      {/* Where does it run: CPU / GPU (CUDA) */}
+      {/* Where does it run: CPU / CUDA / Vulkan — v0.8.30: every variant is
+          always offered because GPU detection is unreliable on many laptops
+          (reports "none" even with an NVIDIA GPU present), which previously
+          hid the CUDA/Vulkan install buttons entirely. */}
       {runtime && (
         <div className="space-y-2 rounded-xl border border-border bg-muted/40 p-3">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t('wizard.model.whereRuns')}
           </p>
-          <div className="grid grid-cols-2 gap-2">
-            {/* CPU — always ready */}
-            <div className="flex items-start gap-2 rounded-lg border border-green-500/40 bg-green-500/10 p-2.5">
-              <Cpu className="h-4 w-4 shrink-0 mt-0.5 text-green-600 dark:text-green-400" aria-hidden />
-              <div className="min-w-0">
-                <p className="text-sm font-semibold">CPU</p>
-                <p className="text-xs text-green-700 dark:text-green-400">
-                  {t('wizard.model.cpuReady')}
-                </p>
-              </div>
-            </div>
-            {/* GPU — needs CUDA / Vulkan build */}
-            <div
-              className={[
-                'flex items-start gap-2 rounded-lg border p-2.5',
-                gpuInstalled
-                  ? 'border-green-500/40 bg-green-500/10'
-                  : 'border-muted bg-muted/60',
-              ].join(' ')}
-            >
-              <MonitorUp
-                className={[
-                  'h-4 w-4 shrink-0 mt-0.5',
-                  gpuInstalled
-                    ? 'text-green-600 dark:text-green-400'
-                    : 'text-muted-foreground',
-                ].join(' ')}
-                aria-hidden
-              />
-              <div className="min-w-0">
-                <p className="text-sm font-semibold">GPU</p>
-                {isGpuAvailable ? (
-                  <p
-                    className={[
-                      'text-xs',
-                      gpuInstalled
-                        ? 'text-green-700 dark:text-green-400'
-                        : 'text-muted-foreground',
-                    ].join(' ')}
-                  >
-                    {runtime.gpuName || t('wizard.model.gpuUnknown')}
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    {t('wizard.model.gpuNone')}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {isGpuAvailable && gpuVariant && !gpuInstalled && (
-            <div className="space-y-1.5">
-              <p className="text-xs text-muted-foreground">
-                {gpuVariant === 'cuda'
-                  ? t('wizard.model.cudaHint')
-                  : t('wizard.model.vulkanHint')}
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => void handleInstallEngine()}
-                disabled={engineInstall === 'installing'}
-                className={[
-                  'relative overflow-hidden',
-                  engineInstall === 'done' && 'btn-success',
-                ].join(' ')}
-              >
-                {engineInstall === 'installing' && engineProgress !== null && (
-                  <span
-                    className="absolute inset-y-0 left-0 bg-green-600/35 transition-[width] duration-300"
-                    style={{ width: `${engineProgressPct}%` }}
-                  />
-                )}
-                <span className="relative z-10 inline-flex items-center">
-                  {engineInstall === 'done' ? (
-                    <CheckCircle2 className="w-4 h-4 mr-1" aria-hidden />
-                  ) : engineInstall === 'installing' ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-1" aria-hidden />
+          <div className="grid grid-cols-1 gap-2">
+            {(
+              [
+                {
+                  id: 'cpu' as const,
+                  label: 'CPU',
+                  desc: t('wizard.model.cpuDesc'),
+                  recommended: false,
+                },
+                {
+                  id: 'cuda' as const,
+                  label: 'CUDA',
+                  desc: t('wizard.model.cudaDesc'),
+                  recommended: runtime.gpuVendor === 'nvidia',
+                },
+                {
+                  id: 'vulkan' as const,
+                  label: 'Vulkan',
+                  desc: t('wizard.model.vulkanDesc'),
+                  recommended:
+                    runtime.gpuVendor === 'amd' ||
+                    runtime.gpuVendor === 'intel',
+                },
+              ] as Array<{
+                id: EngineVariant
+                label: string
+                desc: string
+                recommended: boolean
+              }>
+            ).map((v) => {
+              const installed = runtime.installedVariants.includes(v.id)
+              const installing =
+                engineInstall === 'installing' && installingVariant === v.id
+              return (
+                <div
+                  key={v.id}
+                  className={[
+                    'flex items-center justify-between gap-2 rounded-lg border p-2.5',
+                    installed
+                      ? 'border-green-500/40 bg-green-500/10'
+                      : 'border-muted bg-muted/60',
+                  ].join(' ')}
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">
+                      {v.label}
+                      {v.recommended && !installed && (
+                        <span className="ml-2 text-[10px] font-medium uppercase tracking-wide text-blue-600 dark:text-blue-400">
+                          {t('wizard.model.recommended')}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{v.desc}</p>
+                  </div>
+                  {installed ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 dark:text-green-400 shrink-0">
+                      <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+                      {t('wizard.model.engineInstalled')}
+                    </span>
                   ) : (
-                    <Download className="w-4 h-4 mr-1" aria-hidden />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="relative overflow-hidden shrink-0"
+                      onClick={() => void handleInstallEngine(v.id)}
+                      disabled={engineInstall === 'installing'}
+                    >
+                      {installing && engineProgress !== null && (
+                        <span
+                          className="absolute inset-y-0 left-0 bg-green-600/35 transition-[width] duration-300"
+                          style={{ width: `${engineProgressPct}%` }}
+                          aria-hidden
+                        />
+                      )}
+                      <span className="relative z-10 inline-flex items-center">
+                        {installing ? (
+                          <Loader2 className="w-4 h-4 animate-spin mr-1" aria-hidden />
+                        ) : (
+                          <Download className="w-4 h-4 mr-1" aria-hidden />
+                        )}
+                        {installing
+                          ? `${engineProgressPct}%`
+                          : v.id === 'cpu'
+                            ? t('wizard.model.downloadCpu')
+                            : v.id === 'cuda'
+                              ? t('wizard.model.downloadCuda')
+                              : t('wizard.model.downloadVulkan')}
+                      </span>
+                    </Button>
                   )}
-                  {engineInstall === 'done'
-                    ? t('wizard.model.engineInstalled')
-                    : engineInstall === 'installing'
-                      ? `${engineProgressPct}%`
-                      : gpuVariant === 'cuda'
-                        ? t('wizard.model.downloadCuda')
-                        : t('wizard.model.downloadVulkan')}
-                </span>
-              </Button>
-            </div>
-          )}
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
       {!downloading && modelId && (

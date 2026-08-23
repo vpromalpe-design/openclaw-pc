@@ -958,11 +958,12 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
 
   ipcMain.handle(
     IPC_MODELS_VIEW_LIST,
-    wrapHandler('MODELS_VIEW_LIST', (): ModelsViewResult => {
+    wrapHandler('MODELS_VIEW_LIST', async (): Promise<ModelsViewResult> => {
       const config = deps.openclawConfigExists() ? (deps.readOpenClawConfig() ?? {}) : {}
       const view = buildModelsView(config)
       view.localModels = listLocalModels(deps.readShellConfig().localModelsOrder)
       view.engineState = getEngineState()
+      view.runtime = await getLocalEngineRuntimeState()
       return view
     }),
   )

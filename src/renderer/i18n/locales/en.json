@@ -114,7 +114,12 @@
       "downloadVulkan": "Download Vulkan",
       "engineInstalled": "Installed",
       "engineInstallFailed": "Failed to download the GPU engine. Check your internet connection and try again.",
-      "localPreset": "Gemma4 v2 (Q4_K_M)"
+      "localPreset": "Gemma4 v2 (Q4_K_M)",
+      "cpuDesc": "Works on any PC",
+      "cudaDesc": "NVIDIA GPU · much faster",
+      "vulkanDesc": "AMD / Intel GPU",
+      "recommended": "recommended",
+      "downloadCpu": "Download CPU"
     },
     "models": {
       "loadFailed": "Failed to load models",
@@ -753,7 +758,22 @@
       "localActive": "Active local model",
       "localSelectPlaceholder": "Select a downloaded model",
       "noLocalModels": "No local models downloaded yet — download or add a GGUF below",
-      "localTestHint": "Testing starts the local engine with the selected model and waits until it is ready."
+      "localTestHint": "Testing starts the local engine with the selected model and waits until it is ready.",
+      "engineTitle": "llama.cpp engine",
+      "engineDesc": "The engine binary is required to run local models. Install at least the CPU build — it works on any PC.",
+      "engineCpu": "CPU",
+      "engineCuda": "CUDA",
+      "engineVulkan": "Vulkan",
+      "engineCpuDesc": "Works on any PC, no GPU needed",
+      "engineCudaDesc": "NVIDIA GPU · much faster",
+      "engineVulkanDesc": "AMD / Intel GPU",
+      "engineRecommended": "recommended",
+      "engineInstalled": "Installed",
+      "engineInstall": "Download",
+      "engineInstalling": "Downloading…",
+      "engineDownloading": "Downloading engine… {{percent}}%",
+      "engineInstallFailed": "Failed to download the engine. Check your internet connection and try again.",
+      "starting": "Starting…"
     }
   },
   "voice": {

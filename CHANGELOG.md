@@ -2,6 +2,19 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.8.30] - 2026-08-23
+
+### Fixed
+
+- **Local model downloads could hang forever on restricted networks**: every HTTP download now has a 30-second timeout; the built-in Gemma 4 preset falls back to the hf-mirror.com mirror when huggingface.co fails, and the final error explains the Russia block and suggests a VPN or a custom mirror URL.
+- **CUDA / Vulkan engine buttons were missing**: the Models page now has an engine section with CPU / CUDA / Vulkan install buttons and live progress; the wizard shows all three variants unconditionally (GPU detection is unreliable on many laptops and no longer hides the GPU builds).
+- **«Connect» / «Run» seemed to do nothing**: the first launch implicitly downloads the llama.cpp engine binary, which previously gave zero feedback. Engine and CUDA-runtime downloads now show a progress banner, the Run button shows a spinner, and test/start errors are displayed.
+- **Engine resolution now has a fallback**: if the GitHub API is unreachable, the downloader uses a known-good pinned build (`b10593`) with deterministic asset names instead of failing.
+
+### Added
+
+- Models page now receives the local-engine runtime snapshot (installed variants, GPU vendor/name) to power the new engine section.
+
 ## [0.8.29] - 2026-08-23
 
 ### Fixed

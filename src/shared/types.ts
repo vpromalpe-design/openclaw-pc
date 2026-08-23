@@ -715,6 +715,8 @@ export interface ModelsViewResult {
   fallbacks: string[]
   localModels: LocalModelInfo[]
   engineState: LocalEngineState
+  /** Local-engine runtime snapshot (installed variants, GPU info) — v0.8.30 */
+  runtime?: LocalEngineRuntimeInfo
 }
 
 /** Models page: apply priority request */

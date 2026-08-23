@@ -114,7 +114,12 @@
       "downloadVulkan": "Скачать Vulkan",
       "engineInstalled": "Установлено",
       "engineInstallFailed": "Не удалось скачать GPU-движок. Проверьте подключение к интернету и попробуйте ещё раз.",
-      "localPreset": "Gemma4 v2 (Q4_K_M)"
+      "localPreset": "Gemma4 v2 (Q4_K_M)",
+      "cpuDesc": "Работает на любом ПК",
+      "cudaDesc": "NVIDIA GPU · намного быстрее",
+      "vulkanDesc": "AMD / Intel GPU",
+      "recommended": "рекомендуется",
+      "downloadCpu": "Скачать CPU"
     },
     "channel": {
       "title": "Настройка каналов",
@@ -409,7 +414,22 @@
       "localActive": "Активная локальная модель",
       "localSelectPlaceholder": "Выберите скачанную модель",
       "noLocalModels": "Пока нет скачанных локальных моделей — скачайте или добавьте GGUF ниже",
-      "localTestHint": "Проверка запустит локальный движок с выбранной моделью и дождётся готовности."
+      "localTestHint": "Проверка запустит локальный движок с выбранной моделью и дождётся готовности.",
+      "engineTitle": "Движок llama.cpp",
+      "engineDesc": "Исполняемый файл движка нужен для запуска локальных моделей. Скачайте хотя бы CPU-сборку — она работает на любом ПК.",
+      "engineCpu": "CPU",
+      "engineCuda": "CUDA",
+      "engineVulkan": "Vulkan",
+      "engineCpuDesc": "Работает на любом ПК, без видеокарты",
+      "engineCudaDesc": "NVIDIA GPU · намного быстрее",
+      "engineVulkanDesc": "AMD / Intel GPU",
+      "engineRecommended": "рекомендуется",
+      "engineInstalled": "Установлено",
+      "engineInstall": "Скачать",
+      "engineInstalling": "Скачивание…",
+      "engineDownloading": "Скачивание движка… {{percent}}%",
+      "engineInstallFailed": "Не удалось скачать движок. Проверьте подключение к интернету и попробуйте ещё раз.",
+      "starting": "Запуск…"
     },
     "feishu": {
       "title": "Настройки Feishu",

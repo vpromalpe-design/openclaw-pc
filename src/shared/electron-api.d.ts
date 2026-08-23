@@ -144,7 +144,7 @@ export interface LocalProgressPayload {
   received?: number
   total?: number
   progress?: number
-  stage?: 'downloading' | 'done' | 'error' | 'engine-download'
+  stage?: 'downloading' | 'done' | 'error' | 'engine-download' | 'cuda-runtime-download'
   tag?: string
 }
 

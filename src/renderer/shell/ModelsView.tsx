@@ -37,6 +37,7 @@ import type {
   ModelsViewResult,
   LocalModelInfo,
   LocalEngineState,
+  LocalEngineRuntimeInfo,
   ModelConfig,
 } from '../../shared/types'
 
@@ -69,6 +70,7 @@ function formatBytes(n: number): string {
 }
 
 type TestStatus = 'idle' | 'testing' | 'ok' | 'fail'
+type EngineVariant = 'cpu' | 'cuda' | 'vulkan'
 
 interface ProviderDraft {
   modelId: string
@@ -100,6 +102,9 @@ export function ModelsView({ onBack }: ModelsViewProps) {
   const [customUrl, setCustomUrl] = useState('')
   const [addingCustom, setAddingCustom] = useState(false)
   const [engineBusy, setEngineBusy] = useState(false)
+  const [startingModel, setStartingModel] = useState<string | null>(null)
+  const [installingVariant, setInstallingVariant] = useState<EngineVariant | null>(null)
+  const [engineProgress, setEngineProgress] = useState<number | null>(null)
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null)
   const [drafts, setDrafts] = useState<Record<string, ProviderDraft>>({})
   const [savingProvider, setSavingProvider] = useState<string | null>(null)
@@ -131,6 +136,14 @@ export function ModelsView({ onBack }: ModelsViewProps) {
       if (p.modelId && typeof p.progress === 'number') {
         const id = p.modelId
         setDownloads((d) => ({ ...d, [id]: p.progress as number }))
+      }
+      // Engine binary / CUDA runtime downloads carry no modelId — surface
+      // their progress in the engine section banner (v0.8.30).
+      if (
+        (p.stage === 'engine-download' || p.stage === 'cuda-runtime-download') &&
+        typeof p.progress === 'number'
+      ) {
+        setEngineProgress(p.progress as number)
       }
       if (p.stage === 'done' || p.stage === 'error') {
         void load()
@@ -212,6 +225,26 @@ export function ModelsView({ onBack }: ModelsViewProps) {
     }
   }
 
+  const handleInstallEngine = async (variant: EngineVariant) => {
+    if (installingVariant) return
+    setInstallingVariant(variant)
+    setEngineProgress(0)
+    setError(null)
+    try {
+      const runtime = (await window.electronAPI.localEngineMode({
+        installVariant: variant,
+      })) as LocalEngineRuntimeInfo
+      setData((d) => (d ? { ...d, runtime } : d))
+      setEngineProgress(null)
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('shell.models.engineInstallFailed'))
+    } finally {
+      setInstallingVariant(null)
+      setEngineProgress(null)
+    }
+  }
+
   const handleAddCustom = async () => {
     const url = customUrl.trim()
     if (!url) return
@@ -260,6 +293,7 @@ export function ModelsView({ onBack }: ModelsViewProps) {
 
   const handleEngineStart = async (modelId: string) => {
     setEngineBusy(true)
+    setStartingModel(modelId)
     setError(null)
     try {
       await window.electronAPI.localEngineStart({ modelId })
@@ -268,6 +302,7 @@ export function ModelsView({ onBack }: ModelsViewProps) {
       setError(e instanceof Error ? e.message : t('shell.models.engineStartFailed'))
     } finally {
       setEngineBusy(false)
+      setStartingModel(null)
     }
   }
 
@@ -466,6 +501,8 @@ export function ModelsView({ onBack }: ModelsViewProps) {
 
   const engineState: LocalEngineState | null = data?.engineState ?? null
   const localModels: LocalModelInfo[] = data?.localModels ?? []
+  const runtime = data?.runtime ?? null
+  const installedVariants: EngineVariant[] = runtime?.installedVariants ?? []
   const downloadedLocalModels = localModels.filter((m) => m.downloaded)
   const selectedIdx = downloadedLocalModels.findIndex((m) => m.id === selectedLocal)
   const localConnected =
@@ -651,6 +688,111 @@ export function ModelsView({ onBack }: ModelsViewProps) {
             <p className="text-xs text-muted-foreground">{t('shell.models.localTestHint')}</p>
           </div>
 
+          {/* llama.cpp engine binaries (CPU / CUDA / Vulkan) — v0.8.30 */}
+          <div className="rounded-md border border-border p-3 space-y-2.5 mb-3">
+            <div className="flex items-center gap-2">
+              <Cpu className="w-4 h-4 text-muted-foreground" aria-hidden />
+              <label className="text-sm font-medium block">
+                {t('shell.models.engineTitle')}
+              </label>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t('shell.models.engineDesc')}
+            </p>
+            {engineProgress !== null && (
+              <div
+                className="relative overflow-hidden rounded-md border border-green-500/40 px-3 py-2 text-sm text-green-700 dark:text-green-300"
+                role="status"
+              >
+                <span
+                  className="absolute inset-y-0 left-0 bg-green-500/25 dark:bg-green-500/30 transition-[width] duration-300"
+                  style={{ width: `${Math.min(100, Math.round(engineProgress * 100))}%` }}
+                  aria-hidden
+                />
+                <span className="relative inline-flex items-center gap-1.5">
+                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
+                  {t('shell.models.engineDownloading', {
+                    percent: Math.min(100, Math.round(engineProgress * 100)),
+                  })}
+                </span>
+              </div>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {([
+                {
+                  id: 'cpu' as const,
+                  label: t('shell.models.engineCpu'),
+                  desc: t('shell.models.engineCpuDesc'),
+                },
+                {
+                  id: 'cuda' as const,
+                  label: t('shell.models.engineCuda'),
+                  desc: t('shell.models.engineCudaDesc'),
+                },
+                {
+                  id: 'vulkan' as const,
+                  label: t('shell.models.engineVulkan'),
+                  desc: t('shell.models.engineVulkanDesc'),
+                },
+              ] as Array<{ id: EngineVariant; label: string; desc: string }>).map(
+                (v) => {
+                  const installed = installedVariants.includes(v.id)
+                  const recommended =
+                    (runtime?.gpuVendor === 'nvidia' && v.id === 'cuda') ||
+                    ((runtime?.gpuVendor === 'amd' ||
+                      runtime?.gpuVendor === 'intel') &&
+                      v.id === 'vulkan')
+                  const installing = installingVariant === v.id
+                  return (
+                    <div
+                      key={v.id}
+                      className={[
+                        'flex flex-col gap-1.5 rounded-lg border p-2.5',
+                        installed
+                          ? 'border-green-500/40 bg-green-500/10'
+                          : 'border-muted bg-muted/60',
+                      ].join(' ')}
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-sm font-semibold">{v.label}</span>
+                        {installed ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" aria-hidden />
+                        ) : recommended ? (
+                          <span className="text-[10px] font-medium uppercase tracking-wide text-blue-600 dark:text-blue-400">
+                            {t('shell.models.engineRecommended')}
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="text-xs text-muted-foreground">{v.desc}</p>
+                      {installed ? (
+                        <span className="text-xs font-medium text-green-700 dark:text-green-400">
+                          {t('shell.models.engineInstalled')}
+                        </span>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 justify-start"
+                          disabled={installingVariant !== null}
+                          onClick={() => void handleInstallEngine(v.id)}
+                        >
+                          {installing ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" aria-hidden />
+                          ) : (
+                            <Download className="h-3.5 w-3.5 mr-1" aria-hidden />
+                          )}
+                          {installing
+                            ? t('shell.models.engineInstalling')
+                            : t('shell.models.engineInstall')}
+                        </Button>
+                      )}
+                    </div>
+                  )
+                },
+              )}
+            </div>
+          </div>
+
           <div className="flex flex-col gap-2">
             {PRESET_IDS.map((presetId) => {
               const model = localModels.find((m) => m.id === presetId)
@@ -703,8 +845,14 @@ export function ModelsView({ onBack }: ModelsViewProps) {
                           </span>
                         ) : (
                           <Button variant="outline" size="sm" className="h-7" onClick={() => void handleEngineStart(model.id)} disabled={engineBusy}>
-                            <Play className="h-3.5 w-3.5 mr-1" />
-                            {t('shell.models.run')}
+                            {startingModel === model.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" aria-hidden />
+                            ) : (
+                              <Play className="h-3.5 w-3.5 mr-1" aria-hidden />
+                            )}
+                            {startingModel === model.id
+                              ? t('shell.models.starting')
+                              : t('shell.models.run')}
                           </Button>
                         )}
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title={t('shell.models.remove')}
