@@ -479,15 +479,15 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
 
       {/* v0.9.0: plain-text chat mode (direct model call, no agent loop) */}
       {textModeActive && (
-        <div className="absolute inset-0 z-20 min-h-0 flex-col bg-background">
+        <div className="absolute inset-0 z-20 flex min-h-0 flex-col bg-background/70 backdrop-blur-xl">
           <TextChatView />
         </div>
       )}
 
-      {/* Desktop panel overlay: flex column + scroll region so flex-1 panels are not height-collapsed */}
+      {/* Desktop panel overlay: Liquid Glass — translucent frosted panel over the blob background */}
       {hasActivePanel && (
-        <div className="absolute inset-0 z-30 flex min-h-0 flex-col bg-background/85 backdrop-blur-2xl">
-          <div className="shrink-0 border-b border-border bg-background/95 px-4 py-2 backdrop-blur-sm flex items-center gap-2">
+        <div className="absolute inset-0 z-30 flex min-h-0 flex-col bg-[rgba(11,16,32,0.66)] backdrop-blur-2xl">
+          <div className="shrink-0 flex items-center gap-2 border-b border-white/10 bg-white/[0.04] px-4 py-2 backdrop-blur-xl">
             <button
               type="button"
               onClick={() => onPanelChange('')}
@@ -520,9 +520,9 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
         <LocalFirstRequestBanner onDismiss={hideFirstRequestBanner} />
       )}
 
-      {/* v0.9.0: mode switch — «Агентская задача | Просто текст» (floating, bottom-center) */}
+      {/* v0.9.0: mode switch — «Агентская задача | Просто текст» (floating, above the composer) */}
       {showControlUIIframe && !hasActivePanel && (
-        <div className="absolute bottom-4 left-1/2 z-40 -translate-x-1/2">
+        <div className="absolute bottom-32 left-1/2 z-40 -translate-x-1/2">
           <div className="flex items-center gap-1 rounded-full border border-white/10 bg-[rgba(18,26,48,0.92)] p-1 shadow-2xl shadow-black/40 backdrop-blur-xl">
             <button
               type="button"
@@ -568,7 +568,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
           </span>
           {gatewayPort && <span>127.0.0.1:{gatewayPort}</span>}
           <span className="hidden sm:inline">mode:{chatMode}</span>
-          <span className="ml-auto text-muted-foreground/70">openclaw-pc v0.9.0</span>
+          <span className="ml-auto text-muted-foreground/70">openclaw-pc v0.9.1</span>
         </div>
       )}
     </main>

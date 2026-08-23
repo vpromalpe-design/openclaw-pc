@@ -70,8 +70,9 @@ export function WizardLayout() {
   const StepContent = STEP_COMPONENTS[currentStep]
 
   return (
-    <div className="h-screen flex flex-col select-none bg-background">
-      <header className="shrink-0 border-b border-border bg-muted/20">
+    <div className="h-screen relative flex flex-col select-none overflow-hidden bg-[rgba(11,16,32,0.72)]">
+      <div className="liquid-glass-bg" aria-hidden />
+      <header className="relative shrink-0 border-b border-white/10 bg-white/[0.04] backdrop-blur-xl">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-3">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-4">
             <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -120,7 +121,7 @@ export function WizardLayout() {
         </div>
       </main>
 
-      <footer className="shrink-0 border-t border-border bg-background">
+      <footer className="relative shrink-0 border-t border-white/10 bg-white/[0.04] backdrop-blur-xl">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
           <div>
             {!isFirstStep && (

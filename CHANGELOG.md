@@ -2,6 +2,15 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.9.1] - 2026-08-23
+
+### Fixed
+
+- **White text everywhere on dark glass** — the Liquid Glass theme is now applied at app startup (previously it was only applied once you opened Settings, so panels rendered light-theme tokens: dark text on the dark glass background). «System» theme now also resolves to dark (Liquid Glass is dark by default; only an explicit «Light» choice opts out).
+- **Mode switch placement** — the «Агентская задача | Просто текст» toggle no longer overlaps the chat composer; it floats above the input block.
+- **Panel overlay is Liquid Glass** — settings/panels now use a translucent frosted surface (blur 2xl, rgba(11,16,32,0.66)) with a glass header, so the blob background shines through like in the fixed design.
+- **Wizard is Liquid Glass too** — the setup wizard now has the same glass header/footer and blob background.
+
 ## [0.9.0] - 2026-08-24
 
 ### Added

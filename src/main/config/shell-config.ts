@@ -19,7 +19,7 @@ export function getDefaultShellConfig(): ShellConfig {
   return {
     closeToTray: true,
     autoStart: false,
-    theme: 'system',
+    theme: 'dark',
     lastGatewayPort: DEFAULT_GATEWAY_PORT,
     updateChannel: 'stable',
     onboardingMainWindowExpanded: false,

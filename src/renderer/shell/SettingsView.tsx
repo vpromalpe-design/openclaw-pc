@@ -68,8 +68,8 @@ function applyTheme(theme: ShellTheme): void {
   } else if (theme === 'light') {
     root.classList.remove('dark')
   } else {
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    root.classList.toggle('dark', prefersDark)
+    // 'system' → Liquid Glass is dark by default; only explicit «light» opts out
+    root.classList.add('dark')
   }
 }
 
