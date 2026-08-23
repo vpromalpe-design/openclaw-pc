@@ -10,16 +10,14 @@ interface ChatMessage {
   error?: boolean
 }
 
-interface TextChatViewProps {
-  onBack: () => void
-}
+type TextChatViewProps = Record<string, never>
 
 /**
  * «Просто текст / Plain text» mode (v0.9.0): a direct model chat with NO agent
  * runtime — no tools, no memory, no compaction. Each exchange goes through
  * IPC `textChat:send` → main → plain completion call with the active model.
  */
-export function TextChatView({ onBack }: TextChatViewProps) {
+export function TextChatView(_props: TextChatViewProps) {
   const { t } = useTranslation()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')

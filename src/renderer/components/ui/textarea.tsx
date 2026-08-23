@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
  * Textarea styled for the Liquid Glass design (v0.9.0): glass panel, 14px
  * radius, focus ring in iOS blue.
  */
-const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement>>(
+const Textarea = React.forwardRef<HTMLTextAreaElement, React.ComponentProps<'textarea'>>(
   ({ className, ...props }, ref) => {
     return (
       <textarea

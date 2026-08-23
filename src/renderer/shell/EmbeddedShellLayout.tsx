@@ -480,7 +480,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
       {/* v0.9.0: plain-text chat mode (direct model call, no agent loop) */}
       {textModeActive && (
         <div className="absolute inset-0 z-20 min-h-0 flex-col bg-background">
-          <TextChatView onBack={() => setChatMode('agent')} />
+          <TextChatView />
         </div>
       )}
 

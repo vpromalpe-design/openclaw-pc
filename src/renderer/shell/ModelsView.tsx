@@ -43,8 +43,6 @@ export interface ModelsViewProps {
   onBack?: () => void
 }
 
-const PRESET_IDS: string[] = []
-
 function statusLabel(
   status: ModelTableEntry['status'],
   t: (key: string) => string,
@@ -61,11 +59,6 @@ function statusLabel(
   }
 }
 
-function formatBytes(n: number): string {
-  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2)} GB`
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(0)} MB`
-  return `${Math.max(0, Math.round(n / 1000))} KB`
-}
 
 type TestStatus = 'idle' | 'testing' | 'ok' | 'fail'
 type EngineVariant = 'cpu' | 'cuda' | 'vulkan'
@@ -96,7 +89,6 @@ export function ModelsView({ onBack }: ModelsViewProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [applying, setApplying] = useState(false)
-  const [downloads, setDownloads] = useState<Record<string, number>>({})
   const [customUrl, setCustomUrl] = useState('')
   const [addingCustom, setAddingCustom] = useState(false)
   const [engineBusy, setEngineBusy] = useState(false)
@@ -145,10 +137,6 @@ export function ModelsView({ onBack }: ModelsViewProps) {
   useEffect(() => {
     void load()
     const unsub = window.electronAPI.onLocalProgress((p) => {
-      if (p.modelId && typeof p.progress === 'number') {
-        const id = p.modelId
-        setDownloads((d) => ({ ...d, [id]: p.progress as number }))
-      }
       // Engine binary / CUDA runtime downloads carry no modelId — surface
       // their progress in the engine section banner (v0.8.30).
       if (
