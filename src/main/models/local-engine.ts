@@ -252,6 +252,57 @@ function httpGetFollowRedirect(
   })
 }
 
+/**
+ * v0.8.31: stream a download to disk with a size guard. `out.on('close')`
+ * alone is not enough — an aborted connection can close the stream WITHOUT
+ * emitting an error, leaving a truncated file that is then treated as a
+ * successful download (observed live: CUDA runtime zip cut mid-transfer
+ * "installed" fine, then Expand-Archive produced garbage or nothing).
+ * Resolve only when every expected byte arrived; otherwise delete the
+ * partial file and reject.
+ */
+function pipeToFileWithSizeGuard(
+  res: http.IncomingMessage,
+  out: fs.WriteStream,
+  expectedTotal: number,
+  onProgress: (received: number) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let received = 0
+    let settled = false
+    const fail = (err: Error) => {
+      if (settled) return
+      settled = true
+      try {
+        out.destroy()
+      } catch {
+        /* ignore */
+      }
+      reject(err)
+    }
+    res.on('data', (c: Buffer) => {
+      received += c.length
+      onProgress(received)
+    })
+    res.on('error', fail)
+    out.on('error', fail)
+    out.on('close', () => {
+      if (settled) return
+      if (expectedTotal > 0 && received < expectedTotal) {
+        fail(
+          new Error(
+            `Download incomplete: ${received} of ${expectedTotal} bytes (connection dropped)`,
+          ),
+        )
+        return
+      }
+      settled = true
+      resolve()
+    })
+    res.pipe(out)
+  })
+}
+
 function formatBytes(n: number): string {
   if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)} GB`
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(0)} MB`
@@ -302,32 +353,22 @@ export async function downloadLocalModel(modelId: string): Promise<LocalModelInf
         const total = Number(
           res.headers['content-length'] ?? preset.sizeBytes,
         )
-        let received = 0
         const out = fs.createWriteStream(part)
-        await new Promise<void>((resolve, reject) => {
-          handle.req = res as unknown as import('node:http').ClientRequest
-          res.on('data', (chunk: Buffer) => {
-            received += chunk.length
-            emitProgress({
-              modelId,
-              fileName: preset.fileName,
-              received,
-              total,
-              progress: Math.min(1, received / total),
-              stage: 'downloading',
-            })
+        handle.req = res as unknown as import('node:http').ClientRequest
+        await pipeToFileWithSizeGuard(res, out, total, (received) => {
+          if (handle.cancelled) return
+          emitProgress({
+            modelId,
+            fileName: preset.fileName,
+            received,
+            total,
+            progress: Math.min(1, received / total),
+            stage: 'downloading',
           })
-          res.on('error', reject)
-          out.on('error', reject)
-          out.on('close', () => {
-            if (handle.cancelled) {
-              reject(new Error('Download cancelled'))
-            } else {
-              resolve()
-            }
-          })
-          res.pipe(out)
         })
+        if (handle.cancelled) {
+          throw new Error('Download cancelled')
+        }
         downloaded = true
         break
       } catch (err) {
@@ -590,26 +631,22 @@ export async function ensureEngineBinary(
   const zipUrl = `https://github.com/ggml-org/llama.cpp/releases/download/${tag}/${assetName}`
   const zipPath = path.join(dir, 'llama.zip')
   emitProgress({ stage: 'engine-download', tag, variant, progress: 0 })
-  const { res } = await httpGetFollowRedirect(zipUrl, 5)
+  // v0.8.31: 2 minutes of inactivity for multi-hundred-MB archives; the old
+  // 30 s default killed transfers on slow RU links. The size guard in
+  // pipeToFileWithSizeGuard catches mid-transfer drops that would otherwise
+  // look like a successful download.
+  const { res } = await httpGetFollowRedirect(zipUrl, 5, 120_000)
   const total = Number(res.headers['content-length'] ?? 0)
-  let received = 0
   const out = fs.createWriteStream(zipPath)
-  await new Promise<void>((resolve, reject) => {
-    res.on('data', (c: Buffer) => {
-      received += c.length
-      emitProgress({
-        stage: 'engine-download',
-        tag,
-        variant,
-        received,
-        total,
-        progress: total ? Math.min(1, received / total) : 0,
-      })
+  await pipeToFileWithSizeGuard(res, out, total, (received) => {
+    emitProgress({
+      stage: 'engine-download',
+      tag,
+      variant,
+      received,
+      total,
+      progress: total ? Math.min(1, received / total) : 0,
     })
-    res.on('error', reject)
-    out.on('error', reject)
-    out.on('close', resolve)
-    res.pipe(out)
   })
   await extractZip(zipPath, dir)
   try {
@@ -654,26 +691,20 @@ async function ensureCudaRuntime(dir: string): Promise<void> {
     variant: 'cuda',
     progress: 0,
   })
-  const { res } = await httpGetFollowRedirect(zipUrl, 5)
+  // v0.8.31: same size-guarded download as the engine; truncated zips were
+  // silently accepted before and Expand-Archive then produced "code 1".
+  const { res } = await httpGetFollowRedirect(zipUrl, 5, 120_000)
   const total = Number(res.headers['content-length'] ?? 0)
-  let received = 0
   const out = fs.createWriteStream(zipPath)
-  await new Promise<void>((resolve, reject) => {
-    res.on('data', (c: Buffer) => {
-      received += c.length
-      emitProgress({
-        stage: 'cuda-runtime-download',
-        tag: CUDA_RUNTIME_TAG,
-        variant: 'cuda',
-        received,
-        total,
-        progress: total ? Math.min(1, received / total) : 0,
-      })
+  await pipeToFileWithSizeGuard(res, out, total, (received) => {
+    emitProgress({
+      stage: 'cuda-runtime-download',
+      tag: CUDA_RUNTIME_TAG,
+      variant: 'cuda',
+      received,
+      total,
+      progress: total ? Math.min(1, received / total) : 0,
     })
-    res.on('error', reject)
-    out.on('error', reject)
-    out.on('close', resolve)
-    res.pipe(out)
   })
   await extractZip(zipPath, dir)
   try {
@@ -714,12 +745,25 @@ function extractZip(zipPath: string, destDir: string): Promise<void> {
     const ps = spawn(
       'powershell.exe',
       ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
-      { windowsHide: true, stdio: 'ignore' },
+      { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] },
     )
+    let stderr = ''
+    let stdout = ''
+    ps.stdout?.on('data', (c: Buffer) => (stdout += c.toString('utf8')))
+    ps.stderr?.on('data', (c: Buffer) => (stderr += c.toString('utf8')))
     ps.on('error', reject)
     ps.on('exit', (code) => {
       if (code === 0) resolve()
-      else reject(new Error(`Expand-Archive failed with code ${code}`))
+      else {
+        // v0.8.31: surface the real PowerShell error text — "code 1" alone
+        // is useless for remote debugging (truncated zip, locked file, AV).
+        const detail = [stderr.trim(), stdout.trim()].filter(Boolean).join(' | ')
+        reject(
+          new Error(
+            `Expand-Archive failed with code ${code}${detail ? `: ${detail.slice(0, 500)}` : ''}`,
+          ),
+        )
+      }
     })
   })
 }

@@ -2,6 +2,12 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.8.31] - 2026-08-24
+
+### Fixed
+
+- **CUDA engine install "reaches 100% then resets"**: the CUDA runtime download (cudart/cublas DLLs) could be silently truncated on unstable networks — the old code treated a dropped connection as a successful download, then `Expand-Archive` failed with a useless "code 1" or left the DLLs missing. Downloads are now guarded by a byte-count check against `Content-Length` (truncated files are deleted and reported as errors), the inactivity timeout for engine/runtime archives was raised from 30s to 120s, and PowerShell errors from `Expand-Archive` are captured and surfaced in the log for real diagnostics.
+
 ## [0.8.30] - 2026-08-23
 
 ### Fixed
