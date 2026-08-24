@@ -1,7 +1,17 @@
-index b7f4752..bb2c80b 100644
+index b7f4752..bf3daab 100644
 --- a/templates/nsis/assistedInstaller.nsh
 +++ b/templates/nsis/assistedInstaller.nsh
-@@ -12,10 +12,20 @@
+@@ -1,5 +1,9 @@
+ !include UAC.nsh
+ 
++; Dark installer: paint the installation log (instfiles page) with light text
++; on the dark background. Read by MUI_PAGE_INSTFILES / MUI_UNPAGE_INSTFILES.
++!define MUI_INSTFILESPAGE_COLORS "F2F4F8 0B1020"
++
+ !ifndef INSTALL_MODE_PER_ALL_USERS
+   !include multiUserUi.nsh
+ !endif
+@@ -12,10 +16,20 @@
  
    !ifmacrodef licensePage
      !insertmacro skipPageIfUpdated
@@ -22,7 +32,7 @@ index b7f4752..bb2c80b 100644
      !insertmacro PAGE_INSTALL_MODE
    !endif
  
-@@ -23,6 +33,11 @@
+@@ -23,6 +37,11 @@
      !include StrContains.nsh
  
      !insertmacro skipPageIfUpdated
@@ -34,7 +44,7 @@ index b7f4752..bb2c80b 100644
      !insertmacro MUI_PAGE_DIRECTORY
  
      # pageDirectory leave doesn't work (it seems because $INSTDIR is set after custom leave function)
-@@ -43,6 +58,11 @@
+@@ -43,6 +62,11 @@
      !insertmacro customPageAfterChangeDir
    !endif
  
@@ -46,7 +56,7 @@ index b7f4752..bb2c80b 100644
    !insertmacro MUI_PAGE_INSTFILES
    !ifmacrodef customFinishPage
      !insertmacro customFinishPage
-@@ -60,6 +80,11 @@
+@@ -60,6 +84,11 @@
        !define MUI_FINISHPAGE_RUN
        !define MUI_FINISHPAGE_RUN_FUNCTION "StartApp"
      !endif
@@ -58,7 +68,7 @@ index b7f4752..bb2c80b 100644
      !insertmacro MUI_PAGE_FINISH
    !endif
  !else
-@@ -67,17 +92,37 @@
+@@ -67,17 +96,37 @@
      !ifmacrodef customUnWelcomePage
        !insertmacro customUnWelcomePage
      !else
@@ -96,7 +106,7 @@ index b7f4752..bb2c80b 100644
    !insertmacro MUI_UNPAGE_FINISH
  !endif
  
-@@ -152,3 +197,125 @@
+@@ -152,3 +201,126 @@
      ${endif}
    !endif
  !macroend
@@ -110,15 +120,16 @@ index b7f4752..bb2c80b 100644
 +; the classic theme + white text so labels stay readable on the dark page.
 +
 +!macro DarkControl HWND
-+  ${If} ${AtLeastWin10}
-+    System::Call 'uxtheme.dll::SetWindowTheme(i ${HWND}, w "DarkMode_Explorer", w "") i .r0'
-+  ${Else}
-+    System::Call 'uxtheme.dll::SetWindowTheme(i ${HWND}, w " ", w " ") i .r0'
-+    SetCtlColors ${HWND} "F2F4F8" "0B1020"
-+  ${EndIf}
++  ; uxtheme-themed controls ignore WM_CTLCOLOR* — strip the theme so
++  ; SetCtlColors actually paints them (same trick as the Finish checkbox).
++  System::Call 'uxtheme.dll::SetWindowTheme(i ${HWND}, w " ", w " ") i .r0'
++  SetCtlColors ${HWND} "F2F4F8" "0B1020"
 +!macroend
 +
 +!macro DarkPageCommon
++  ; Dialog background — visible in the gaps around controls and in the
++  ; bottom button strip. SetCtlColors supports dialog windows directly.
++  SetCtlColors $HWNDPARENT "F2F4F8" "0B1020"
 +  ; Bottom branding strip (outer dialog, present on every page).
 +  SetCtlColors $mui.Branding.Background "" "0B1020"
 +  SetCtlColors $mui.Branding.Text "F2F4F8" "0B1020"
@@ -140,13 +151,13 @@ index b7f4752..bb2c80b 100644
 +  !insertmacro DarkPageCommon
 +  SetCtlColors $mui.Licensepage.TopText "F2F4F8" "0B1020"
 +  SetCtlColors $mui.Licensepage.Text "F2F4F8" "0B1020"
-+  ; EM_SETBKGNDCOLOR = 0x0403, wParam unused, lParam = COLORREF 0x000B1020.
-+  System::Call 'user32::SendMessage(i $mui.Licensepage.LicenseText, i 0x0403, i 0, i 0x000B1020) i .r0'
++  ; EM_SETBKGNDCOLOR = 0x0403, wParam unused, lParam = COLORREF (0x00BBGGRR) 0x0020100B.
++  System::Call 'user32::SendMessage(i $mui.Licensepage.LicenseText, i 0x0403, i 0, i 0x0020100B) i .r0'
 +  ; EM_SETCHARFORMAT = 0x0444, wParam = SCF_ALL (4), lParam = CHARFORMAT2A.
 +  ; Struct: cbSize(84) dwMask(CFM_COLOR=0x40000000) dwEffects yHeight yOffset
-+  ; crTextColor(0x00F2F4F8) bCharSet bPitchAndFamily szFaceName[32]
++  ; crTextColor(0x00F8F4F2 = COLORREF of #F2F4F8) bCharSet bPitchAndFamily szFaceName[32]
 +  ; wWeight sSpacing crBackColor lcid dwReserved sStyle wKerning bUnderline*
-+  System::Call '*(i 84, i 0x40000000, i 0, i 0, i 0, i 0x00F2F4F8, i 0, i 0, s "", i 0, i 0, i 0, i 0, i 0, i 0, i 0, i 0, i 0, i 0) i .r0'
++  System::Call '*(i 84, i 0x40000000, i 0, i 0, i 0, i 0x00F8F4F2, i 0, i 0, s "", i 0, i 0, i 0, i 0, i 0, i 0, i 0, i 0, i 0, i 0) i .r0'
 +  System::Call 'user32::SendMessage(i $mui.Licensepage.LicenseText, i 0x0444, i 4, i r0) i .r1'
 +  System::Free $0
 +FunctionEnd
