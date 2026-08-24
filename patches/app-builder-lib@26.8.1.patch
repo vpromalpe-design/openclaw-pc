@@ -1,46 +1,48 @@
 diff --git a/templates/nsis/installer.nsi b/templates/nsis/installer.nsi
-@@ -5,11 +5,35 @@
+@@ -5,6 +5,15 @@
  Var oldShortcutName
  Var oldMenuDirectory
  
 +; ── Liquid Glass dark installer theme (OpenClaw PC v0.9.2) ──
-+; Dark pages (welcome/finish/header) + white text; Directory and InstFiles
-+; dialogs are repainted by darkDirShow / darkInstShow (defined after MUI2).
++; Dark pages (welcome/finish/header) + white text. Directory/InstFiles
++; dialogs are repainted by darkDirShow / darkInstShow (defined in
++; assistedInstaller.nsh after the page macros so MUI2 vars exist).
 +!define MUI_BGCOLOR "0B1020"
 +!define MUI_TEXTCOLOR "F2F4F8"
 +!define MUI_DIRECTORYPAGE_BGCOLOR "0B1020"
 +!define MUI_DIRECTORYPAGE_TEXTCOLOR "F2F4F8"
-+!define MUI_PAGE_CUSTOMFUNCTION_SHOW darkDirShow
 +
  !include "common.nsh"
  !include "MUI2.nsh"
  !include "multiUser.nsh"
- !include "allowOnlyOneInstallerInstance.nsh"
- 
-+; Repaint the "choose installation folder" page (dark background, light text).
-+Function darkDirShow
-+  SetCtlColors $mui.DirectoryPage "" "F2F4F8" "0B1020"
-+  SetCtlColors $mui.DirectoryPage.Text "F2F4F8" "0B1020"
-+  SetCtlColors $mui.DirectoryPage.SpaceRequired "F2F4F8" "0B1020"
-+  SetCtlColors $mui.DirectoryPage.SpaceAvailable "F2F4F8" "0B1020"
-+FunctionEnd
-+
-+; Repaint the "installing" page (dark background, light text, log stays light).
-+Function darkInstShow
-+  SetCtlColors $mui.InstFilesPage "" "F2F4F8" "0B1020"
-+  SetCtlColors $mui.InstFilesPage.Text "F2F4F8" "0B1020"
-+FunctionEnd
-+
-+
- !ifdef BUILD_UNINSTALLER
-   !ifmacrodef customUnInstallSection
-     !define MUI_COMPONENTSPAGE_NODESC
 diff --git a/templates/nsis/assistedInstaller.nsh b/templates/nsis/assistedInstaller.nsh
-@@ -43,6 +43,7 @@
-     !insertmacro customPageAfterChangeDir
+@@ -23,6 +23,7 @@
+     !include StrContains.nsh
+ 
+     !insertmacro skipPageIfUpdated
++    !define MUI_PAGE_CUSTOMFUNCTION_SHOW darkDirShow
+     !insertmacro MUI_PAGE_DIRECTORY
+ 
+     # pageDirectory leave doesn't work (it seems because $INSTDIR is set after custom leave function)
+@@ -44,6 +45,21 @@
    !endif
  
-+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW darkInstShow
    !insertmacro MUI_PAGE_INSTFILES
++
++  ; Repaint "choose installation folder" page (dark bg, light text).
++  Function darkDirShow
++    SetCtlColors $mui.DirectoryPage "F2F4F8" "0B1020"
++    SetCtlColors $mui.DirectoryPage.Text "F2F4F8" "0B1020"
++    SetCtlColors $mui.DirectoryPage.SpaceRequired "F2F4F8" "0B1020"
++    SetCtlColors $mui.DirectoryPage.SpaceAvailable "F2F4F8" "0B1020"
++  FunctionEnd
++
++  ; Repaint "installing" page (dark bg, light text, log stays light).
++  Function darkInstShow
++    SetCtlColors $mui.InstFilesPage "F2F4F8" "0B1020"
++    SetCtlColors $mui.InstFilesPage.Text "F2F4F8" "0B1020"
++  FunctionEnd
++
    !ifmacrodef customFinishPage
      !insertmacro customFinishPage
+   !else
