@@ -1,50 +1,217 @@
+diff --git a/templates/nsis/assistedInstaller.nsh b/templates/nsis/assistedInstaller.nsh
+index b7f47526554ba07aa0a062c3b0f1810cdc8711b8..830a961c7a59d163d9b3f6f9e33c83c4047066bc 100644
+--- a/templates/nsis/assistedInstaller.nsh
++++ b/templates/nsis/assistedInstaller.nsh
+@@ -12,10 +12,20 @@
+ 
+   !ifmacrodef licensePage
+     !insertmacro skipPageIfUpdated
++    !ifdef BUILD_UNINSTALLER
++      !define MUI_PAGE_CUSTOMFUNCTION_SHOW un.darkLicenseShow
++    !else
++      !define MUI_PAGE_CUSTOMFUNCTION_SHOW darkLicenseShow
++    !endif
+     !insertmacro licensePage
+   !endif
+ 
+   !ifndef INSTALL_MODE_PER_ALL_USERS
++    !ifdef BUILD_UNINSTALLER
++      !define MUI_PAGE_CUSTOMFUNCTION_SHOW un.darkModePageShow
++    !else
++      !define MUI_PAGE_CUSTOMFUNCTION_SHOW darkModePageShow
++    !endif
+     !insertmacro PAGE_INSTALL_MODE
+   !endif
+ 
+@@ -23,6 +33,11 @@
+     !include StrContains.nsh
+ 
+     !insertmacro skipPageIfUpdated
++    !ifdef BUILD_UNINSTALLER
++      !define MUI_PAGE_CUSTOMFUNCTION_SHOW un.darkDirShow
++    !else
++      !define MUI_PAGE_CUSTOMFUNCTION_SHOW darkDirShow
++    !endif
+     !insertmacro MUI_PAGE_DIRECTORY
+ 
+     # pageDirectory leave doesn't work (it seems because $INSTDIR is set after custom leave function)
+@@ -43,6 +58,11 @@
+     !insertmacro customPageAfterChangeDir
+   !endif
+ 
++  !ifdef BUILD_UNINSTALLER
++    !define MUI_PAGE_CUSTOMFUNCTION_SHOW un.darkInstShow
++  !else
++    !define MUI_PAGE_CUSTOMFUNCTION_SHOW darkInstShow
++  !endif
+   !insertmacro MUI_PAGE_INSTFILES
+   !ifmacrodef customFinishPage
+     !insertmacro customFinishPage
+@@ -60,6 +80,11 @@
+       !define MUI_FINISHPAGE_RUN
+       !define MUI_FINISHPAGE_RUN_FUNCTION "StartApp"
+     !endif
++    !ifdef BUILD_UNINSTALLER
++      !define MUI_PAGE_CUSTOMFUNCTION_SHOW un.darkFinishShow
++    !else
++      !define MUI_PAGE_CUSTOMFUNCTION_SHOW darkFinishShow
++    !endif
+     !insertmacro MUI_PAGE_FINISH
+   !endif
+ !else
+@@ -67,6 +92,11 @@
+     !ifmacrodef customUnWelcomePage
+       !insertmacro customUnWelcomePage
+     !else
++      !ifdef BUILD_UNINSTALLER
++        !define MUI_PAGE_CUSTOMFUNCTION_SHOW un.darkWelcomeShow
++      !else
++        !define MUI_PAGE_CUSTOMFUNCTION_SHOW darkWelcomeShow
++      !endif
+       !insertmacro MUI_UNPAGE_WELCOME
+   !endif
+ 
+@@ -74,6 +104,11 @@
+   !ifndef INSTALL_MODE_PER_ALL_USERS
+     !insertmacro PAGE_INSTALL_MODE
+   !endif
++  !ifdef BUILD_UNINSTALLER
++    !define MUI_PAGE_CUSTOMFUNCTION_SHOW un.darkInstShow
++  !else
++    !define MUI_PAGE_CUSTOMFUNCTION_SHOW darkInstShow
++  !endif
+   !insertmacro MUI_UNPAGE_INSTFILES
+   !ifmacrodef customUninstallPage
+     !insertmacro customUninstallPage
+@@ -152,3 +187,108 @@
+     ${endif}
+   !endif
+ !macroend
++
++; ═══ Liquid Glass dark theme — page repaint functions ═══
++; Defined here (end of assistedInstaller.nsh): every page above has already
++; been declared, so all $mui.* and $MultiUser.* variables exist.
++;
++; Buttons / radio buttons / checkboxes are themed dark with the undocumented
++; "DarkMode_Explorer" uxtheme (Windows 10 1809+). Older systems fall back to
++; the classic theme + white text so labels stay readable on the dark page.
++
++!macro DarkControl HWND
++  ${If} ${AtLeastWin10}
++    System::Call 'uxtheme.dll::SetWindowTheme(i ${HWND}, w "DarkMode_Explorer", w "") i .r0'
++  ${Else}
++    System::Call 'uxtheme.dll::SetWindowTheme(i ${HWND}, w " ", w " ") i .r0'
++    SetCtlColors ${HWND} "F2F4F8" "0B1020"
++  ${EndIf}
++!macroend
++
++!macro DarkPageCommon
++  ; Bottom branding strip (outer dialog, present on every page).
++  SetCtlColors $mui.Branding.Background "" "0B1020"
++  SetCtlColors $mui.Branding.Text "F2F4F8" "0B1020"
++  ; Wizard navigation buttons.
++  !insertmacro DarkControl $mui.Button.Back
++  !insertmacro DarkControl $mui.Button.Next
++  !insertmacro DarkControl $mui.Button.Cancel
++!macroend
++
++!macro DarkThemePages PREFIX
++; License page: rich edit gets a dark background + white text (SetCtlColors
++; cannot paint RichEdit controls — use EM_SETBKGNDCOLOR / EM_SETCHARFORMAT).
++Function ${PREFIX}darkLicenseShow
++  !insertmacro DarkPageCommon
++  SetCtlColors $mui.LicensePage.TopText "F2F4F8" "0B1020"
++  SetCtlColors $mui.LicensePage.Text "F2F4F8" "0B1020"
++  ; EM_SETBKGNDCOLOR = 0x0403, wParam unused, lParam = COLORREF 0x000B1020.
++  System::Call 'user32::SendMessage(i $mui.LicensePage.LicenseText, i 0x0403, i 0, i 0x000B1020) i .r0'
++  ; EM_SETCHARFORMAT = 0x0444, wParam = SCF_ALL (4), lParam = CHARFORMAT2A.
++  ; Struct: cbSize(84) dwMask(CFM_COLOR=0x40000000) dwEffects yHeight yOffset
++  ; crTextColor(0x00F2F4F8) bCharSet bPitchAndFamily szFaceName[32]
++  ; wWeight sSpacing crBackColor lcid dwReserved sStyle wKerning bUnderline*
++  System::Call '*(i 84, i 0x40000000, i 0, i 0, i 0, i 0x00F2F4F8, i 0, i 0, s "", i 0, i 0, i 0, i 0, i 0, i 0, i 0, i 0, i 0, i 0) i .r0'
++  System::Call 'user32::SendMessage(i $mui.LicensePage.LicenseText, i 0x0444, i 4, i r0) i .r1'
++  System::Free $0
++FunctionEnd
++
++; "Who should this be installed for" page (nsDialogs, multiUserUi.nsh).
++Function ${PREFIX}darkModePageShow
++  !insertmacro DarkPageCommon
++  SetCtlColors $MultiUser.InstallModePage "F2F4F8" "0B1020"
++  SetCtlColors $MultiUser.InstallModePage.Text "F2F4F8" "0B1020"
++  SetCtlColors $RadioButtonLabel1 "F2F4F8" "0B1020"
++  !insertmacro DarkControl $MultiUser.InstallModePage.AllUsers
++  !insertmacro DarkControl $MultiUser.InstallModePage.CurrentUser
++FunctionEnd
++
++; "Choose installation folder" page.
++Function ${PREFIX}darkDirShow
++  !insertmacro DarkPageCommon
++  SetCtlColors $mui.DirectoryPage "F2F4F8" "0B1020"
++  SetCtlColors $mui.DirectoryPage.Text "F2F4F8" "0B1020"
++  SetCtlColors $mui.DirectoryPage.SpaceRequired "F2F4F8" "0B1020"
++  SetCtlColors $mui.DirectoryPage.SpaceAvailable "F2F4F8" "0B1020"
++  SetCtlColors $mui.DirectoryPage.Directory "F2F4F8" "0B1020"
++  !insertmacro DarkControl $mui.DirectoryPage.BrowseButton
++FunctionEnd
++
++; "Installing" progress page.
++Function ${PREFIX}darkInstShow
++  !insertmacro DarkPageCommon
++  SetCtlColors $mui.InstFilesPage "F2F4F8" "0B1020"
++  SetCtlColors $mui.InstFilesPage.Text "F2F4F8" "0B1020"
++FunctionEnd
++
++; Finish page: white "Run OpenClaw PC" checkbox label. MUI2 paints the
++; checkbox with SetCtlColors but themed checkboxes ignore WM_CTLCOLORSTATIC
++; (NSIS bug #443) leaving black text on our dark background — resetting the
++; uxtheme makes WM_CTLCOLORSTATIC work again.
++Function ${PREFIX}darkFinishShow
++  !insertmacro DarkPageCommon
++  SetCtlColors $mui.FinishPage.Title "F2F4F8" "0B1020"
++  SetCtlColors $mui.FinishPage.Text "F2F4F8" "0B1020"
++  ${If} $mui.FinishPage.Run <> 0
++    ${If} ${AtLeastWin10}
++      System::Call 'uxtheme.dll::SetWindowTheme(i $mui.FinishPage.Run, w "DarkMode_Explorer", w "") i .r0'
++    ${Else}
++      System::Call 'uxtheme.dll::SetWindowTheme(i $mui.FinishPage.Run, w " ", w " ") i .r0'
++    ${EndIf}
++    SetCtlColors $mui.FinishPage.Run "F2F4F8" "0B1020"
++  ${EndIf}
++FunctionEnd
++
++; Uninstaller welcome page.
++Function ${PREFIX}darkWelcomeShow
++  !insertmacro DarkPageCommon
++  SetCtlColors $mui.WelcomePage.Title "F2F4F8" "0B1020"
++  SetCtlColors $mui.WelcomePage.Text "F2F4F8" "0B1020"
++FunctionEnd
++!macroend
++
++!ifdef BUILD_UNINSTALLER
++  !insertmacro DarkThemePages "un."
++!else
++  !insertmacro DarkThemePages ""
++!endif
 diff --git a/templates/nsis/installer.nsi b/templates/nsis/installer.nsi
-@@ -5,6 +5,15 @@
+index 4b1f42e4e96ba2b3e7d6d8d2f9ee19b46779a422..d3533137295eaa926924242a685fa3c42b3e2691 100644
+--- a/templates/nsis/installer.nsi
++++ b/templates/nsis/installer.nsi
+@@ -5,6 +5,18 @@ Var oldDesktopLink
  Var oldShortcutName
  Var oldMenuDirectory
  
-+; ── Liquid Glass dark installer theme (OpenClaw PC v0.9.2) ──
-+; Dark pages (welcome/finish/header) + white text. Directory/InstFiles
-+; dialogs are repainted by darkDirShow / darkInstShow (defined in
-+; assistedInstaller.nsh after the page macros so MUI2 vars exist).
++; ── Liquid Glass dark installer theme (OpenClaw PC) ──
++; Dark pages + white text everywhere. Page repaint functions (darkLicenseShow,
++; darkModePageShow, darkDirShow, darkInstShow, darkFinishShow, darkWelcomeShow)
++; live at the end of assistedInstaller.nsh, after every MUI_PAGE_* macro so all
++; $mui.* page variables are declared. Each page's show-function define is placed
++; right before the page declaration in assistedInstaller.nsh.
 +!define MUI_BGCOLOR "0B1020"
 +!define MUI_TEXTCOLOR "F2F4F8"
++!define MUI_LICENSEPAGE_BGCOLOR "0B1020"
 +!define MUI_DIRECTORYPAGE_BGCOLOR "0B1020"
 +!define MUI_DIRECTORYPAGE_TEXTCOLOR "F2F4F8"
 +
  !include "common.nsh"
  !include "MUI2.nsh"
  !include "multiUser.nsh"
-diff --git a/templates/nsis/assistedInstaller.nsh b/templates/nsis/assistedInstaller.nsh
-@@ -23,6 +23,7 @@
-     !include StrContains.nsh
- 
-     !insertmacro skipPageIfUpdated
-+    !define MUI_PAGE_CUSTOMFUNCTION_SHOW darkDirShow
-     !insertmacro MUI_PAGE_DIRECTORY
- 
-     # pageDirectory leave doesn't work (it seems because $INSTDIR is set after custom leave function)
-@@ -43,7 +44,23 @@
-     !insertmacro customPageAfterChangeDir
-   !endif
- 
-+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW darkInstShow
-   !insertmacro MUI_PAGE_INSTFILES
-+
-+  ; Repaint "choose installation folder" page (dark bg, light text).
-+  Function darkDirShow
-+    SetCtlColors $mui.DirectoryPage "F2F4F8" "0B1020"
-+    SetCtlColors $mui.DirectoryPage.Text "F2F4F8" "0B1020"
-+    SetCtlColors $mui.DirectoryPage.SpaceRequired "F2F4F8" "0B1020"
-+    SetCtlColors $mui.DirectoryPage.SpaceAvailable "F2F4F8" "0B1020"
-+  FunctionEnd
-+
-+  ; Repaint "installing" page (dark bg, light text, log stays light).
-+  Function darkInstShow
-+    SetCtlColors $mui.InstFilesPage "F2F4F8" "0B1020"
-+    SetCtlColors $mui.InstFilesPage.Text "F2F4F8" "0B1020"
-+  FunctionEnd
-+
-   !ifmacrodef customFinishPage
-     !insertmacro customFinishPage
-   !else

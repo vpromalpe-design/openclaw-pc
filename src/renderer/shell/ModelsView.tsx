@@ -145,7 +145,7 @@ export function ModelsView({ onBack }: ModelsViewProps) {
       ) {
         setEngineProgress(p.progress as number)
       }
-      if (p.stage === 'done' || p.stage === 'error') {
+      if (p.stage === 'done' || p.stage === 'error' || p.stage === 'engine-installed') {
         void load()
       }
     })

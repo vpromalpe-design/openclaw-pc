@@ -144,8 +144,9 @@ export interface LocalProgressPayload {
   received?: number
   total?: number
   progress?: number
-  stage?: 'downloading' | 'done' | 'error' | 'engine-download' | 'cuda-runtime-download'
+  stage?: 'downloading' | 'done' | 'error' | 'engine-download' | 'cuda-runtime-download' | 'engine-installed'
   tag?: string
+  variant?: string
 }
 
 /** Preload `electronAPI` surface */

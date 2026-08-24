@@ -1776,6 +1776,12 @@ export async function installEngineVariant(
       `Failed to download the ${variant.toUpperCase()} engine. Check your internet connection and try again.`,
     )
   }
+  // v0.9.3: emit the completion event only AFTER the archive is extracted AND
+  // (for CUDA) the runtime DLLs are in place — the old `engine-download`
+  // progress=1 fired right after the ZIP landed, so the UI showed “100 %”
+  // while the install was still running (and the variant was not yet visible
+  // in installedVariants).
+  emitProgress({ stage: 'engine-installed', variant, progress: 1 })
   return getLocalEngineRuntimeState()
 }
 

@@ -523,7 +523,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
       {/* v0.9.0: mode switch — «Агентская задача | Просто текст» (floating, above the composer) */}
       {showControlUIIframe && !hasActivePanel && (
         <div className="absolute bottom-32 left-1/2 z-40 -translate-x-1/2">
-          <div className="flex items-center gap-1 rounded-full border border-white/10 bg-[rgba(18,26,48,0.92)] p-1 shadow-2xl shadow-black/40 backdrop-blur-xl">
+          <div className="flex items-center gap-1 rounded-full border border-white/10 bg-[rgba(18,26,48,0.7)] p-1 shadow-2xl shadow-black/40 backdrop-blur-[60px]">
             <button
               type="button"
               onClick={() => setChatMode('agent')}

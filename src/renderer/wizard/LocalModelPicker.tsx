@@ -55,16 +55,34 @@ export function LocalModelPicker({
 
   useEffect(() => {
     const unsub = window.electronAPI.onLocalProgress((p) => {
-      if (p.stage === 'engine-download') {
+      if (p.stage === 'engine-download' || p.stage === 'cuda-runtime-download') {
+        // Both stages belong to the engine install; keep the button in the
+        // “installing” state and show progress through the whole sequence
+        // (ZIP → extract → CUDA runtime DLLs).
         setEngineInstall('installing')
         if (typeof p.progress === 'number') {
           setEngineProgress(p.progress)
         }
-        if (p.progress === 1) {
-          setEngineInstall('done')
-          setEngineProgress(null)
-          void refreshRuntime()
+        return
+      }
+      if (p.stage === 'engine-installed') {
+        // v0.9.3: fired by main only AFTER extract (+ CUDA runtime) finished,
+        // so “100 %” and the green “Installed” state now coincide.
+        setEngineInstall('done')
+        setEngineProgress(null)
+        setInstallingVariant(null)
+        if (typeof p.variant === 'string') {
+          const v = p.variant as EngineVariant
+          setRuntime((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  installedVariants: [...new Set([...prev.installedVariants, v])],
+                }
+              : prev,
+          )
         }
+        void refreshRuntime()
         return
       }
       if (p.stage === 'done') {
@@ -168,11 +186,6 @@ export function LocalModelPicker({
     engineProgress !== null
       ? Math.min(100, Math.max(0, Math.round(engineProgress * 100)))
       : 0
-
-  const modelReady =
-    runtime?.models.some(
-      (m) => m.id === modelId && m.downloaded && m.status === 'ready',
-    ) ?? false
 
   const progressPct =
     progress !== null ? Math.min(100, Math.max(0, Math.round(progress * 100))) : 0
@@ -377,27 +390,17 @@ export function LocalModelPicker({
         <div
           className={[
             'flex items-center gap-3 rounded-xl border-2 px-4 py-3',
-            modelReady
-              ? 'border-green-500/50 bg-green-500/10'
-              : 'border-muted bg-muted/40',
+            // v0.9.3: green right away once a model is chosen (file picked or
+            // download finished) — no longer gated on modelReady, which could
+            // stay false until the engine state refreshed.
+            'border-green-500/50 bg-green-500/10',
           ].join(' ')}
         >
           <CheckCircle2
-            className={[
-              'h-8 w-8 shrink-0',
-              modelReady
-                ? 'text-green-600 dark:text-green-400'
-                : 'text-muted-foreground/60',
-            ].join(' ')}
+            className="h-8 w-8 shrink-0 text-green-600 dark:text-green-400"
+            aria-hidden
           />
-          <span
-            className={[
-              'text-base font-bold',
-              modelReady
-                ? 'text-green-700 dark:text-green-400'
-                : 'text-muted-foreground',
-            ].join(' ')}
-          >
+          <span className="text-base font-bold text-green-700 dark:text-green-400">
             {t('wizard.model.localPicked')}
           </span>
         </div>

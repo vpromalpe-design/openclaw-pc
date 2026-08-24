@@ -27,6 +27,9 @@ function resolveAppleTouchIconPath() {
 
 const BRAND = '#FF4500';
 const WHITE = '#FFFFFF';
+// Liquid Glass dark installer sidebar (Task: dark installer).
+const SIDEBAR_BG = '#0B1020';
+const SIDEBAR_ACCENT = '#5AC8FA'; // light blue — matches iOS blue accent family
 
 function iconSvg(size) {
   const r = Math.max(2, Math.round(size / 6));
@@ -47,17 +50,50 @@ function traySvg() {
 </svg>`;
 }
 
-function sidebarSvg() {
+// Recolor the apple-touch-icon logo to a solid color (alpha preserved) and
+// return it as a data-URI PNG for embedding in SVG.
+async function recolorLogoTo(dataUri, targetRgb) {
+  const png = Buffer.from(dataUri.split(',')[1], 'base64');
+  const { data, info } = await sharp(png)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const out = Buffer.from(data);
+  for (let i = 0; i < info.width * info.height; i++) {
+    const o = i * 4;
+    if (out[o + 3] > 0) {
+      out[o] = targetRgb[0];
+      out[o + 1] = targetRgb[1];
+      out[o + 2] = targetRgb[2];
+    }
+  }
+  const recolored = await sharp(out, { raw: { width: info.width, height: info.height, channels: 4 } })
+    .png()
+    .toBuffer();
+  return `data:image/png;base64,${recolored.toString('base64')}`;
+}
+
+// Dark 164x314 wizard sidebar: #0B1020 background, recolored light-blue logo
+// ring, "OpenClaw PC" in light blue.
+async function sidebarSvg() {
+  const logoPath = resolveAppleTouchIconPath();
+  let logoHref = '';
+  if (logoPath) {
+    const { readFile } = await import('node:fs/promises');
+    const logoPng = await readFile(logoPath);
+    logoHref = await recolorLogoTo(`data:image/png;base64,${logoPng.toString('base64')}`, [0x5a, 0xc8, 0xfa]);
+  }
+  const logoBlock = logoHref
+    ? `<image x="34" y="48" width="96" height="96" href="${logoHref}"/>`
+    : `<text x="82" y="100" text-anchor="middle" dominant-baseline="middle"
+          font-family="Segoe UI,Arial,sans-serif" font-weight="bold" font-size="28" fill="${SIDEBAR_ACCENT}">OC</text>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="164" height="314">
-  <rect width="164" height="314" fill="${WHITE}"/>
-  <rect width="164" height="100" fill="${BRAND}"/>
-  <text x="82" y="40" text-anchor="middle" dominant-baseline="middle"
-        font-family="Segoe UI,Arial,sans-serif" font-weight="bold" font-size="28" fill="${WHITE}">OC</text>
-  <text x="82" y="68" text-anchor="middle" dominant-baseline="middle"
-        font-family="Segoe UI,Arial,sans-serif" font-size="14" fill="${WHITE}">OpenClaw</text>
-  <text x="82" y="90" text-anchor="middle" dominant-baseline="middle"
-        font-family="Segoe UI,Arial,sans-serif" font-size="11" fill="rgba(255,255,255,0.8)">Windows Desktop</text>
-  <line x1="20" y1="120" x2="144" y2="120" stroke="${BRAND}" stroke-width="2"/>
+  <rect width="164" height="314" fill="${SIDEBAR_BG}"/>
+  ${logoBlock}
+  <text x="82" y="196" text-anchor="middle" dominant-baseline="middle"
+        font-family="Segoe UI,Arial,sans-serif" font-weight="bold" font-size="24" fill="${SIDEBAR_ACCENT}">OpenClaw PC</text>
+  <text x="82" y="222" text-anchor="middle" dominant-baseline="middle"
+        font-family="Segoe UI,Arial,sans-serif" font-size="12" fill="rgba(255,255,255,0.65)">Windows Desktop</text>
 </svg>`;
 }
 
@@ -151,7 +187,7 @@ function rawToBmp(rawPixels, width, height) {
 
 async function generateInstallerSidebar() {
   const width = 164, height = 314;
-  const { data, info } = await sharp(Buffer.from(sidebarSvg()))
+  const { data, info } = await sharp(Buffer.from(await sidebarSvg()))
     .resize(width, height)
     .removeAlpha()
     .raw()

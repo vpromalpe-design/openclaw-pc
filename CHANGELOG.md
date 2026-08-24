@@ -2,6 +2,19 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.9.3] - 2026-08-24
+
+### Fixed
+
+- **Installer was only partially dark** — the NSIS dark-theme patch was rewritten from scratch (page hooks + `DarkControl`/`DarkPageCommon` helpers + per-page `dark*Show` functions): now *everything* is dark — welcome, install mode, license, folder, installing and finish pages — with white, readable labels, dark buttons and a white finish-page checkbox label («Run OpenClaw PC»).
+- **Orange installer image replaced** — the sidebar now shows the OpenClaw PC logo + «OpenClaw PC» wordmark in blue (#5AC8FA) on a #0B1020 background, on every installer page.
+- **“Model selected” was grey until engine refresh** — the green «Model selected» badge with a checkmark now lights up immediately when a model file is picked from disk (or a URL download finishes), no longer waiting for the engine state to refresh.
+- **CUDA/CPU status turned green late** — the engine install now emits a dedicated `engine-installed` event only after the archive is extracted AND (for CUDA) the runtime DLLs are in place; the wizard marks the status green «Installed» the moment the download hits 100 %, with no extra clicks or waiting.
+
+### Changed
+
+- **Glass panels per mockup “(4)”** — dropdown/menu surfaces and the floating mode switcher now use `rgba(18,26,48,.70)` + `backdrop-filter: blur(60px) saturate(220%) brightness(1.1)` (was 95 % opaque / 40 px blur), matching `openclaw-pc-mockup-glass (4).html`.
+
 ## [0.9.2] - 2026-08-24
 
 ### Fixed
