@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell } from 'electron'
 import type { GatewayProcessManager } from '../gateway/index.js'
 import type {
   OpenClawConfig,
@@ -393,6 +393,11 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
       const current = deps.readShellConfig()
       const merged: ShellConfig = { ...current, ...patch } as ShellConfig
       deps.writeShellConfig(merged)
+      if ('theme' in patch) {
+        // Keep prefers-color-scheme in sync so the embedded Control UI
+        // (theme mode: system) follows the shell theme.
+        nativeTheme.themeSource = merged.theme === 'light' ? 'light' : 'dark'
+      }
       if ('autoStart' in patch) {
         syncLoginItemToSystem(merged.autoStart)
       }

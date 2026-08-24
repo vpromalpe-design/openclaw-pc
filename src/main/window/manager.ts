@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, nativeImage } from 'electron'
+import { app, BrowserWindow, shell, nativeImage, nativeTheme } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -131,6 +131,10 @@ export class WindowManager {
 
   createMainWindow(): BrowserWindow {
     const shellConfig = this.readShellConfig()
+    // Force the native theme so prefers-color-scheme matches our Liquid Glass
+    // shell: the embedded Control UI (theme mode: system) follows it and
+    // renders dark instead of the default light UI.
+    nativeTheme.themeSource = shellConfig.theme === 'light' ? 'light' : 'dark'
     const port = shellConfig.lastGatewayPort || this.defaultGatewayPort
     const windowBounds = shellConfig.windowBounds
     const preloadPath = getPreloadPath()
@@ -149,8 +153,10 @@ export class WindowManager {
       height: Math.max(windowBounds.height, 600),
       minWidth: 800,
       minHeight: 600,
-      // Match shell default light theme; avoids a long black chrome flash while Gateway/iframe loads.
-      backgroundColor: '#ffffff',
+      // Liquid Glass is dark by default; keep the native theme dark so the
+      // embedded Control UI (theme mode: system) renders dark too, and avoid a
+      // white chrome flash while Gateway/iframe loads.
+      backgroundColor: shellConfig.theme === 'light' ? '#f5f5f7' : '#0B1020',
       show: false,
       center: shouldCenter,
       title: initialTitle,
