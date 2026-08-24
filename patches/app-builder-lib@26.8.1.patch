@@ -1,5 +1,4 @@
-diff --git a/templates/nsis/assistedInstaller.nsh b/templates/nsis/assistedInstaller.nsh
-index b7f47526554ba07aa0a062c3b0f1810cdc8711b8..830a961c7a59d163d9b3f6f9e33c83c4047066bc 100644
+index b7f4752..bb2c80b 100644
 --- a/templates/nsis/assistedInstaller.nsh
 +++ b/templates/nsis/assistedInstaller.nsh
 @@ -12,10 +12,20 @@
@@ -59,7 +58,7 @@ index b7f47526554ba07aa0a062c3b0f1810cdc8711b8..830a961c7a59d163d9b3f6f9e33c83c4
      !insertmacro MUI_PAGE_FINISH
    !endif
  !else
-@@ -67,6 +92,11 @@
+@@ -67,17 +92,37 @@
      !ifmacrodef customUnWelcomePage
        !insertmacro customUnWelcomePage
      !else
@@ -71,8 +70,13 @@ index b7f47526554ba07aa0a062c3b0f1810cdc8711b8..830a961c7a59d163d9b3f6f9e33c83c4
        !insertmacro MUI_UNPAGE_WELCOME
    !endif
  
-@@ -74,6 +104,11 @@
+   !endif
    !ifndef INSTALL_MODE_PER_ALL_USERS
++    !ifdef BUILD_UNINSTALLER
++      !define MUI_PAGE_CUSTOMFUNCTION_SHOW un.darkModePageShow
++    !else
++      !define MUI_PAGE_CUSTOMFUNCTION_SHOW darkModePageShow
++    !endif
      !insertmacro PAGE_INSTALL_MODE
    !endif
 +  !ifdef BUILD_UNINSTALLER
@@ -83,7 +87,16 @@ index b7f47526554ba07aa0a062c3b0f1810cdc8711b8..830a961c7a59d163d9b3f6f9e33c83c4
    !insertmacro MUI_UNPAGE_INSTFILES
    !ifmacrodef customUninstallPage
      !insertmacro customUninstallPage
-@@ -152,3 +187,108 @@
+   !endif
++  !ifdef BUILD_UNINSTALLER
++    !define MUI_PAGE_CUSTOMFUNCTION_SHOW un.darkFinishShow
++  !else
++    !define MUI_PAGE_CUSTOMFUNCTION_SHOW darkFinishShow
++  !endif
+   !insertmacro MUI_UNPAGE_FINISH
+ !endif
+ 
+@@ -152,3 +197,125 @@
      ${endif}
    !endif
  !macroend
@@ -116,24 +129,32 @@ index b7f47526554ba07aa0a062c3b0f1810cdc8711b8..830a961c7a59d163d9b3f6f9e33c83c4
 +!macroend
 +
 +!macro DarkThemePages PREFIX
-+; License page: rich edit gets a dark background + white text (SetCtlColors
-+; cannot paint RichEdit controls — use EM_SETBKGNDCOLOR / EM_SETCHARFORMAT).
++; Each page function is only emitted when its MUI page actually exists in
++; this build (installer vs uninstaller), so makensis -WX never sees an
++; unreferenced function (warning 6010) or an unknown variable (6000).
++;
++; License page (installer only): rich edit gets a dark background + white text
++; (SetCtlColors cannot paint RichEdit controls — EM_SETBKGNDCOLOR/EM_SETCHARFORMAT).
++!ifdef MUI_LICENSEPAGE_INTERFACE
 +Function ${PREFIX}darkLicenseShow
 +  !insertmacro DarkPageCommon
-+  SetCtlColors $mui.LicensePage.TopText "F2F4F8" "0B1020"
-+  SetCtlColors $mui.LicensePage.Text "F2F4F8" "0B1020"
++  SetCtlColors $mui.Licensepage.TopText "F2F4F8" "0B1020"
++  SetCtlColors $mui.Licensepage.Text "F2F4F8" "0B1020"
 +  ; EM_SETBKGNDCOLOR = 0x0403, wParam unused, lParam = COLORREF 0x000B1020.
-+  System::Call 'user32::SendMessage(i $mui.LicensePage.LicenseText, i 0x0403, i 0, i 0x000B1020) i .r0'
++  System::Call 'user32::SendMessage(i $mui.Licensepage.LicenseText, i 0x0403, i 0, i 0x000B1020) i .r0'
 +  ; EM_SETCHARFORMAT = 0x0444, wParam = SCF_ALL (4), lParam = CHARFORMAT2A.
 +  ; Struct: cbSize(84) dwMask(CFM_COLOR=0x40000000) dwEffects yHeight yOffset
 +  ; crTextColor(0x00F2F4F8) bCharSet bPitchAndFamily szFaceName[32]
 +  ; wWeight sSpacing crBackColor lcid dwReserved sStyle wKerning bUnderline*
 +  System::Call '*(i 84, i 0x40000000, i 0, i 0, i 0, i 0x00F2F4F8, i 0, i 0, s "", i 0, i 0, i 0, i 0, i 0, i 0, i 0, i 0, i 0, i 0) i .r0'
-+  System::Call 'user32::SendMessage(i $mui.LicensePage.LicenseText, i 0x0444, i 4, i r0) i .r1'
++  System::Call 'user32::SendMessage(i $mui.Licensepage.LicenseText, i 0x0444, i 4, i r0) i .r1'
 +  System::Free $0
 +FunctionEnd
++!endif
 +
-+; "Who should this be installed for" page (nsDialogs, multiUserUi.nsh).
++; "Who should this be installed for" page (nsDialogs, multiUserUi.nsh) — the
++; guard define differs between installer (…INSTALLMODEPAGE) and uninstaller.
++!ifdef MULTIUSER_INSTALLMODEPAGE
 +Function ${PREFIX}darkModePageShow
 +  !insertmacro DarkPageCommon
 +  SetCtlColors $MultiUser.InstallModePage "F2F4F8" "0B1020"
@@ -142,8 +163,10 @@ index b7f47526554ba07aa0a062c3b0f1810cdc8711b8..830a961c7a59d163d9b3f6f9e33c83c4
 +  !insertmacro DarkControl $MultiUser.InstallModePage.AllUsers
 +  !insertmacro DarkControl $MultiUser.InstallModePage.CurrentUser
 +FunctionEnd
++!endif
 +
-+; "Choose installation folder" page.
++; "Choose installation folder" page (installer only).
++!ifdef MUI_DIRECTORYPAGE_INTERFACE
 +Function ${PREFIX}darkDirShow
 +  !insertmacro DarkPageCommon
 +  SetCtlColors $mui.DirectoryPage "F2F4F8" "0B1020"
@@ -153,18 +176,22 @@ index b7f47526554ba07aa0a062c3b0f1810cdc8711b8..830a961c7a59d163d9b3f6f9e33c83c4
 +  SetCtlColors $mui.DirectoryPage.Directory "F2F4F8" "0B1020"
 +  !insertmacro DarkControl $mui.DirectoryPage.BrowseButton
 +FunctionEnd
++!endif
 +
 +; "Installing" progress page.
++!ifdef MUI_INSTFILESYPAGE_INTERFACE
 +Function ${PREFIX}darkInstShow
 +  !insertmacro DarkPageCommon
 +  SetCtlColors $mui.InstFilesPage "F2F4F8" "0B1020"
 +  SetCtlColors $mui.InstFilesPage.Text "F2F4F8" "0B1020"
 +FunctionEnd
++!endif
 +
 +; Finish page: white "Run OpenClaw PC" checkbox label. MUI2 paints the
 +; checkbox with SetCtlColors but themed checkboxes ignore WM_CTLCOLORSTATIC
 +; (NSIS bug #443) leaving black text on our dark background — resetting the
 +; uxtheme makes WM_CTLCOLORSTATIC work again.
++!ifdef MUI_FINISHPAGE_INTERFACE
 +Function ${PREFIX}darkFinishShow
 +  !insertmacro DarkPageCommon
 +  SetCtlColors $mui.FinishPage.Title "F2F4F8" "0B1020"
@@ -178,13 +205,16 @@ index b7f47526554ba07aa0a062c3b0f1810cdc8711b8..830a961c7a59d163d9b3f6f9e33c83c4
 +    SetCtlColors $mui.FinishPage.Run "F2F4F8" "0B1020"
 +  ${EndIf}
 +FunctionEnd
++!endif
 +
-+; Uninstaller welcome page.
++; Uninstaller welcome page (uninstaller only).
++!ifdef MUI_WELCOMEPAGE_INTERFACE
 +Function ${PREFIX}darkWelcomeShow
 +  !insertmacro DarkPageCommon
 +  SetCtlColors $mui.WelcomePage.Title "F2F4F8" "0B1020"
 +  SetCtlColors $mui.WelcomePage.Text "F2F4F8" "0B1020"
 +FunctionEnd
++!endif
 +!macroend
 +
 +!ifdef BUILD_UNINSTALLER
@@ -192,8 +222,7 @@ index b7f47526554ba07aa0a062c3b0f1810cdc8711b8..830a961c7a59d163d9b3f6f9e33c83c4
 +!else
 +  !insertmacro DarkThemePages ""
 +!endif
-diff --git a/templates/nsis/installer.nsi b/templates/nsis/installer.nsi
-index 4b1f42e4e96ba2b3e7d6d8d2f9ee19b46779a422..d3533137295eaa926924242a685fa3c42b3e2691 100644
+index 4b1f42e..d353313 100644
 --- a/templates/nsis/installer.nsi
 +++ b/templates/nsis/installer.nsi
 @@ -5,6 +5,18 @@ Var oldDesktopLink
