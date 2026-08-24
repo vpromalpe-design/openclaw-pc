@@ -24,9 +24,11 @@ diff --git a/templates/nsis/assistedInstaller.nsh b/templates/nsis/assistedInsta
      !insertmacro MUI_PAGE_DIRECTORY
  
      # pageDirectory leave doesn't work (it seems because $INSTDIR is set after custom leave function)
-@@ -44,6 +45,21 @@
+@@ -43,7 +44,23 @@
+     !insertmacro customPageAfterChangeDir
    !endif
  
++  !define MUI_PAGE_CUSTOMFUNCTION_SHOW darkInstShow
    !insertmacro MUI_PAGE_INSTFILES
 +
 +  ; Repaint "choose installation folder" page (dark bg, light text).
