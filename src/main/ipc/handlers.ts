@@ -47,6 +47,8 @@ import {
   IPC_PORT_CHECK,
   IPC_WIZARD_TEST_MODEL,
   IPC_WIZARD_TEST_TELEGRAM,
+  IPC_TELEGRAM_GET,
+  IPC_TELEGRAM_SAVE,
   IPC_WIZARD_COMPLETE_SETUP,
   IPC_SYSTEM_OPEN_LOG_DIR,
   IPC_SHELL_GET_VERSIONS,
@@ -481,6 +483,66 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
         botToken: typeof raw.botToken === 'string' ? raw.botToken : undefined,
         proxy: typeof raw.proxy === 'string' ? raw.proxy : undefined,
       })
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_TELEGRAM_GET,
+    wrapHandler('TELEGRAM_GET', () => {
+      const cfg = deps.readOpenClawConfig()
+      const tg = cfg?.channels?.telegram
+      const shell = deps.readShellConfig()
+      return {
+        enabled: Boolean(tg?.enabled) || Boolean(tg?.botToken),
+        hasToken: Boolean(tg?.botToken),
+        allowFrom: Array.isArray(tg?.allowFrom) ? (tg.allowFrom as string[]) : [],
+        botName: shell.telegramBotName ?? undefined,
+        botUrl: shell.telegramBotUrl ?? undefined,
+      }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_TELEGRAM_SAVE,
+    wrapHandler('TELEGRAM_SAVE', async (payload: unknown) => {
+      const raw = validatePlainObject(payload, 'telegramSave')
+      const botToken = typeof raw.botToken === 'string' ? raw.botToken.trim() : ''
+      const botName = typeof raw.botName === 'string' ? raw.botName.trim() : ''
+      const botUrl = typeof raw.botUrl === 'string' ? raw.botUrl.trim() : ''
+
+      const cfg = deps.readOpenClawConfig()
+      const tg = cfg?.channels?.telegram
+      const nextTg: Record<string, unknown> = {
+        enabled: true,
+        dmPolicy: typeof tg?.dmPolicy === 'string' ? tg.dmPolicy : 'pairing',
+      }
+      if (botToken) {
+        nextTg.botToken = botToken
+      } else if (typeof tg?.botToken === 'string' && tg.botToken) {
+        nextTg.botToken = tg.botToken
+      }
+      if (Array.isArray(tg?.allowFrom) && (tg.allowFrom as unknown[]).length > 0) {
+        nextTg.allowFrom = tg.allowFrom
+      }
+      if (typeof tg?.proxy === 'string' && tg.proxy) {
+        nextTg.proxy = tg.proxy
+      }
+      cfg.channels = cfg.channels ?? {}
+      cfg.channels.telegram = nextTg
+      deps.writeOpenClawConfig(cfg)
+
+      const shell = deps.readShellConfig()
+      if (botName) shell.telegramBotName = botName
+      if (botUrl) shell.telegramBotUrl = botUrl
+      deps.writeShellConfig(shell)
+
+      const gw = cfg.gateway
+      const port = gw?.port ?? DEFAULT_GATEWAY_PORT
+      const bind = gw?.bind ?? 'loopback'
+      const token = gw?.auth?.token?.trim()
+      const force = Boolean(gw?.forcePortOnConflict)
+      const restarted = await gatewayManager.restart({ port, bind, token: token || undefined, force })
+      return { ok: true, restarted }
     }),
   )
 
@@ -1651,6 +1713,8 @@ export function removeIpcHandlers(): void {
   ipcMain.removeHandler(IPC_PORT_CHECK)
   ipcMain.removeHandler(IPC_WIZARD_TEST_MODEL)
   ipcMain.removeHandler(IPC_WIZARD_TEST_TELEGRAM)
+  ipcMain.removeHandler(IPC_TELEGRAM_GET)
+  ipcMain.removeHandler(IPC_TELEGRAM_SAVE)
   ipcMain.removeHandler(IPC_WIZARD_COMPLETE_SETUP)
   ipcMain.removeHandler(IPC_SYSTEM_OPEN_LOG_DIR)
   ipcMain.removeHandler(IPC_SHELL_GET_VERSIONS)

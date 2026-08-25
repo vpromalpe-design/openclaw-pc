@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ShellLayout } from './ShellLayout'
-import type { ShellConfig, ShellTheme } from '../../shared/types'
+import type { ShellConfig } from '../../shared/types'
 import {
   setAppLocale,
   SHELL_SUPPORTED_LOCALES,
@@ -31,46 +31,10 @@ function defaultNavigateBack() {
   window.location.hash = ''
 }
 
-const THEME_OPTIONS: { value: ShellTheme; icon: React.ReactNode }[] = [
-  {
-    value: 'system',
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
-        <rect x="2" y="3" width="20" height="14" rx="2" />
-        <line x1="8" y1="21" x2="16" y2="21" />
-        <line x1="12" y1="17" x2="12" y2="21" />
-      </svg>
-    ),
-  },
-  {
-    value: 'light',
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
-        <circle cx="12" cy="12" r="4" />
-        <path d="M12 2v2" /><path d="M12 20v2" /><path d="m4.93 4.93 1.41 1.41" /><path d="m17.66 17.66 1.41 1.41" /><path d="M2 12h2" /><path d="M20 12h2" /><path d="m6.34 17.66-1.41 1.41" /><path d="m19.07 4.93-1.41 1.41" />
-      </svg>
-    ),
-  },
-  {
-    value: 'dark',
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
-        <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
-      </svg>
-    ),
-  },
-]
-
-function applyTheme(theme: ShellTheme): void {
-  const root = document.documentElement
-  if (theme === 'dark') {
-    root.classList.add('dark')
-  } else if (theme === 'light') {
-    root.classList.remove('dark')
-  } else {
-    // 'system' → Liquid Glass Light is the default theme
-    root.classList.remove('dark')
-  }
+// v0.9.11: dark is the only theme — keep the .dark class active no matter
+// what the stored shell config says.
+function applyTheme(): void {
+  document.documentElement.classList.add('dark')
 }
 
 interface ToggleProps {
@@ -99,10 +63,6 @@ function Toggle({ checked, onChange, id }: ToggleProps) {
   )
 }
 
-function themeLabelKey(value: ShellTheme): `shell.settings.${'system' | 'light' | 'dark'}` {
-  return `shell.settings.${value}`
-}
-
 export function SettingsView({ onBack, onOpenFeishuSettings }: SettingsViewProps = {}) {
   const { t, i18n } = useTranslation()
   const handleBack = onBack ?? defaultNavigateBack
@@ -113,20 +73,11 @@ export function SettingsView({ onBack, onOpenFeishuSettings }: SettingsViewProps
     window.electronAPI.shellGetConfig().then((cfg) => {
       setConfig(cfg)
       setLoading(false)
-      applyTheme(cfg.theme)
+      applyTheme()
     }).catch(() => {
       setLoading(false)
     })
   }, [])
-
-  useEffect(() => {
-    if (config?.theme !== 'system') return
-
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    const handler = () => applyTheme('system')
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
-  }, [config?.theme])
 
   const updateConfig = useCallback(
     (patch: Partial<ShellConfig>) => {
@@ -134,10 +85,6 @@ export function SettingsView({ onBack, onOpenFeishuSettings }: SettingsViewProps
       const updated = { ...config, ...patch }
       setConfig(updated)
       void window.electronAPI.shellSetConfig(patch)
-
-      if (patch.theme !== undefined) {
-        applyTheme(patch.theme)
-      }
     },
     [config],
   )
@@ -231,29 +178,6 @@ export function SettingsView({ onBack, onOpenFeishuSettings }: SettingsViewProps
                 ))}
               </SelectContent>
             </Select>
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-0.5">
-              <span className="text-sm font-medium">{t('shell.settings.theme')}</span>
-              <p className="text-xs text-muted-foreground">{t('shell.settings.themeDesc')}</p>
-            </div>
-            <div className="flex gap-2" role="radiogroup" aria-label={t('shell.settings.themeRadiogroupAria')}>
-              {THEME_OPTIONS.map((opt) => (
-                <Button
-                  key={opt.value}
-                  variant={config.theme === opt.value ? 'default' : 'outline'}
-                  size="sm"
-                  role="radio"
-                  aria-checked={config.theme === opt.value}
-                  onClick={() => updateConfig({ theme: opt.value })}
-                  className="flex-1"
-                >
-                  {opt.icon}
-                  {t(themeLabelKey(opt.value))}
-                </Button>
-              ))}
-            </div>
           </div>
 
           <div className="flex flex-col gap-3">

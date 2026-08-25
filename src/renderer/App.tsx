@@ -13,6 +13,7 @@ const VALID_HASH_PANELS = new Set<string>([
   'settings',
   'voice',
   'about',
+  'telegram',
   'dashboard',
   'models',
   'llm-api',
@@ -178,7 +179,8 @@ function App() {
       route === 'llm-api' ||
       route === 'skills' ||
       route === 'updates' ||
-      route === 'feishu-settings'
+      route === 'feishu-settings' ||
+      route === 'telegram'
         ? route
         : ''
     return <EmbeddedShellLayout activePanel={panel} onPanelChange={handlePanelChange} />

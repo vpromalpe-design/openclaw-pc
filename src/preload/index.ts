@@ -4,6 +4,7 @@
  */
 
 import { contextBridge, ipcRenderer } from 'electron'
+import type { TelegramSettingsLoadResult, TelegramSettingsSaveResult } from '../shared/types'
 import {
   IPC_GATEWAY_START,
   IPC_GATEWAY_STOP,
@@ -21,6 +22,8 @@ import {
   IPC_PORT_CHECK,
   IPC_WIZARD_TEST_MODEL,
   IPC_WIZARD_TEST_TELEGRAM,
+  IPC_TELEGRAM_GET,
+  IPC_TELEGRAM_SAVE,
   IPC_WIZARD_COMPLETE_SETUP,
   IPC_SYSTEM_OPEN_LOG_DIR,
   IPC_SHELL_GET_VERSIONS,
@@ -153,6 +156,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   portCheck: (port: number) => invoke(IPC_PORT_CHECK, port),
   wizardTestModel: (config: unknown) => invoke(IPC_WIZARD_TEST_MODEL, config),
   wizardTestTelegram: (config: unknown) => invoke(IPC_WIZARD_TEST_TELEGRAM, config),
+  telegramGet: () => invoke<TelegramSettingsLoadResult>(IPC_TELEGRAM_GET),
+  telegramSave: (payload: { botToken?: string; botName?: string; botUrl?: string }) =>
+    invoke<TelegramSettingsSaveResult>(IPC_TELEGRAM_SAVE, payload),
   wizardCompleteSetup: (state: unknown) => invoke(IPC_WIZARD_COMPLETE_SETUP, state),
   systemOpenLogDir: () => invoke(IPC_SYSTEM_OPEN_LOG_DIR),
   shellGetVersions: () => invoke(IPC_SHELL_GET_VERSIONS),

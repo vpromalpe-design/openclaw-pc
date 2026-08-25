@@ -172,6 +172,8 @@ export interface ElectronAPI {
     botToken?: string
     proxy?: string
   }) => Promise<WizardTestTelegramResult>
+  telegramGet: () => Promise<TelegramSettingsLoadResult>
+  telegramSave: (payload: { botToken?: string; botName?: string; botUrl?: string }) => Promise<TelegramSettingsSaveResult>
   wizardCompleteSetup: (state: WizardState) => Promise<WizardCompleteResult>
   shellGetVersions: () => Promise<AppVersionInfo>
   shellResizeForMainInterface: () => Promise<void>

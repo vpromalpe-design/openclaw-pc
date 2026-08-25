@@ -16,6 +16,7 @@ import { LoadingView } from './LoadingView'
 import { ErrorView, type ErrorType } from './ErrorView'
 import { SettingsView } from './SettingsView'
 import { VoiceSettingsView } from './VoiceSettingsView'
+import { TelegramSettingsView } from './TelegramSettingsView'
 import { AboutView } from './AboutView'
 import { DashboardView } from './DashboardView'
 import { ProviderView } from './ProviderView'
@@ -24,7 +25,7 @@ import { SkillsView } from './SkillsView'
 import { UpdateView } from './UpdateView'
 import { FeishuAccessView } from './FeishuAccessView'
 import { TextChatView, type ChatMessage } from './TextChatView'
-import { Bot, Type } from 'lucide-react'
+import { Bot, Type, Send } from 'lucide-react'
 import type { GatewayStatus, GatewayStatusValue } from '../../shared/types'
 import { useUpdateNoticeStore } from '@/stores/update-store'
 import { cn } from '@/lib/utils'
@@ -59,6 +60,7 @@ export type EmbeddedPanel =
   | 'skills'
   | 'updates'
   | 'feishu-settings'
+  | 'telegram'
 
 export interface EmbeddedShellLayoutProps {
   activePanel: EmbeddedPanel
@@ -95,7 +97,7 @@ const SECTIONS: SectionItem[] = [
   { id: 'cron', icon: '⏰', label: 'Задания Cron', route: '/cron' },
   { id: 'tasks', icon: '✅', label: 'Задачи', route: '/tasks' },
   { id: 'skills', icon: '🧩', label: 'Навыки', route: '/skills' },
-  { id: 'telegram', icon: '📡', label: 'Телеграм', route: '/settings/communications' },
+  { id: 'telegram', icon: '📡', label: 'Телеграм', panel: 'telegram' },
 ]
 
 const AGENT_ICONS: Record<string, string> = {
@@ -213,6 +215,7 @@ const DESKTOP_NAV_ITEMS: { id: EmbeddedPanel; label: string; icon: React.ReactNo
   { id: 'skills', label: 'Skills', icon: <Puzzle className="w-4 h-4" />, description: 'Skills & extensions' },
   { id: 'updates', label: 'Updates', icon: <RefreshCw className="w-4 h-4" />, description: 'Check for updates' },
   { id: 'voice', label: 'Voice', icon: <Mic className="w-4 h-4" />, description: 'Voice provider & API key' },
+  { id: 'telegram', label: 'Telegram', icon: <Send className="w-4 h-4" />, description: 'Telegram bot settings' },
   { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" />, description: 'Appearance & startup' },
   { id: 'about', label: 'About', icon: <Info className="w-4 h-4" />, description: 'Version info' },
 ]
@@ -225,6 +228,7 @@ const NAV_I18N_KEY: Record<string, string> = {
   skills: 'shell.nav.skills',
   updates: 'shell.nav.updates',
   voice: 'shell.nav.voice',
+  telegram: 'shell.nav.telegram',
   settings: 'shell.nav.settings',
   about: 'shell.nav.about',
 }
@@ -236,7 +240,7 @@ interface AgentInfo {
   isDefault?: boolean
 }
 
-type OpenMenu = 'agent' | 'settings' | 'more' | 'theme' | null
+type OpenMenu = 'agent' | 'settings' | 'more' | null
 
 export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShellLayoutProps) {
   const { t } = useTranslation()
@@ -273,7 +277,6 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   const [sessions, setSessions] = useState<ShellSessionRow[]>([])
   const [activeSection, setActiveSection] = useState('chat')
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null)
-  const [theme, setTheme] = useState<'light' | 'dark'>('light')
   const [primaryModel, setPrimaryModel] = useState<string | null>(null)
   const [engineModel, setEngineModel] = useState<string | null>(null)
   const [engineRunning, setEngineRunning] = useState(false)
@@ -398,7 +401,9 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     })
     void window.electronAPI.shellGetConfig().then((cfg) => {
       const t = cfg?.theme
-      if (t === 'dark' || t === 'light') setTheme(t)
+      if (t !== 'dark') {
+        void window.electronAPI.shellSetConfig({ theme: 'dark' })
+      }
     })
     const tick = setInterval(() => {
       setClock(new Date().toISOString().slice(11, 19))
@@ -420,17 +425,14 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     return () => document.removeEventListener('mousedown', onDown)
   }, [openMenu])
 
+  // v0.9.11: dark theme is forced. Keep the class on <html> so every
+  // `.dark`-scoped token block in globals.css stays active.
+  useEffect(() => {
+    document.documentElement.classList.add('dark')
+  }, [])
+
   // Liquid Glass UI sounds («тук» on clicks, «пук» on opening menus) — ported from the approved mockup.
   useEffect(() => installShellSounds(), [])
-
-  // Quick theme switcher (top bar). Persists to shell config so the native
-  // theme / embedded Control UI follow, and re-applies the .dark class.
-  const setThemeMode = useCallback((next: 'light' | 'dark') => {
-    setTheme(next)
-    document.documentElement.classList.toggle('dark', next === 'dark')
-    void window.electronAPI.shellSetConfig({ theme: next })
-    setOpenMenu(null)
-  }, [])
 
   const clearTimeoutTimer = useCallback(() => {
     if (timeoutRef.current) {
@@ -669,6 +671,15 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     }
   }
 
+  /** п.1.1: ⚙ → «Локальный движок» — open Models and scroll to the local section. */
+  const scrollToLocalModelSection = () => {
+    setTimeout(() => {
+      document
+        .getElementById('local-model-section')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 120)
+  }
+
   const openSection = (section: SectionItem) => {
     setOpenMenu(null)
     setActiveSection(section.id)
@@ -813,6 +824,8 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
         )
       case 'voice':
         return <VoiceSettingsView onBack={() => handleNavigateToPanel('')} />
+      case 'telegram':
+        return <TelegramSettingsView onBack={() => handleNavigateToPanel('')} />
       case 'about':
         return <AboutView onBack={() => handleNavigateToPanel('')} />
       case 'dashboard':
@@ -979,36 +992,6 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
             <button
               type="button"
               className="shell-icon-btn"
-              title={theme === 'light' ? 'Светлая тема — переключить' : 'Тёмная тема — переключить'}
-              onClick={() => setOpenMenu(openMenu === 'theme' ? null : 'theme')}
-            >
-              {theme === 'light' ? '☀️' : '🌙'}
-            </button>
-            <div className={cn('shell-menu', openMenu === 'theme' && 'open')}>
-              <div className="shell-menu-title">Тема оформления</div>
-              <button
-                type="button"
-                className="shell-menu-item"
-                onClick={() => setThemeMode('light')}
-              >
-                <span className="ic">☀️</span> Светлая{' '}
-                <span className="hint">{theme === 'light' ? 'активна' : ''}</span>
-              </button>
-              <button
-                type="button"
-                className="shell-menu-item"
-                onClick={() => setThemeMode('dark')}
-              >
-                <span className="ic">🌙</span> Тёмная{' '}
-                <span className="hint">{theme === 'dark' ? 'активна' : ''}</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="shell-dropdown">
-            <button
-              type="button"
-              className="shell-icon-btn"
               title="Настройки"
               onClick={() => setOpenMenu(openMenu === 'settings' ? null : 'settings')}
             >
@@ -1019,10 +1002,10 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
               <button type="button" className="shell-menu-item" onClick={() => { setOpenMenu(null); handleNavigateToPanel('models') }}>
                 <span className="ic">🧠</span> Модели и провайдеры <span className="hint">ключи, URL</span>
               </button>
-              <button type="button" className="shell-menu-item" onClick={() => { setOpenMenu(null); handleNavigateToPanel('models') }}>
+              <button type="button" className="shell-menu-item" onClick={() => { setOpenMenu(null); handleNavigateToPanel('models'); scrollToLocalModelSection() }}>
                 <span className="ic">🖥️</span> Локальный движок <span className="hint">llama.cpp</span>
               </button>
-              <button type="button" className="shell-menu-item" onClick={() => { setOpenMenu(null); handleNavigateToPanel('settings') }}>
+              <button type="button" className="shell-menu-item" onClick={() => { setOpenMenu(null); handleNavigateToPanel('telegram') }}>
                 <span className="ic">📡</span> Telegram <span className="hint">бот</span>
               </button>
               <button type="button" className="shell-menu-item" onClick={() => { setOpenMenu(null); handleNavigateToPanel('voice') }}>
@@ -1161,8 +1144,9 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
 
           {/* ── Center: embedded Control UI / panels ── */}
           <section className="shell-chat-area">
-            {showControlUIIframe ? (
-              <iframe
+            <div className="shell-chat-canvas">
+              {showControlUIIframe ? (
+                <iframe
                 key={`openclaw-control-ui-${controlUiReloadKey}`}
                 src={controlUrl}
                 title="OpenClaw Control UI"
@@ -1209,7 +1193,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                     <ChevronLeft className="w-4 h-4" />
                     Control UI
                   </button>
-                  <span className="text-sm text-border">/</span>
+                  <span className="text-sm text-muted-foreground">/</span>
                   <span className="text-sm font-medium">
                     {activePanel === 'feishu-settings'
                       ? t('shell.feishu.title')
@@ -1251,10 +1235,13 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                 </div>
               </div>
             )}
+            </div>
 
-            {/* v0.9.0: mode switch — «Агентская задача | Просто текст» (chat page only) */}
+            {/* v0.9.11: mode switch — «Агентская задача | Просто текст» lives in
+                its own strip BELOW the chat frame (was floating over the chat
+                text / Control UI composer — Damir bug report). */}
             {showControlUIIframe && !hasActivePanel && inChat && (
-              <div className="absolute bottom-40 left-1/2 z-40 -translate-x-1/2">
+              <div className="shell-mode-strip">
                 <div className="shell-mode-switch">
                   <button
                     type="button"

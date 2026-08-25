@@ -43,6 +43,10 @@ export interface ShellConfig {
   localEngineMode?: 'auto' | 'cpu' | 'gpu'
   /** User-defined display/switch order for downloaded local models (ids). */
   localModelsOrder?: string[]
+  /** Telegram panel: display-only bot name (saved in shell config, not openclaw.json) */
+  telegramBotName?: string
+  /** Telegram panel: display-only bot link (t.me/<username> or custom) */
+  telegramBotUrl?: string
   windowBounds: WindowBounds
 }
 
@@ -201,11 +205,37 @@ export interface PairingApproveResult {
 
 /** Wizard Telegram channel (aligned with upstream TelegramConfig) */
 export interface TelegramChannelConfig {
+  /** Channel enabled flag (upstream field; written by wizard/settings) */
+  enabled?: boolean
   botToken?: string
   /** Owner Telegram user ID (numeric) — written to allowFrom */
   userId?: string
+  /** Owner Telegram user ids allowed to talk to the bot (upstream field) */
+  allowFrom?: string[]
+  /** DM policy for the bot (upstream: 'pairing' | 'open') */
+  dmPolicy?: string
   /** Optional proxy URL (http/https preferred; socks5 experimental) */
   proxy?: string
+}
+
+/** Telegram settings panel: load snapshot */
+export interface TelegramSettingsLoadResult {
+  /** Channel enabled (or token present) in openclaw.json */
+  enabled: boolean
+  /** True when a bot token is already stored */
+  hasToken: boolean
+  /** Owner user ids from allowFrom */
+  allowFrom: string[]
+  /** Display-only fields stored in shell config */
+  botName?: string
+  botUrl?: string
+}
+
+/** Telegram settings panel: save result */
+export interface TelegramSettingsSaveResult {
+  ok: boolean
+  restarted: boolean
+  error?: string
 }
 
 /** Wizard Discord channel (aligned with upstream DiscordConfig) */

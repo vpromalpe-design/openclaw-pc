@@ -546,8 +546,9 @@ export function ModelsView({ onBack }: ModelsViewProps) {
           </div>
         </section>
 
-        {/* Local models */}
-        <section className="rounded-lg border border-border bg-card p-4" aria-label={t('shell.models.localAria')}>
+        {/* Local models — v0.9.11: id anchor for ⚙ → «Локальный движок» scroll (п.1.1) */}
+        <section id="local-model-section" className="rounded-lg border border-border bg-card p-4" aria-label={t('shell.models.localAria')}
+          style={{ scrollMarginTop: 12 }}>
           <div className="flex items-center gap-2 mb-1">
             <Download className="w-4 h-4 text-muted-foreground" aria-hidden />
             <h2 className="text-sm font-medium">{t('shell.models.localTitle')}</h2>
