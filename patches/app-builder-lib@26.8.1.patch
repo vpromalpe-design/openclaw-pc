@@ -81,7 +81,7 @@ index b7f4752..bf3daab 100644
    !insertmacro MUI_UNPAGE_INSTFILES
    !ifmacrodef customUninstallPage
      !insertmacro customUninstallPage
-@@ -152,3 +187,126 @@
+@@ -152,3 +187,130 @@
      ${endif}
    !endif
  !macroend
@@ -181,6 +181,10 @@ index b7f4752..bf3daab 100644
 +; checkbox with SetCtlColors but themed checkboxes ignore WM_CTLCOLORSTATIC
 +; (NSIS bug #443) leaving black text on our dark background — resetting the
 +; uxtheme makes WM_CTLCOLORSTATIC work again.
++; Installer build only: MUI_UNPAGE_FINISH in the template has no SHOW
++; callback, so the uninstaller build would leave this unreferenced
++; (makensis -WX warning 6010).
++!ifndef BUILD_UNINSTALLER
 +!ifdef MUI_FINISHPAGE_INTERFACE
 +Function ${PREFIX}darkFinishShow
 +  !insertmacro DarkPageCommon
@@ -191,6 +195,7 @@ index b7f4752..bf3daab 100644
 +    SetCtlColors $mui.FinishPage.Run "10131C" "FFFFFF"
 +  ${EndIf}
 +FunctionEnd
++!endif
 +!endif
 +
 +; Uninstaller welcome page.
