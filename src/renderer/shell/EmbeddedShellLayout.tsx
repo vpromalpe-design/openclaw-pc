@@ -1190,11 +1190,54 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
             </div>
           </div>
 
+          {/* v0.9.12 (Damir 21:26Z): per-agent chat tabs live in the TOP BAR —
+              right of the agent pill, left of ＋ Новый чат. The standalone
+              tab row under the top bar was removed. Each agent owns its own
+              tabs: 1 pinned agent chat + N text chats. */}
+          {inChat && !hasActivePanel && (
+            <div className="chat-tabs">
+              <div className="chat-tabs-scroll">
+                {(tabsByAgent[activeAgent] ?? []).map((tab) => (
+                  <div
+                    key={tab.id}
+                    className={cn('chat-tab', tab.id === activeTabByAgent[activeAgent] && 'active')}
+                    onClick={() => activateTab(activeAgent, tab.id)}
+                    role="button"
+                    title={tab.title}
+                  >
+                    <span className="chat-tab-ic">{tab.kind === 'agent' ? '🤖' : '💬'}</span>
+                    <span className="chat-tab-title">{tab.title}</span>
+                    {tab.kind === 'agent' && agentActivity[activeAgent] && (
+                      <span className="chat-tab-busy" title="Агент работает…" />
+                    )}
+                    {tab.kind === 'text' && (
+                      <button
+                        type="button"
+                        className="chat-tab-x"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          closeTab(activeAgent, tab.id)
+                        }}
+                        title="Закрыть вкладку"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <button
             type="button"
             className="shell-btn ghost"
             style={{ padding: '8px 16px' }}
-            onClick={() => openSection(SECTIONS[0])}
+            onClick={() => {
+              // v0.9.12 (Damir 21:26Z): top-bar button creates a new text tab for the active agent
+              if (!inChat) openSection(SECTIONS[0])
+              newTextTab(activeAgent)
+            }}
           >
             ＋ Новый чат
           </button>
@@ -1412,59 +1455,6 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
 
           {/* ── Center: embedded Control UI / panels ── */}
           <section className="shell-chat-area">
-            {/* v0.9.12 (D1): browser-style chat tabs row — per-agent: [agent chip] [agent tab] [text tabs ×] [＋ Новый чат] */}
-            {showControlUIIframe && !hasActivePanel && inChat && (
-              <div className="chat-tabs">
-                <button
-                  type="button"
-                  className="chat-tabs-agent"
-                  onClick={() => setOpenMenu(openMenu === 'agent' ? null : 'agent')}
-                  title="Переключить агента"
-                >
-                  <span className="chat-tabs-agent-ic">{agentIcon(activeAgent)}</span>
-                  <span className="chat-tabs-agent-name">{activeAgent}</span>
-                  <span className="caret">▾</span>
-                </button>
-                <div className="chat-tabs-scroll">
-                  {(tabsByAgent[activeAgent] ?? []).map((tab) => (
-                    <div
-                      key={tab.id}
-                      className={cn('chat-tab', tab.id === activeTabByAgent[activeAgent] && 'active')}
-                      onClick={() => activateTab(activeAgent, tab.id)}
-                      role="button"
-                      title={tab.title}
-                    >
-                      <span className="chat-tab-ic">{tab.kind === 'agent' ? '🤖' : '💬'}</span>
-                      <span className="chat-tab-title">{tab.title}</span>
-                      {tab.kind === 'agent' && agentActivity[activeAgent] && (
-                        <span className="chat-tab-busy" title="Агент работает…" />
-                      )}
-                      {tab.kind === 'text' && (
-                        <button
-                          type="button"
-                          className="chat-tab-x"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            closeTab(activeAgent, tab.id)
-                          }}
-                          title="Закрыть вкладку"
-                        >
-                          ×
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  className="chat-tab-add"
-                  onClick={() => newTextTab(activeAgent)}
-                  title="Новый чат"
-                >
-                  ＋ Новый чат
-                </button>
-              </div>
-            )}
             <div className="shell-chat-canvas">
               {showControlUIIframe ? (
                 <iframe
