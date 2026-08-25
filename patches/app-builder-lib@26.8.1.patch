@@ -114,6 +114,10 @@ index b7f4752..bf3daab 100644
 +!macro DarkThemePages PREFIX
 +; License page: rich edit gets a white background + dark text (SetCtlColors
 +; cannot paint RichEdit controls — use EM_SETBKGNDCOLOR / EM_SETCHARFORMAT).
++; Guarded: the $mui.Licensepage.* variables are only declared by MUI2's
++; Pages\License.nsh when MUI_PAGE_LICENSE is used, so defining this function
++; unconditionally would trip makensis -WX (warning 6000).
++!ifdef MUI_LICENSEPAGE_INTERFACE
 +Function ${PREFIX}darkLicenseShow
 +  !insertmacro DarkPageCommon
 +  SetCtlColors $mui.Licensepage.TopText "10131C" "FFFFFF"
@@ -128,6 +132,7 @@ index b7f4752..bf3daab 100644
 +  System::Call 'user32::SendMessage(i $mui.Licensepage.LicenseText, i 0x0444, i 4, i r0) i .r1'
 +  System::Free $0
 +FunctionEnd
++!endif
 +
 +; "Who should this be installed for" page (nsDialogs, multiUserUi.nsh).
 +Function ${PREFIX}darkModePageShow
