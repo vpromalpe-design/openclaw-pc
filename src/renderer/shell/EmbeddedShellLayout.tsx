@@ -261,7 +261,8 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   const [gatewayPort, setGatewayPort] = useState<number | null>(null)
   const [controlUrl, setControlUrl] = useState<string | null>(null)
   const [controlRoute, setControlRoute] = useState<ControlRoute>('/chat')
-  const [controlSession, setControlSession] = useState<string | null>(null)
+  /** v0.9.12 FIX: Control UI session key — defaults to the main agent's session so each agent gets its own Agent chat (Control UI would otherwise show the shared agent:main:main chat for everyone). */
+  const [controlSession, setControlSession] = useState<string | null>('agent:main:main')
   /** Bumps when the gateway process restarts so the iframe remounts and opens a fresh WebSocket (same #token URL would otherwise not reload). */
   const [controlUiReloadKey, setControlUiReloadKey] = useState(0)
   const prevGatewayStatusRef = useRef<GatewayStatusValue | null>(null)
@@ -352,7 +353,13 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     (agentId: string, tabId: string) => {
       setActiveTabByAgent((prev) => ({ ...prev, [agentId]: tabId }))
       const tab = (tabsByAgent[agentId] ?? []).find((tb) => tb.id === tabId)
-      if (tab) setChatMode(tab.kind)
+      if (tab) {
+        setChatMode(tab.kind)
+        // Each agent has its own Agent chat (Control UI session agent:<id>:main).
+        if (tab.kind === 'agent') {
+          setControlSession(`agent:${agentId}:main`)
+        }
+      }
     },
     [tabsByAgent],
   )
@@ -850,7 +857,8 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     setActiveSection('chat')
     onPanelChange('')
     setOpenMenu(null)
-    setControlSession(null)
+    // Each agent has its own Agent chat — point Control UI at its main session.
+    setControlSession(`agent:${agentId}:main`)
     // Switch the Control UI session to the agent's main session.
     const next: ControlRoute = '/chat'
     setControlRoute(next)
