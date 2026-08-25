@@ -726,6 +726,13 @@ export class GatewayProcessManager {
       'stderr',
       `[gateway] auto restart #${attempt}/${this.maxAutoRestarts} triggered by ${reason}`,
     )
+    // BUG-4: exponential backoff between restarts (1s → 5s → 15s → 60s) so a
+    // crashing gateway (e.g. invalid config) doesn't storm-spawn children and
+    // race startup migrations / the port bind.
+    const BACKOFF_MS = [1_000, 5_000, 15_000, 60_000]
+    const delayMs = BACKOFF_MS[Math.min(attempt - 1, BACKOFF_MS.length - 1)]
+    this.emitLog('stderr', `[gateway] auto restart #${attempt} waiting ${delayMs}ms before respawn`)
+    await new Promise((r) => setTimeout(r, delayMs))
     try {
       await this.restart(this.lastLaunchOptions)
     } catch (error) {

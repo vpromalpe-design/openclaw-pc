@@ -10,7 +10,7 @@ import { app } from 'electron'
 import JSON5 from 'json5'
 import type { OpenClawConfig } from '../../shared/types.js'
 import { getBundledOpenClawDir, getUserDataDir } from '../utils/paths.js'
-import { OPENCLAW_CONFIG_FILE } from '../../shared/constants.js'
+import { OPENCLAW_CONFIG_FILE, DEFAULT_GATEWAY_PORT } from '../../shared/constants.js'
 import { normalizeAuthOrderEntry } from '../providers/provider-config.js'
 import { saveAuthProfile } from '../providers/auth-profile-store.js'
 
@@ -112,12 +112,27 @@ function usesLoopbackOnlyGatewayBind(gw: unknown): boolean {
   return bind === undefined || bind === 'loopback'
 }
 
-/** Seed `allowedOrigins: ['*']` only when the key is absent or [] — do not override a non-empty user allowlist. */
-function needsLoopbackAllowedOriginsWildcardSeed(ctrl: Record<string, unknown>, loopbackBind: boolean): boolean {
+/**
+ * Loopback-only Control UI origins the desktop shell actually uses:
+ * the embedded iframe (Origin injected as `http(s)://127.0.0.1:<port>` by
+ * ensureLoopbackGatewayOriginHeader) and a browser on the same machine.
+ * Never a wildcard — BUG-5: `allowedOrigins: ["*"]` lets any local page
+ * drive the gateway once it learns the token.
+ */
+function loopbackAllowedOrigins(port: number): string[] {
+  const p = String(port)
+  return [`http://127.0.0.1:${p}`, `http://localhost:${p}`, `http://[::1]:${p}`]
+}
+
+/** Seed `allowedOrigins` only when the key is absent, [] or exactly ["*"] — do not override a non-empty user allowlist. */
+function needsLoopbackAllowedOriginsSeed(ctrl: Record<string, unknown>, loopbackBind: boolean): boolean {
   if (!loopbackBind) return false
   const raw = ctrl.allowedOrigins
   if (raw === undefined) return true
-  return Array.isArray(raw) && raw.length === 0
+  if (!Array.isArray(raw)) return false
+  if (raw.length === 0) return true
+  // Upgrade a previously-seeded wildcard (older desktop versions) to the concrete loopback list.
+  return raw.length === 1 && raw[0] === '*'
 }
 
 /**
@@ -131,8 +146,9 @@ function needsLoopbackAllowedOriginsWildcardSeed(ctrl: Record<string, unknown>, 
  * disk without the embedded-safe flags and Control UI returns HTTP 500.
  *
  * **WebSocket origin:** upstream `checkBrowserOrigin` rejects missing / `null` Origin before the
- * loopback shortcut. Electron iframe upgrades may omit Origin; we also seed `allowedOrigins: ["*"]`
- * when `gateway.bind` is loopback (or unset) and `allowedOrigins` is unset or `[]` — scoped to local bind only.
+ * loopback shortcut. Electron iframe upgrades may omit Origin; we also seed the concrete
+ * loopback origin list (not `["*"]`) when `gateway.bind` is loopback (or unset) and
+ * `allowedOrigins` is unset, `[]` or the legacy `["*"]` — scoped to local bind only.
  *
  * Used on read (migration) and on every {@link writeOpenClawConfig} so IPC/import paths cannot strip flags.
  */
@@ -151,9 +167,9 @@ function mergeEmbeddedControlUiFlagsIfNeeded(config: OpenClawConfig): {
       ? (ctrl as Record<string, unknown>)
       : {}
   const loopbackBind = usesLoopbackOnlyGatewayBind(gw)
-  const needWildcardOrigins = needsLoopbackAllowedOriginsWildcardSeed(base, loopbackBind)
+  const needOriginsSeed = needsLoopbackAllowedOriginsSeed(base, loopbackBind)
   const flagsOk = base.allowInsecureAuth === true && base.dangerouslyDisableDeviceAuth === true
-  if (flagsOk && !needWildcardOrigins) {
+  if (flagsOk && !needOriginsSeed) {
     return { config, changed: false }
   }
   const next = JSON.parse(JSON.stringify(config)) as OpenClawConfig
@@ -171,8 +187,12 @@ function mergeEmbeddedControlUiFlagsIfNeeded(config: OpenClawConfig): {
     allowInsecureAuth: true,
     dangerouslyDisableDeviceAuth: true,
   }
-  if (needWildcardOrigins) {
-    mergedCtrl.allowedOrigins = ['*']
+  if (needOriginsSeed) {
+    const gwPort =
+      next.gateway && typeof next.gateway === 'object' && !Array.isArray(next.gateway)
+        ? Number((next.gateway as { port?: unknown }).port) || DEFAULT_GATEWAY_PORT
+        : DEFAULT_GATEWAY_PORT
+    mergedCtrl.allowedOrigins = loopbackAllowedOrigins(gwPort)
   }
   next.gateway = {
     ...existing,

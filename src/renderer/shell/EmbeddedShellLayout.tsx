@@ -239,6 +239,8 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   const prevGatewayStatusRef = useRef<GatewayStatusValue | null>(null)
   const lastRunningPidRef = useRef<number | null>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** Last ~30 gateway log lines, kept for crash diagnostics (BUG-1). */
+  const gatewayLogTailRef = useRef<string | null>(null)
   const [firstRequestPending, setFirstRequestPending] = useState(false)
   const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** v0.9.0: «Агентская задача» (embedded webchat) vs «Просто текст» (direct model call). */
@@ -268,6 +270,8 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   const [checkState, setCheckState] = useState<'idle' | 'checking' | 'ok' | 'fail'>('idle')
   const [clock, setClock] = useState('')
   const [engineBusy, setEngineBusy] = useState(false)
+  /** BUG-1: config keys the current gateway schema rejects (e.g. channels.telegram.network.proxy). */
+  const [configWarning, setConfigWarning] = useState<string | null>(null)
 
   const refreshShellData = useCallback(async () => {
     try {
@@ -293,8 +297,18 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
           })),
         )
       }
-      const tg = config?.channels?.telegram as { botToken?: string } | undefined
+      const tg = config?.channels?.telegram as { botToken?: string; network?: { proxy?: unknown } } | undefined
       setTelegramEnabled(Boolean(tg?.botToken))
+      // BUG-1: `channels.telegram.network.proxy` is rejected by the gateway
+      // schema ("must not have additional properties: proxy") and crash-loops
+      // the child. Warn loudly instead of silently restarting 20×.
+      if (tg?.network && typeof tg.network === 'object' && 'proxy' in tg.network) {
+        setConfigWarning(
+          '⚠️ В конфиге есть channels.telegram.network.proxy — эта версия gateway его не принимает (краш-луп при старте). Удали ключ или настрой прокси на уровне системы (HTTPS_PROXY).',
+        )
+      } else {
+        setConfigWarning((w) => (w?.startsWith('⚠️ В конфиге') ? null : w))
+      }
       const token = (config?.gateway?.auth as { token?: string } | undefined)?.token
       setHasGatewayToken(Boolean(token && token.trim()))
     } catch {
@@ -329,6 +343,21 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
       )
     } catch {
       setSessions([])
+    }
+  }, [])
+
+  useEffect(() => {
+    const unsub = window.electronAPI.onGatewayLog((log) => {
+      const line = typeof log === 'object' && log !== null
+        ? String((log as { text?: unknown }).text ?? '')
+        : ''
+      if (!line) return
+      const prev = gatewayLogTailRef.current ?? ''
+      const next = `${prev}\n${line}`.trim().split('\n').slice(-30).join('\n')
+      gatewayLogTailRef.current = next
+    })
+    return () => {
+      unsub()
     }
   }, [])
 
@@ -437,10 +466,17 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
           setControlUrl(null)
         }
         if (status.status === 'error') {
+          // BUG-1: show the actual gateway failure reason (invalid config,
+          // port busy, plugin install…) in the error view instead of a generic
+          // message — collected from the recent gateway log lines.
+          const recentLog = gatewayLogTailRef.current
+          const detail = recentLog
+            ? `Причина из журнала gateway:\n${recentLog}`
+            : 'Please check Gateway configuration and logs, then retry.'
           showError({
             errorType: 'gateway-crash',
             title: 'Gateway service exited unexpectedly',
-            detail: 'Please check Gateway configuration and logs, then retry.',
+            detail,
           })
         }
       }
@@ -1078,6 +1114,26 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
             {/* First-message hint for cold-started local models */}
             {firstRequestPending && (
               <LocalFirstRequestBanner onDismiss={hideFirstRequestBanner} />
+            )}
+
+            {/* BUG-1: config keys the gateway schema rejects — warn instead of silent crash-loop */}
+            {configWarning && (
+              <div className="absolute left-1/2 top-4 z-50 w-[min(92vw,640px)] -translate-x-1/2">
+                <div className="flex items-start gap-3 rounded-2xl border border-red-300/60 bg-gradient-to-r from-red-500 to-rose-600 px-4 py-3 shadow-xl shadow-red-900/30">
+                  <span className="mt-0.5 text-lg leading-none">🚨</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-white">Конфиг несовместим с gateway</p>
+                    <p className="mt-0.5 text-xs leading-relaxed text-red-50">{configWarning}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setConfigWarning(null)}
+                    className="shrink-0 rounded-lg bg-white/25 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-white/40"
+                  >
+                    Понятно
+                  </button>
+                </div>
+              </div>
             )}
 
             {/* v0.9.0: mode switch — «Агентская задача | Просто текст» (chat page only) */}

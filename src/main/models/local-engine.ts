@@ -140,6 +140,18 @@ function engineDir(): string {
   return path.join(getUserDataDir(), 'llama')
 }
 
+const resolveCanonicalModelId = (raw: string): string => {
+  const catalog = listLocalModels()
+  if (catalog.some((m) => m.id === raw)) return raw
+  // file name without .gguf, e.g. gemma4-v2-Q4_K_M → preset id gemma4-v2
+  const byFile = catalog.find((m) => m.fileName.replace(/\.gguf$/i, '') === raw)
+  if (byFile) return byFile.id
+  // normalized lowercase comparison
+  const needle = raw.toLowerCase()
+  const byName = catalog.find((m) => m.id.toLowerCase() === needle)
+  return byName?.id ?? raw
+}
+
 /** Scan downloaded GGUF files. */
 export function listLocalModels(order?: string[]): LocalModelInfo[] {
   const dir = modelsDir()
@@ -757,7 +769,27 @@ function extractZip(zipPath: string, destDir: string): Promise<void> {
       else {
         // v0.8.31: surface the real PowerShell error text — "code 1" alone
         // is useless for remote debugging (truncated zip, locked file, AV).
-        const detail = [stderr.trim(), stdout.trim()].filter(Boolean).join(' | ')
+        // BUG-3: strip CLIXML progress noise (`#< CLIXML ... >`) and ANSI/
+        // progress percent lines so the log shows a readable error, not
+        // mojibake garbage.
+        const detail = [stderr, stdout]
+          .filter(Boolean)
+          .map((s) =>
+            s
+              .split(/\r?\n/)
+              .filter((line) => {
+                const t = line.trim()
+                if (!t) return false
+                if (t.startsWith('#< CLIXML')) return false
+                // progress lines like `[1/3] Скачивание…` / trailing percents
+                if (t.includes('[') && t.includes(']') && /[\u0080-\uFFFF]/.test(t)) return false
+                if (/\d+\s*%\s*$/.test(t) && !t.includes('Error')) return false
+                return true
+              })
+              .join(' | '),
+          )
+          .filter(Boolean)
+          .join(' | ')
         reject(
           new Error(
             `Expand-Archive failed with code ${code}${detail ? `: ${detail.slice(0, 500)}` : ''}`,
@@ -1245,7 +1277,12 @@ async function startLocalEngineInner(
 ): Promise<LocalEngineState> {
   // The Experimental preset was merged into the base Hard model (both have
   // tool calling now); map a stale config id to the base preset.
-  const modelId = modelIdRaw.replace(/-experimental$/, '')
+  const modelIdRaw2 = modelIdRaw.replace(/-experimental$/, '')
+  // BUG-6: the config sometimes carries a stale id derived from the GGUF file
+  // name (gemma4-v2-Q4_K_M) while the catalog id is the preset id (gemma4-v2).
+  // Resolve to the canonical catalog id so `primary` and the provider model id
+  // stay in sync with the served model.
+  const modelId = resolveCanonicalModelId(modelIdRaw2)
   if (engineState.running && engineState.modelId !== modelId) {
     // Model switch while the engine is up: stop the old server first, then
     // start the new model below (the gateway keeps the same baseUrl).

@@ -48,7 +48,7 @@ import {
 } from './models/local-engine.js'
 import { syncLoginItemToSystem, getLoginItemOpenAtLogin, clearLoginItem } from './login-item/index.js'
 import { patchGatewayResponseHeaders } from './security/gateway-response-headers.js'
-import { rewriteGatewayRequestUrlWithToken } from './security/gateway-request-auth.js'
+import { rewriteGatewayRequestUrlWithToken, maskSensitiveUrl } from './security/gateway-request-auth.js'
 import { ensureLoopbackGatewayOriginHeader } from './security/gateway-request-origin.js'
 import { listPendingFeishuPairing } from './pairing/index.js'
 import { watchFeishuPairingCredentialsDir } from './pairing/feishu-pairing-credentials-watcher.js'
@@ -205,7 +205,7 @@ app.whenReady().then(async () => {
     if (patchedHeaders) {
       if (!loggedGatewayHeaderPatch && details.resourceType === 'subFrame') {
         loggedGatewayHeaderPatch = true
-        logInfo(`[OpenClaw] Patched gateway response headers for iframe: ${details.url}`)
+        logInfo(`[OpenClaw] Patched gateway response headers for iframe: ${maskSensitiveUrl(details.url)}`)
       }
       callback({ responseHeaders: patchedHeaders })
       return
@@ -236,7 +236,7 @@ app.whenReady().then(async () => {
       if (!loggedGatewayTokenPatch) {
         loggedGatewayTokenPatch = true
         logInfo(
-          `[OpenClaw] Patched gateway request with auth token (${details.resourceType}): ${details.url}`,
+          `[OpenClaw] Patched gateway request with auth token (${details.resourceType}): ${maskSensitiveUrl(details.url)}`,
         )
       }
       callback({ redirectURL })

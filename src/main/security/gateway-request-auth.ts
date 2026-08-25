@@ -50,3 +50,27 @@ export function rewriteGatewayRequestUrlWithToken(rawUrl: string, context: Gatew
   url.searchParams.set('token', token)
   return url.toString()
 }
+
+/**
+ * Redact gateway auth tokens from a URL for safe logging: any `token=` in the
+ * query string and any `#token=` in the fragment are replaced with `[REDACTED]`.
+ * The token is a full gateway credential — it must never reach shell.log
+ * verbatim (BUG-5: it leaked via the patched-request log lines).
+ */
+export function maskSensitiveUrl(rawUrl: string): string {
+  try {
+    const url = new URL(rawUrl)
+    if (url.searchParams.has('token')) {
+      url.searchParams.set('token', '[REDACTED]')
+    }
+    const hash = url.hash
+    if (hash.startsWith('#token=')) {
+      url.hash = '#token=[REDACTED]'
+    } else if (hash.includes('token=')) {
+      url.hash = hash.replace(/([?&]token=)[^&#]*/g, '$1[REDACTED]')
+    }
+    return url.toString()
+  } catch {
+    return String(rawUrl).replace(/([?&#]token=)[^&#\s]*/g, '$1[REDACTED]')
+  }
+}
