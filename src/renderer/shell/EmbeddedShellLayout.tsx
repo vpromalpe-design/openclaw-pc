@@ -1122,6 +1122,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                 }`}
                 referrerPolicy="no-referrer"
                 allowFullScreen
+                allow="microphone; camera; autoplay; clipboard-read; clipboard-write"
               />
             ) : (
               !hasActivePanel && (
