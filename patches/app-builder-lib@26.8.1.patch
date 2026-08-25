@@ -116,16 +116,16 @@ index b7f4752..bf3daab 100644
 +; cannot paint RichEdit controls — use EM_SETBKGNDCOLOR / EM_SETCHARFORMAT).
 +Function ${PREFIX}darkLicenseShow
 +  !insertmacro DarkPageCommon
-+  SetCtlColors $mui.LicensePage.TopText "10131C" "FFFFFF"
-+  SetCtlColors $mui.LicensePage.Text "10131C" "FFFFFF"
++  SetCtlColors $mui.Licensepage.TopText "10131C" "FFFFFF"
++  SetCtlColors $mui.Licensepage.Text "10131C" "FFFFFF"
 +  ; EM_SETBKGNDCOLOR = 0x0403, wParam unused, lParam = COLORREF 0x00FFFFFF.
-+  System::Call 'user32::SendMessage(i $mui.LicensePage.LicenseText, i 0x0403, i 0, i 0x00FFFFFF) i .r0'
++  System::Call 'user32::SendMessage(i $mui.Licensepage.LicenseText, i 0x0403, i 0, i 0x00FFFFFF) i .r0'
 +  ; EM_SETCHARFORMAT = 0x0444, wParam = SCF_ALL (4), lParam = CHARFORMAT2A.
 +  ; Struct: cbSize(84) dwMask(CFM_COLOR=0x40000000) dwEffects yHeight yOffset
 +  ; crTextColor(0x001C1310) bCharSet bPitchAndFamily szFaceName[32]
 +  ; wWeight sSpacing crBackColor lcid dwReserved sStyle wKerning bUnderline*
 +  System::Call '*(i 84, i 0x40000000, i 0, i 0, i 0, i 0x001C1310, i 0, i 0, s "", i 0, i 0, i 0, i 0, i 0, i 0, i 0, i 0, i 0, i 0) i .r0'
-+  System::Call 'user32::SendMessage(i $mui.LicensePage.LicenseText, i 0x0444, i 4, i r0) i .r1'
++  System::Call 'user32::SendMessage(i $mui.Licensepage.LicenseText, i 0x0444, i 4, i r0) i .r1'
 +  System::Free $0
 +FunctionEnd
 +
