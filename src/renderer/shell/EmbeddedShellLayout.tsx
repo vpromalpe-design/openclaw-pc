@@ -666,7 +666,10 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
 
   const showControlUIIframe = gatewayPort !== null && controlUrl !== null
   const hasActivePanel = activePanel !== ''
-  const textModeActive = chatMode === 'text' && !hasActivePanel && showControlUIIframe
+  // The «Агентская задача | Просто текст» switch belongs to the chat page only
+  // (mockup); hide it on Обзор/Активность/Сеансы/Cron/Задачи/Навыки routes.
+  const inChat = controlRoute === '/chat'
+  const textModeActive = chatMode === 'text' && !hasActivePanel && showControlUIIframe && inChat
 
   if (gatewayView === 'error' && errorInfo) {
     return (
@@ -1077,8 +1080,8 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
               <LocalFirstRequestBanner onDismiss={hideFirstRequestBanner} />
             )}
 
-            {/* v0.9.0: mode switch — «Агентская задача | Просто текст» */}
-            {showControlUIIframe && !hasActivePanel && (
+            {/* v0.9.0: mode switch — «Агентская задача | Просто текст» (chat page only) */}
+            {showControlUIIframe && !hasActivePanel && inChat && (
               <div className="absolute bottom-40 left-1/2 z-40 -translate-x-1/2">
                 <div className="shell-mode-switch">
                   <button
