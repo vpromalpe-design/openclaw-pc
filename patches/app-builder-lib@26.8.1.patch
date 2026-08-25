@@ -81,7 +81,7 @@ index b7f4752..bf3daab 100644
    !insertmacro MUI_UNPAGE_INSTFILES
    !ifmacrodef customUninstallPage
      !insertmacro customUninstallPage
-@@ -152,3 +187,130 @@
+@@ -152,3 +187,131 @@
      ${endif}
    !endif
  !macroend
