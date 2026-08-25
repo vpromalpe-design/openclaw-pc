@@ -81,7 +81,7 @@ index b7f4752..bf3daab 100644
    !insertmacro MUI_UNPAGE_INSTFILES
    !ifmacrodef customUninstallPage
      !insertmacro customUninstallPage
-@@ -152,3 +187,107 @@
+@@ -152,3 +187,117 @@
      ${endif}
    !endif
  !macroend
@@ -135,6 +135,7 @@ index b7f4752..bf3daab 100644
 +!endif
 +
 +; "Who should this be installed for" page (nsDialogs, multiUserUi.nsh).
++!ifdef MULTIUSER_INSTALLMODEPAGE
 +Function ${PREFIX}darkModePageShow
 +  !insertmacro DarkPageCommon
 +  SetCtlColors $MultiUser.InstallModePage "10131C" "FFFFFF"
@@ -143,8 +144,10 @@ index b7f4752..bf3daab 100644
 +  !insertmacro DarkControl $MultiUser.InstallModePage.AllUsers
 +  !insertmacro DarkControl $MultiUser.InstallModePage.CurrentUser
 +FunctionEnd
++!endif
 +
 +; "Choose installation folder" page.
++!ifdef MUI_DIRECTORYPAGE_INTERFACE
 +Function ${PREFIX}darkDirShow
 +  !insertmacro DarkPageCommon
 +  SetCtlColors $mui.DirectoryPage "10131C" "FFFFFF"
@@ -154,18 +157,22 @@ index b7f4752..bf3daab 100644
 +  SetCtlColors $mui.DirectoryPage.Directory "10131C" "FFFFFF"
 +  !insertmacro DarkControl $mui.DirectoryPage.BrowseButton
 +FunctionEnd
++!endif
 +
 +; "Installing" progress page.
++!ifdef MUI_INSTFILESPAGE_INTERFACE
 +Function ${PREFIX}darkInstShow
 +  !insertmacro DarkPageCommon
 +  SetCtlColors $mui.InstFilesPage "10131C" "FFFFFF"
 +  SetCtlColors $mui.InstFilesPage.Text "10131C" "FFFFFF"
 +FunctionEnd
++!endif
 +
 +; Finish page: white "Run OpenClaw PC" checkbox label. MUI2 paints the
 +; checkbox with SetCtlColors but themed checkboxes ignore WM_CTLCOLORSTATIC
 +; (NSIS bug #443) leaving black text on our dark background — resetting the
 +; uxtheme makes WM_CTLCOLORSTATIC work again.
++!ifdef MUI_FINISHPAGE_INTERFACE
 +Function ${PREFIX}darkFinishShow
 +  !insertmacro DarkPageCommon
 +  SetCtlColors $mui.FinishPage.Title "10131C" "FFFFFF"
@@ -175,13 +182,16 @@ index b7f4752..bf3daab 100644
 +    SetCtlColors $mui.FinishPage.Run "10131C" "FFFFFF"
 +  ${EndIf}
 +FunctionEnd
++!endif
 +
 +; Uninstaller welcome page.
++!ifdef MUI_WELCOMEPAGE_INTERFACE
 +Function ${PREFIX}darkWelcomeShow
 +  !insertmacro DarkPageCommon
 +  SetCtlColors $mui.WelcomePage.Title "10131C" "FFFFFF"
 +  SetCtlColors $mui.WelcomePage.Text "10131C" "FFFFFF"
 +FunctionEnd
++!endif
 +!macroend
 +
 +!ifdef BUILD_UNINSTALLER
