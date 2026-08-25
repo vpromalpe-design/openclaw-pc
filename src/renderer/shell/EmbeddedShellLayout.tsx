@@ -66,7 +66,15 @@ export interface EmbeddedShellLayoutProps {
 }
 
 /** Control UI route ids we link to from the sidebar («Разделы»). */
-type ControlRoute = '/chat' | '/overview' | '/activity' | '/sessions' | '/cron' | '/tasks' | '/skills'
+type ControlRoute =
+  | '/chat'
+  | '/overview'
+  | '/activity'
+  | '/sessions'
+  | '/cron'
+  | '/tasks'
+  | '/skills'
+  | '/settings/communications'
 
 /** Sidebar «Разделы» item: either a Control UI route or one of our panels. */
 interface SectionItem {
@@ -87,6 +95,7 @@ const SECTIONS: SectionItem[] = [
   { id: 'cron', icon: '⏰', label: 'Задания Cron', route: '/cron' },
   { id: 'tasks', icon: '✅', label: 'Задачи', route: '/tasks' },
   { id: 'skills', icon: '🧩', label: 'Навыки', route: '/skills' },
+  { id: 'telegram', icon: '📡', label: 'Телеграм', route: '/settings/communications' },
 ]
 
 const AGENT_ICONS: Record<string, string> = {
@@ -261,6 +270,10 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   const [engineModel, setEngineModel] = useState<string | null>(null)
   const [engineRunning, setEngineRunning] = useState(false)
   const [engineVariant, setEngineVariant] = useState<'cpu' | 'cuda' | 'vulkan' | null>(null)
+  /** Compute state from runtime: effective device, GPU identity. */
+  const [effectiveGpu, setEffectiveGpu] = useState<'cpu' | 'gpu' | null>(null)
+  const [gpuName, setGpuName] = useState<string | null>(null)
+  const [installedVariants, setInstalledVariants] = useState<string[]>([])
   const [downloadProgress, setDownloadProgress] = useState<{ modelId: string; progress: number } | null>(null)
   const [localCount, setLocalCount] = useState(0)
   const [localReadyBytes, setLocalReadyBytes] = useState(0)
@@ -320,6 +333,9 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
       setEngineRunning(Boolean(view?.engineState?.running))
       setEngineModel(view?.engineState?.modelId ?? null)
       setEngineVariant(view?.runtime?.variant ?? null)
+      setEffectiveGpu(view?.runtime?.effectiveGpu ?? null)
+      setGpuName(view?.runtime?.gpuName ?? null)
+      setInstalledVariants(view?.runtime?.installedVariants ?? [])
       const models = view?.localModels ?? []
       setLocalCount(models.length)
       const ready = models
@@ -691,6 +707,52 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
         } else {
           // No local model yet — jump to the Models page.
           handleNavigateToPanel('models')
+        }
+      }
+    } catch {
+      // keep previous state
+    }
+    setEngineBusy(false)
+    void refreshShellData()
+  }
+
+  /**
+   * CPU/GPU tiles in the status panel: click an inactive tile to switch the
+   * engine to that device (and start it if it is stopped); click the active
+   * tile to stop the engine.
+   */
+  const toggleCompute = async (target: 'cpu' | 'gpu') => {
+    if (engineBusy) return
+    setEngineBusy(true)
+    try {
+      const active = engineRunning && effectiveGpu === target
+      if (active) {
+        // Click on the active tile → switch the engine off.
+        await window.electronAPI.localEngineStop()
+        setEngineRunning(false)
+      } else {
+        if (target === 'gpu') {
+          const gpuBuildInstalled = installedVariants.some(
+            (v) => v === 'cuda' || v === 'vulkan',
+          )
+          if (!gpuBuildInstalled) {
+            // No GPU build on disk yet — send the user to the Models page
+            // where the CUDA/Vulkan build can be installed.
+            handleNavigateToPanel('models')
+            return
+          }
+        }
+        await window.electronAPI.localEngineMode({ setMode: target })
+        const view = await window.electronAPI.modelsViewList()
+        if (!view?.engineState?.running) {
+          const readyModel = (view?.localModels ?? []).find((m) => m.downloaded)
+          if (readyModel) {
+            await window.electronAPI.localEngineStart({ modelId: readyModel.id })
+            setEngineRunning(true)
+            setEngineModel(readyModel.id)
+          } else {
+            handleNavigateToPanel('models')
+          }
         }
       }
     } catch {
@@ -1213,6 +1275,44 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                   </div>
                 )}
               </div>
+              <button
+                type="button"
+                className={cn('shell-tile clickable', engineRunning && effectiveGpu === 'cpu' && 'on')}
+                onClick={() => void toggleCompute('cpu')}
+                disabled={engineBusy}
+                title={engineRunning && effectiveGpu === 'cpu' ? 'Выключить движок' : 'Включить движок на CPU'}
+              >
+                <div className="t-label">
+                  CPU{' '}
+                  {engineRunning && effectiveGpu === 'cpu' && <span className="shell-dot ok" />}
+                </div>
+                <div className="t-val" style={{ fontSize: 13 }}>
+                  {engineRunning && effectiveGpu === 'cpu' ? 'активен' : 'выкл'}
+                </div>
+                <div className="t-sub mono">процессор · llama.cpp</div>
+              </button>
+              <button
+                type="button"
+                className={cn('shell-tile clickable', engineRunning && effectiveGpu === 'gpu' && 'on')}
+                onClick={() => void toggleCompute('gpu')}
+                disabled={engineBusy}
+                title={
+                  engineRunning && effectiveGpu === 'gpu'
+                    ? 'Выключить движок'
+                    : installedVariants.some((v) => v === 'cuda' || v === 'vulkan')
+                      ? 'Включить движок на GPU'
+                      : 'GPU-сборка не установлена — открою Модели'
+                }
+              >
+                <div className="t-label">
+                  GPU{' '}
+                  {engineRunning && effectiveGpu === 'gpu' && <span className="shell-dot ok" />}
+                </div>
+                <div className="t-val" style={{ fontSize: 13 }}>
+                  {engineRunning && effectiveGpu === 'gpu' ? 'активен' : 'выкл'}
+                </div>
+                <div className="t-sub mono">{gpuName ?? 'видеокарта'}</div>
+              </button>
               <div className="shell-tile">
                 <div className="t-label">Telegram</div>
                 <div className="t-val" style={{ fontSize: 13 }}>
@@ -1248,9 +1348,6 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
               </button>
               <button type="button" className="shell-btn" onClick={() => void toggleEngine()} disabled={engineBusy}>
                 {engineRunning ? '⏹ Остановить движок' : '▶ Запустить движок'}
-              </button>
-              <button type="button" className="shell-btn ghost" onClick={() => handleNavigateToPanel('models')}>
-                📥 Скачать CUDA-сборку
               </button>
             </div>
 
