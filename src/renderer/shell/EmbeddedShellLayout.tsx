@@ -28,6 +28,7 @@ import { Bot, Type } from 'lucide-react'
 import type { GatewayStatus, GatewayStatusValue } from '../../shared/types'
 import { useUpdateNoticeStore } from '@/stores/update-store'
 import { cn } from '@/lib/utils'
+import { installShellSounds } from '@/lib/sounds'
 
 const TIMEOUT_MS = 300_000
 
@@ -361,6 +362,9 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
   }, [openMenu])
+
+  // Liquid Glass UI sounds («тук» on clicks, «пук» on opening menus) — ported from the approved mockup.
+  useEffect(() => installShellSounds(), [])
 
   const clearTimeoutTimer = useCallback(() => {
     if (timeoutRef.current) {
