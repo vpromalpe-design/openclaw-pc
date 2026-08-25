@@ -408,9 +408,29 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     const tick = setInterval(() => {
       setClock(new Date().toISOString().slice(11, 19))
     }, 1000)
+    // v0.9.12: CPU/GPU indicators must mirror the real engine state (what is
+    // actually running lights up green). The engine can be started/stopped
+    // from the Models page or the wizard, so poll a lightweight status every
+    // 4s instead of relying on one-shot refresh at mount.
+    const pollEngine = setInterval(() => {
+      void window.electronAPI
+        .localEngineStatus()
+        .then((s) => {
+          setEngineRunning(Boolean(s?.running))
+          setEngineModel(s?.modelId ?? null)
+          setEngineVariant(s?.variant ?? null)
+          setEffectiveGpu(s?.effectiveGpu ?? null)
+          setGpuName(s?.gpuName ?? null)
+          setInstalledVariants(s?.installedVariants ?? [])
+        })
+        .catch(() => {
+          /* non-fatal — indicators keep last known state */
+        })
+    }, 4000)
     return () => {
       unsub()
       clearInterval(tick)
+      clearInterval(pollEngine)
     }
   }, [refreshShellData])
 

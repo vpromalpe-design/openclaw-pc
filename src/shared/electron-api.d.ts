@@ -17,6 +17,7 @@ import type {
   ModelsViewApplyRequest,
   LocalModelInfo,
   LocalEngineState,
+  LocalEngineStatus,
   AppVersionInfo,
   SkillRegistryItem,
   ExtensionRegistryItem,
@@ -211,6 +212,8 @@ export interface ElectronAPI {
     setMode?: 'auto' | 'cpu' | 'gpu'
     installVariant?: 'cpu' | 'cuda' | 'vulkan'
   }) => Promise<LocalEngineRuntimeInfo>
+  /** Lightweight engine status for CPU/GPU indicators (v0.9.12) */
+  localEngineStatus: () => Promise<LocalEngineStatus>
   localEngineReorder: (ids: string[]) => Promise<{ ok: boolean }>
   textChatSend: (payload: {
     text: string

@@ -80,6 +80,7 @@ import {
   IPC_LOCAL_ENGINE_START,
   IPC_LOCAL_ENGINE_STOP,
   IPC_LOCAL_ENGINE_MODE,
+  IPC_LOCAL_ENGINE_STATUS,
   IPC_LOCAL_REORDER,
   IPC_TEXT_CHAT_SEND,
   IPC_SKILLS_LIST,
@@ -1330,6 +1331,22 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
         })
       }
       return getLocalEngineRuntimeState()
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_LOCAL_ENGINE_STATUS,
+    wrapHandler('LOCAL_ENGINE_STATUS', async () => {
+      const r = await getLocalEngineRuntimeState()
+      return {
+        running: r.engineState.running,
+        modelId: r.engineState.modelId,
+        mode: r.mode,
+        variant: r.variant,
+        effectiveGpu: r.effectiveGpu,
+        gpuName: r.gpuName,
+        installedVariants: r.installedVariants,
+      }
     }),
   )
 

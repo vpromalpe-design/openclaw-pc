@@ -4,7 +4,11 @@
  */
 
 import { contextBridge, ipcRenderer } from 'electron'
-import type { TelegramSettingsLoadResult, TelegramSettingsSaveResult } from '../shared/types'
+import type {
+  LocalEngineStatus,
+  TelegramSettingsLoadResult,
+  TelegramSettingsSaveResult,
+} from '../shared/types'
 import {
   IPC_GATEWAY_START,
   IPC_GATEWAY_STOP,
@@ -55,6 +59,7 @@ import {
   IPC_LOCAL_ENGINE_START,
   IPC_LOCAL_ENGINE_STOP,
   IPC_LOCAL_ENGINE_MODE,
+  IPC_LOCAL_ENGINE_STATUS,
   IPC_LOCAL_REORDER,
   IPC_TEXT_CHAT_SEND,
   IPC_LOCAL_PROGRESS,
@@ -202,6 +207,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setMode?: 'auto' | 'cpu' | 'gpu'
     installVariant?: 'cpu' | 'cuda' | 'vulkan'
   }) => invoke(IPC_LOCAL_ENGINE_MODE, payload ?? {}),
+  localEngineStatus: () => invoke<LocalEngineStatus>(IPC_LOCAL_ENGINE_STATUS),
   localEngineReorder: (ids: string[]) => invoke(IPC_LOCAL_REORDER, { ids }),
   textChatSend: (payload: {
     text: string

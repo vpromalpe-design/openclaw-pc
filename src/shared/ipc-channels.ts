@@ -220,6 +220,8 @@ export const IPC_LOCAL_ENGINE_STOP = 'local:engineStop' as const
 
 /** Local engine: get runtime info / set compute mode (cpu|gpu|auto) */
 export const IPC_LOCAL_ENGINE_MODE = 'local:engineMode' as const
+/** Lightweight engine status for the status-panel indicators (v0.9.12) */
+export const IPC_LOCAL_ENGINE_STATUS = 'local:engineStatus' as const
 export const IPC_LOCAL_REORDER = 'local:reorder' as const
 
 /** Local download progress event (main → renderer) */

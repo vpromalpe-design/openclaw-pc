@@ -738,6 +738,17 @@ export interface LocalEngineRuntimeInfo {
   models: LocalModelInfo[]
 }
 
+/** Lightweight engine status for the status-panel CPU/GPU indicators (v0.9.12) */
+export interface LocalEngineStatus {
+  running: boolean
+  modelId: string | null
+  mode: 'auto' | 'cpu' | 'gpu'
+  variant: 'cpu' | 'cuda' | 'vulkan'
+  effectiveGpu: 'cpu' | 'gpu'
+  gpuName: string
+  installedVariants: ('cpu' | 'cuda' | 'vulkan')[]
+}
+
 /** Full Models page payload */
 export interface ModelsViewResult {
   entries: ModelTableEntry[]
