@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, nativeImage, nativeTheme } from 'electron'
+import { app, BrowserWindow, shell, nativeImage, nativeTheme, webFrameMain } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -250,6 +250,68 @@ export class WindowManager {
         logInfo(`[OpenClaw] did-finish-load ${window.webContents.getURL()}`)
       })
     }
+
+    // Control UI light theme: override its warm background (#faf9f7) with the
+    // Liquid Glass white → blue → violet diagonal gradient, matching the shell.
+    // Applied via webFrameMain.executeJavaScript so it works across the iframe boundary.
+    const CONTROL_UI_THEME_OVERRIDE = `
+:root[data-theme-mode="light"] {
+  --bg: linear-gradient(135deg, #ffffff 0%, #eef2ff 45%, #ece9fb 100%) !important;
+  --bg-accent: #f5f7ff !important;
+  --bg-elevated: #ffffff !important;
+  --bg-muted: #eef1fb !important;
+  --bg-hover: #e9edf9 !important;
+  --bg-content: #ffffff !important;
+  --panel: #ffffff !important;
+  --panel-strong: #f5f7ff !important;
+  --panel-hover: #e9edf9 !important;
+  --chrome: rgba(255, 255, 255, 0.92) !important;
+  --chrome-strong: rgba(255, 255, 255, 0.96) !important;
+  --border: #e3e8f5 !important;
+  --border-strong: #cdd6ea !important;
+  --border-hover: #b9c5e0 !important;
+  --input: #e3e8f5 !important;
+}
+:root[data-theme-mode="light"] body {
+  background: var(--bg) !important;
+  background-attachment: fixed !important;
+}
+`
+    window.webContents.on(
+      'did-frame-navigate',
+      (_event, url, _code, _status, isMainFrame, processId, routingId) => {
+        if (isMainFrame) return
+        if (!url.includes('127.0.0.1') && !url.includes('localhost')) return
+        const frame = webFrameMain.fromId(processId, routingId)
+        if (!frame) return
+        frame
+          .executeJavaScript(
+            `(() => {
+              const css = ${JSON.stringify(CONTROL_UI_THEME_OVERRIDE)};
+              const inject = () => {
+                const root = document.head || document.documentElement;
+                if (!root) return false;
+                if (document.getElementById('openclaw-pc-theme-override')) return true;
+                const s = document.createElement('style');
+                s.id = 'openclaw-pc-theme-override';
+                s.textContent = css;
+                root.appendChild(s);
+                return true;
+              };
+              if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => inject(), { once: true });
+              } else if (!inject()) {
+                let tries = 0;
+                const iv = setInterval(() => { tries++; if (inject() || tries > 30) clearInterval(iv); }, 100);
+              }
+              return 'ok';
+            })()`,
+          )
+          .catch((err: unknown) => {
+            logWarn(`[OpenClaw] Control UI theme override failed: ${String(err)}`)
+          })
+      },
+    )
     window.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
       if (!isMainFrame) return
       const url = validatedURL ?? '(empty)'

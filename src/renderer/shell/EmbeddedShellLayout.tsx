@@ -881,7 +881,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
             height: '34vmax',
             left: '38%',
             top: '-14vmax',
-            background: 'radial-gradient(circle, rgba(255,55,95,0.4), transparent 62%)',
+            background: 'radial-gradient(circle, var(--blob-3), transparent 62%)',
             animation: 'blob-drift-1 24s ease-in-out infinite alternate',
           }}
         />
@@ -892,7 +892,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
             height: '30vmax',
             right: '-8vmax',
             bottom: '8vmax',
-            background: 'radial-gradient(circle, rgba(48,209,88,0.32), transparent 60%)',
+            background: 'radial-gradient(circle, var(--blob-4), transparent 60%)',
             animation: 'blob-drift-2 30s ease-in-out infinite alternate',
           }}
         />
