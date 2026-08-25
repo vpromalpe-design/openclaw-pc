@@ -160,7 +160,9 @@ index b7f4752..bf3daab 100644
 +!endif
 +
 +; "Installing" progress page.
-+!ifdef MUI_INSTFILESPAGE_INTERFACE
++; NOTE: upstream NSIS 3.0.4.1 InstallFiles.nsh defines the interface flag as
++; MUI_INSTFILESYPAGE_INTERFACE (typo with extra Y) — that is the name to test.
++!ifdef MUI_INSTFILESYPAGE_INTERFACE
 +Function ${PREFIX}darkInstShow
 +  !insertmacro DarkPageCommon
 +  SetCtlColors $mui.InstFilesPage "10131C" "FFFFFF"
