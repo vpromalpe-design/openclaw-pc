@@ -40,9 +40,11 @@
   !insertmacro MUI_PAGE_FINISH
 !macroend
 
+!ifndef BUILD_UNINSTALLER
 Function FinishShow
   ; Заголовок страницы Finish = «OpenClaw PC» (Static) → красный #E84242, фон прозрачный
   System::Call "user32::FindWindowExW(i $HWNDPARENT, i 0, w 'Static', w 'OpenClaw PC') i .r0"
   IntCmp $0 0 +3
   SetCtlColors $0 "0xE84242" "transparent"
 FunctionEnd
+!endif
