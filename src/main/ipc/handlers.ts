@@ -397,7 +397,7 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
       if ('theme' in patch) {
         // Keep prefers-color-scheme in sync so the embedded Control UI
         // (theme mode: system) follows the shell theme.
-        nativeTheme.themeSource = merged.theme === 'light' ? 'light' : 'dark'
+        nativeTheme.themeSource = merged.theme === 'dark' ? 'dark' : 'light'
       }
       if ('autoStart' in patch) {
         syncLoginItemToSystem(merged.autoStart)

@@ -8,23 +8,21 @@ import './styles/globals.css'
 console.info('[OpenClaw] Renderer started', typeof window.electronAPI !== 'undefined' ? '(IPC OK)' : '(IPC missing)')
 
 /**
- * Liquid Glass is a dark theme; apply it at startup so every screen (panels,
- * settings, wizard) gets white-on-glass text instead of the light-theme tokens
- * (dark text on the dark glass background). The only way to opt into the
- * light theme is explicitly choosing «Светлая» in Settings.
+ * Liquid Glass Light is the default theme (v0.9.9+). The light palette is the
+ * base token set; the .dark class switches the whole UI to the dark palette.
  */
 async function applyStartupTheme(): Promise<void> {
   try {
     const cfg = await window.electronAPI.shellGetConfig()
     const theme = cfg?.theme
-    if (theme === 'light') {
-      document.documentElement.classList.remove('dark')
-    } else {
-      // default / system / unknown → dark (Liquid Glass)
+    if (theme === 'dark') {
       document.documentElement.classList.add('dark')
+    } else {
+      // default / system / unknown → light (Liquid Glass Light)
+      document.documentElement.classList.remove('dark')
     }
   } catch {
-    document.documentElement.classList.add('dark')
+    document.documentElement.classList.remove('dark')
   }
 }
 

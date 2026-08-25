@@ -2,9 +2,9 @@
 
 /* ────────────────────────────────────────────────────────────────────────────
    Liquid Glass design (v0.9.0, fixed 2026-08-23)
-   Dark glassmorphism + iOS blue accent #0A84FF → #5E5CE6, capsule buttons,
-   22px radii, SF Pro stack. Tokens are overridden by the .dark block when the
-   app theme is dark (default); the light block keeps the same accent.
+   Glassmorphism + iOS blue accent #0A84FF → #5E5CE6, capsule buttons,
+   22px radii, SF Pro stack. LIGHT is the default theme (v0.9.9+); the .dark
+   block overrides tokens when the user chooses the dark theme.
    ──────────────────────────────────────────────────────────────────────────── */
 
 @theme inline {
@@ -48,6 +48,38 @@
   --color-border: rgba(255, 255, 255, 0.1);
   --color-card: rgba(255, 255, 255, 0.06);
   --color-card-foreground: #f2f4f8;
+  /* Liquid Glass surface tokens (dark) */
+  --bg: #0b1020;
+  --glass: rgba(255, 255, 255, 0.1);
+  --glass-2: rgba(255, 255, 255, 0.07);
+  --glass-strong: rgba(255, 255, 255, 0.16);
+  --glass-border: rgba(255, 255, 255, 0.22);
+  --glass-border-2: rgba(255, 255, 255, 0.14);
+  --glass-hi: rgba(255, 255, 255, 0.35);
+  --glass-hi-2: rgba(255, 255, 255, 0.18);
+  --glass-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  --glass-shadow-sm: 0 8px 32px rgba(2, 6, 18, 0.35);
+  --glass-sep: rgba(255, 255, 255, 0.12);
+  --track: rgba(255, 255, 255, 0.1);
+  --text-2: rgba(255, 255, 255, 0.72);
+  --text-3: rgba(255, 255, 255, 0.45);
+  --menu-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0)), rgba(18, 26, 48, 0.7);
+  --menu-border: rgba(255, 255, 255, 0.22);
+  --menu-hi: rgba(255, 255, 255, 0.28);
+  --menu-hi-2: rgba(255, 255, 255, 0.05);
+  --menu-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  --ok-fg: #c9f8d5;
+  --ok-text: #30d158;
+  --ok-strong: rgba(48, 209, 88, 0.95);
+  --bad-fg: #ffd0cc;
+  --chat-bg: rgba(11, 16, 32, 0.55);
+  --brand-ic-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.35));
+  --brand-glow: 0 1px 10px rgba(255, 255, 255, 0.2);
+  --blob-1: rgba(10, 132, 255, 0.5);
+  --blob-2: rgba(191, 90, 242, 0.42);
+  --blob-3: rgba(255, 55, 95, 0.4);
+  --blob-4: rgba(48, 209, 88, 0.32);
+  --blob-opacity: 0.55;
 }
 
 :root:not(.dark) {
@@ -68,6 +100,38 @@
   --color-border: rgba(16, 21, 31, 0.12);
   --color-card: rgba(255, 255, 255, 0.7);
   --color-card-foreground: #10151f;
+  /* Liquid Glass surface tokens (light) */
+  --bg: #e9edf5;
+  --glass: rgba(255, 255, 255, 0.62);
+  --glass-2: rgba(255, 255, 255, 0.72);
+  --glass-strong: rgba(255, 255, 255, 0.88);
+  --glass-border: rgba(255, 255, 255, 0.95);
+  --glass-border-2: rgba(255, 255, 255, 0.9);
+  --glass-hi: rgba(255, 255, 255, 1);
+  --glass-hi-2: rgba(255, 255, 255, 0.9);
+  --glass-shadow: 0 20px 50px rgba(31, 45, 80, 0.16);
+  --glass-shadow-sm: 0 8px 32px rgba(31, 45, 80, 0.14);
+  --glass-sep: rgba(16, 19, 28, 0.1);
+  --track: rgba(16, 19, 28, 0.09);
+  --text-2: rgba(16, 19, 28, 0.72);
+  --text-3: rgba(16, 19, 28, 0.5);
+  --menu-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0)), rgba(255, 255, 255, 0.94);
+  --menu-border: rgba(255, 255, 255, 0.95);
+  --menu-hi: rgba(255, 255, 255, 1);
+  --menu-hi-2: rgba(16, 19, 28, 0.04);
+  --menu-shadow: 0 24px 60px rgba(31, 45, 80, 0.22);
+  --ok-fg: #17743c;
+  --ok-text: #178a45;
+  --ok-strong: #178a45;
+  --bad-fg: #a12d22;
+  --chat-bg: rgba(255, 255, 255, 0.5);
+  --brand-ic-bg: linear-gradient(135deg, #0a84ff, #5e5ce6);
+  --brand-glow: 0 1px 10px transparent;
+  --blob-1: rgba(10, 132, 255, 0.4);
+  --blob-2: rgba(191, 90, 242, 0.35);
+  --blob-3: rgba(255, 55, 95, 0.3);
+  --blob-4: rgba(48, 209, 88, 0.25);
+  --blob-opacity: 0.45;
 }
 
 @layer base {
@@ -99,27 +163,27 @@ body {
 
 /* Standard glass panel: blur 28px, saturation boost, top highlight edge. */
 .glass-panel {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--glass-2);
+  border: 1px solid var(--glass-border-2);
   backdrop-filter: blur(28px) saturate(180%);
   -webkit-backdrop-filter: blur(28px) saturate(180%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    0 8px 32px rgba(2, 6, 18, 0.35);
+    inset 0 1px 0 var(--glass-hi),
+    var(--glass-shadow-sm);
 }
 
 /* Dense dropdown surface (menus, select popovers). */
 /* v0.9.3: styled per mockup “glass (4)” — ~70% opaque + strong 60px blur
    (was 95% opaque / 40px blur). */
 .glass-menu {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0)), rgba(18, 26, 48, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: var(--menu-bg);
+  border: 1px solid var(--menu-border);
   backdrop-filter: blur(60px) saturate(220%) brightness(1.1);
   -webkit-backdrop-filter: blur(60px) saturate(220%) brightness(1.1);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.05),
-    0 24px 60px rgba(0, 0, 0, 0.55);
+    inset 0 1px 0 var(--menu-hi),
+    inset 0 -1px 0 var(--menu-hi-2),
+    var(--menu-shadow);
   border-radius: 20px;
 }
 
@@ -130,7 +194,7 @@ body {
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
-  background: #0b1020;
+  background: var(--bg);
 }
 
 .liquid-glass-bg::before {
@@ -141,7 +205,7 @@ body {
   left: -18vmax;
   top: -22vmax;
   border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, rgba(10, 132, 255, 0.5), transparent 60%);
+  background: radial-gradient(circle at 30% 30%, var(--blob-1), transparent 60%);
   animation: blob-drift-1 26s ease-in-out infinite alternate;
 }
 
@@ -153,7 +217,7 @@ body {
   right: -20vmax;
   bottom: -24vmax;
   border-radius: 50%;
-  background: radial-gradient(circle at 60% 60%, rgba(191, 90, 242, 0.42), transparent 62%);
+  background: radial-gradient(circle at 60% 60%, var(--blob-2), transparent 62%);
   animation: blob-drift-2 32s ease-in-out infinite alternate;
 }
 
@@ -161,7 +225,7 @@ body {
   position: absolute;
   border-radius: 50%;
   filter: blur(72px);
-  opacity: 0.55;
+  opacity: var(--blob-opacity);
 }
 
 @keyframes blob-drift-1 {
@@ -220,14 +284,14 @@ body {
 }
 
 .shell-glass {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--glass);
   backdrop-filter: blur(28px) saturate(180%);
   -webkit-backdrop-filter: blur(28px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border: 1px solid var(--glass-border);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.06),
-    0 20px 50px rgba(0, 0, 0, 0.5);
+    inset 0 1px 0 var(--glass-hi),
+    inset 0 -1px 0 var(--glass-hi-2),
+    var(--glass-shadow);
   border-radius: 22px;
 }
 
@@ -251,9 +315,9 @@ body {
   width: 32px;
   height: 32px;
   border-radius: 10px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.35));
+  background: var(--brand-ic-bg);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 1px 0 var(--glass-hi),
     0 4px 16px rgba(10, 132, 255, 0.45);
   display: grid;
   place-items: center;
@@ -265,14 +329,14 @@ body {
   font-weight: 600;
   font-size: 15px;
   letter-spacing: 0.2px;
-  text-shadow: 0 1px 10px rgba(255, 255, 255, 0.2);
+  text-shadow: var(--brand-glow);
   white-space: nowrap;
 }
 .shell-brand-name small {
   display: block;
   font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
   font-size: 9.5px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-3);
   font-weight: 400;
   letter-spacing: 0.5px;
 }
@@ -281,25 +345,25 @@ body {
   align-items: center;
   gap: 8px;
   padding: 7px 14px 7px 10px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--glass);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-hi);
   border-radius: 999px;
   cursor: pointer;
   transition: transform 0.16s, background 0.16s;
-  color: #fff;
+  color: var(--text);
   font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
 }
 .shell-pill:hover {
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--glass-strong);
   transform: scale(1.02);
 }
 .shell-pill .caret {
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-3);
   font-size: 9px;
 }
 .shell-gw-pill {
@@ -312,7 +376,7 @@ body {
   font-weight: 500;
   background: rgba(48, 209, 88, 0.14);
   border: 1px solid rgba(48, 209, 88, 0.3);
-  color: #c9f8d5;
+  color: var(--ok-fg);
   backdrop-filter: blur(16px);
   white-space: nowrap;
   font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
@@ -328,7 +392,7 @@ body {
 .shell-gw-pill.err {
   background: rgba(255, 69, 58, 0.14);
   border-color: rgba(255, 69, 58, 0.35);
-  color: #ffd0cc;
+  color: var(--bad-fg);
 }
 .shell-gw-pill.err .pulse {
   background: #ff453a;
@@ -344,19 +408,19 @@ body {
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-hi);
   backdrop-filter: blur(16px);
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--text-2);
   cursor: pointer;
   font-size: 15px;
   transition: all 0.18s;
   flex-shrink: 0;
 }
 .shell-icon-btn:hover {
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
+  background: var(--glass-strong);
+  color: var(--text);
   transform: scale(1.05);
 }
 .shell-dropdown {
@@ -367,16 +431,14 @@ body {
   top: calc(100% + 10px);
   right: 0;
   min-width: 250px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0)),
-    rgba(18, 26, 48, 0.7);
+  background: var(--menu-bg);
   backdrop-filter: blur(60px) saturate(220%) brightness(1.1);
   -webkit-backdrop-filter: blur(60px) saturate(220%) brightness(1.1);
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border: 1px solid var(--menu-border);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.05),
-    0 24px 60px rgba(0, 0, 0, 0.55);
+    inset 0 1px 0 var(--menu-hi),
+    inset 0 -1px 0 var(--menu-hi-2),
+    var(--menu-shadow);
   border-radius: 20px;
   padding: 7px;
   opacity: 0;
@@ -394,7 +456,7 @@ body {
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 1.2px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-3);
   padding: 9px 12px 5px;
   font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
 }
@@ -406,7 +468,7 @@ body {
   border-radius: 13px;
   cursor: pointer;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--text-2);
   transition: background 0.15s, color 0.15s;
   width: 100%;
   background: none;
@@ -416,7 +478,7 @@ body {
 }
 .shell-menu-item:hover {
   background: rgba(10, 132, 255, 0.25);
-  color: #fff;
+  color: var(--text);
 }
 .shell-menu-item .ic {
   width: 20px;
@@ -427,11 +489,11 @@ body {
   margin-left: auto;
   font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
   font-size: 9.5px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-3);
 }
 .shell-menu-sep {
   height: 1px;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--glass-sep);
   margin: 6px 10px;
 }
 
@@ -460,7 +522,7 @@ body {
   font-size: 9.5px;
   letter-spacing: 1.4px;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-3);
   padding: 0 8px 9px;
   display: flex;
   justify-content: space-between;
@@ -469,7 +531,7 @@ body {
 .shell-g-title .plus {
   cursor: pointer;
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-3);
 }
 .shell-g-title .plus:hover {
   color: #0a84ff;
@@ -486,18 +548,18 @@ body {
   transition: all 0.16s;
   width: 100%;
   background: none;
-  color: #fff;
+  color: var(--text);
   text-align: left;
   font-family: inherit;
 }
 .shell-agent-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--glass-2);
 }
 .shell-agent-item.active {
   background: linear-gradient(180deg, rgba(10, 132, 255, 0.22), rgba(94, 92, 230, 0.14));
   border-color: rgba(10, 132, 255, 0.4);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 1px 0 var(--glass-hi-2),
     0 4px 18px rgba(10, 132, 255, 0.18);
 }
 .shell-agent-av {
@@ -509,10 +571,10 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
   font-weight: 600;
   font-size: 13px;
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  background: var(--glass);
+  color: var(--text-2);
+  border: 1px solid var(--glass-border-2);
+  box-shadow: inset 0 1px 0 var(--glass-hi-2);
   flex-shrink: 0;
 }
 .shell-agent-item.active .shell-agent-av {
@@ -530,7 +592,7 @@ body {
 }
 .shell-agent-item .a-sub {
   font-size: 10.5px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-3);
   font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
   white-space: nowrap;
   overflow: hidden;
@@ -553,7 +615,7 @@ body {
   box-shadow: 0 0 10px #30d158;
 }
 .a-status.idle {
-  background: rgba(255, 255, 255, 0.45);
+  background: var(--text-3);
 }
 .shell-section-item {
   display: flex;
@@ -563,7 +625,7 @@ body {
   border-radius: 13px;
   cursor: pointer;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--text-2);
   transition: background 0.15s, color 0.15s;
   width: 100%;
   background: none;
@@ -572,12 +634,12 @@ body {
   font-family: inherit;
 }
 .shell-section-item:hover {
-  background: rgba(255, 255, 255, 0.07);
-  color: #fff;
+  background: var(--glass-2);
+  color: var(--text);
 }
 .shell-section-item.active {
   background: rgba(10, 132, 255, 0.18);
-  color: #fff;
+  color: var(--text);
   border: 1px solid rgba(10, 132, 255, 0.35);
 }
 .shell-section-item .t {
@@ -593,7 +655,7 @@ body {
   border-radius: 13px;
   cursor: pointer;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--text-2);
   transition: background 0.15s, color 0.15s;
   width: 100%;
   background: none;
@@ -602,8 +664,8 @@ body {
   font-family: inherit;
 }
 .shell-session-item:hover {
-  background: rgba(255, 255, 255, 0.07);
-  color: #fff;
+  background: var(--glass-2);
+  color: var(--text);
 }
 .shell-session-item .t {
   overflow: hidden;
@@ -614,27 +676,27 @@ body {
   margin-left: auto;
   font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
   font-size: 9.5px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-3);
   flex-shrink: 0;
 }
 .shell-side-foot {
   margin-top: auto;
   padding: 12px 8px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid var(--glass-sep);
 }
 .shell-disk {
   display: flex;
   justify-content: space-between;
   font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-3);
   margin-bottom: 7px;
   gap: 8px;
 }
 .shell-disk-bar {
   height: 5px;
   border-radius: 5px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--track);
   overflow: hidden;
 }
 .shell-disk-bar i {
@@ -652,7 +714,7 @@ body {
   min-height: 0;
   overflow: hidden;
   border-radius: 22px;
-  background: rgba(11, 16, 32, 0.55);
+  background: var(--chat-bg);
 }
 
 /* ── Right bento panel ────────────────────────────────────────────────────── */
@@ -674,7 +736,7 @@ body {
   font-size: 9.5px;
   letter-spacing: 1.4px;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-3);
 }
 .shell-bento {
   display: grid;
@@ -682,18 +744,18 @@ body {
   gap: 10px;
 }
 .shell-tile {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--glass-2);
   backdrop-filter: blur(16px) saturate(150%);
   -webkit-backdrop-filter: blur(16px) saturate(150%);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--glass-border-2);
+  box-shadow: inset 0 1px 0 var(--glass-hi-2);
   border-radius: 18px;
   padding: 12px;
   transition: transform 0.18s, border-color 0.18s;
 }
 .shell-tile:hover {
   transform: translateY(-2px);
-  border-color: rgba(255, 255, 255, 0.25);
+  border-color: var(--glass-border);
 }
 .shell-tile.clickable {
   cursor: pointer;
@@ -709,18 +771,18 @@ body {
 }
 .shell-tile.clickable.on {
   border-color: rgba(48, 209, 88, 0.55);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14),
+  box-shadow: inset 0 1px 0 var(--glass-hi-2),
     0 0 18px rgba(48, 209, 88, 0.12);
 }
 .shell-tile.clickable.on .t-label {
-  color: rgba(48, 209, 88, 0.95);
+  color: var(--ok-strong);
 }
 .shell-tile.wide {
   grid-column: 1 / -1;
 }
 .shell-tile .t-label {
   font-size: 9.5px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-3);
   font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -747,7 +809,7 @@ body {
 }
 .shell-tile .t-sub {
   font-size: 10.5px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-3);
   margin-top: 4px;
   white-space: nowrap;
   overflow: hidden;
@@ -788,14 +850,14 @@ body {
   justify-content: space-between;
   font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
   font-size: 9.5px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-3);
   margin-bottom: 6px;
   gap: 8px;
 }
 .shell-progress .p-bar {
   height: 7px;
   border-radius: 7px;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--track);
   overflow: hidden;
 }
 .shell-progress .p-bar i {
@@ -830,12 +892,12 @@ body {
   gap: 8px;
   padding: 11px 14px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--glass-border);
+  background: var(--glass);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
-  color: #fff;
+  box-shadow: inset 0 1px 0 var(--glass-hi-2);
+  color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
   font-weight: 500;
   font-size: 12.5px;
@@ -844,12 +906,13 @@ body {
   white-space: nowrap;
 }
 .shell-btn:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: var(--glass-strong);
   transform: scale(1.02);
 }
 .shell-btn.primary {
   background: linear-gradient(135deg, #0a84ff, #5e5ce6);
   border: none;
+  color: #fff;
   box-shadow:
     0 6px 20px rgba(10, 132, 255, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.35);
@@ -862,18 +925,18 @@ body {
 }
 .shell-btn.ghost {
   background: transparent;
-  border-color: rgba(255, 255, 255, 0.14);
-  color: rgba(255, 255, 255, 0.72);
+  border-color: var(--glass-border-2);
+  color: var(--text-2);
   box-shadow: none;
 }
 .shell-btn.ghost:hover {
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.3);
+  color: var(--text);
+  border-color: var(--glass-border);
 }
 .shell-btn.ok {
   background: rgba(48, 209, 88, 0.2);
   border-color: rgba(48, 209, 88, 0.45);
-  color: #c9f8d5;
+  color: var(--ok-fg);
 }
 .shell-mini-links {
   display: flex;
@@ -883,7 +946,7 @@ body {
 }
 .shell-mini-links a {
   font-size: 10.5px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-3);
   text-decoration: none;
   cursor: pointer;
   transition: color 0.15s;
@@ -900,15 +963,15 @@ body {
   padding: 0 18px;
   font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-3);
   white-space: nowrap;
   overflow: hidden;
 }
 .shell-statusbar .sep {
-  color: rgba(255, 255, 255, 0.2);
+  color: var(--glass-sep);
 }
 .shell-statusbar .ok {
-  color: #30d158;
+  color: var(--ok-text);
 }
 .shell-statusbar .sp-r {
   margin-left: auto;
@@ -916,7 +979,7 @@ body {
   gap: 16px;
 }
 .shell-statusbar .lat {
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--text-2);
 }
 
 /* Mode switch (floating, above Control UI composer) */
@@ -924,8 +987,8 @@ body {
   display: flex;
   gap: 4px;
   padding: 3px;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: var(--glass-2);
+  border: 1px solid var(--glass-border-2);
   border-radius: 999px;
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
@@ -933,7 +996,7 @@ body {
 .shell-mode-btn {
   border: none;
   background: transparent;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-3);
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
   font-size: 11.5px;
   font-weight: 500;
@@ -954,7 +1017,7 @@ body {
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 .shell-mode-btn:not(.active):hover {
-  color: #fff;
+  color: var(--text);
 }
 
 @media (max-width: 1180px) {

@@ -231,7 +231,7 @@ interface AgentInfo {
   isDefault?: boolean
 }
 
-type OpenMenu = 'agent' | 'settings' | 'more' | null
+type OpenMenu = 'agent' | 'settings' | 'more' | 'theme' | null
 
 export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShellLayoutProps) {
   const { t } = useTranslation()
@@ -268,6 +268,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   const [sessions, setSessions] = useState<ShellSessionRow[]>([])
   const [activeSection, setActiveSection] = useState('chat')
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null)
+  const [theme, setTheme] = useState<'light' | 'dark'>('light')
   const [primaryModel, setPrimaryModel] = useState<string | null>(null)
   const [engineModel, setEngineModel] = useState<string | null>(null)
   const [engineRunning, setEngineRunning] = useState(false)
@@ -390,6 +391,10 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     void window.electronAPI.shellGetVersions().then((v) => {
       if (v?.shell) setShellVersion(v.shell)
     })
+    void window.electronAPI.shellGetConfig().then((cfg) => {
+      const t = cfg?.theme
+      if (t === 'dark' || t === 'light') setTheme(t)
+    })
     const tick = setInterval(() => {
       setClock(new Date().toISOString().slice(11, 19))
     }, 1000)
@@ -412,6 +417,15 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
 
   // Liquid Glass UI sounds («тук» on clicks, «пук» on opening menus) — ported from the approved mockup.
   useEffect(() => installShellSounds(), [])
+
+  // Quick theme switcher (top bar). Persists to shell config so the native
+  // theme / embedded Control UI follow, and re-applies the .dark class.
+  const setThemeMode = useCallback((next: 'light' | 'dark') => {
+    setTheme(next)
+    document.documentElement.classList.toggle('dark', next === 'dark')
+    void window.electronAPI.shellSetConfig({ theme: next })
+    setOpenMenu(null)
+  }, [])
 
   const clearTimeoutTimer = useCallback(() => {
     if (timeoutRef.current) {
@@ -954,6 +968,36 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
           <div className={cn('shell-gw-pill', !gatewayOk && 'err')}>
             <span className="pulse" />
             Gateway · {gatewayOk ? `127.0.0.1:${gatewayPort}` : 'запуск…'}
+          </div>
+
+          <div className="shell-dropdown">
+            <button
+              type="button"
+              className="shell-icon-btn"
+              title={theme === 'light' ? 'Светлая тема — переключить' : 'Тёмная тема — переключить'}
+              onClick={() => setOpenMenu(openMenu === 'theme' ? null : 'theme')}
+            >
+              {theme === 'light' ? '☀️' : '🌙'}
+            </button>
+            <div className={cn('shell-menu', openMenu === 'theme' && 'open')}>
+              <div className="shell-menu-title">Тема оформления</div>
+              <button
+                type="button"
+                className="shell-menu-item"
+                onClick={() => setThemeMode('light')}
+              >
+                <span className="ic">☀️</span> Светлая{' '}
+                <span className="hint">{theme === 'light' ? 'активна' : ''}</span>
+              </button>
+              <button
+                type="button"
+                className="shell-menu-item"
+                onClick={() => setThemeMode('dark')}
+              >
+                <span className="ic">🌙</span> Тёмная{' '}
+                <span className="hint">{theme === 'dark' ? 'активна' : ''}</span>
+              </button>
+            </div>
           </div>
 
           <div className="shell-dropdown">

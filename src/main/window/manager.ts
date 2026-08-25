@@ -132,9 +132,9 @@ export class WindowManager {
   createMainWindow(): BrowserWindow {
     const shellConfig = this.readShellConfig()
     // Force the native theme so prefers-color-scheme matches our Liquid Glass
-    // shell: the embedded Control UI (theme mode: system) follows it and
-    // renders dark instead of the default light UI.
-    nativeTheme.themeSource = shellConfig.theme === 'light' ? 'light' : 'dark'
+    // shell: the embedded Control UI (theme mode: system) follows it. The
+    // default theme is Light; only an explicit «dark» choice makes it dark.
+    nativeTheme.themeSource = shellConfig.theme === 'dark' ? 'dark' : 'light'
     const port = shellConfig.lastGatewayPort || this.defaultGatewayPort
     const windowBounds = shellConfig.windowBounds
     const preloadPath = getPreloadPath()
@@ -156,7 +156,7 @@ export class WindowManager {
       // Liquid Glass is dark by default; keep the native theme dark so the
       // embedded Control UI (theme mode: system) renders dark too, and avoid a
       // white chrome flash while Gateway/iframe loads.
-      backgroundColor: shellConfig.theme === 'light' ? '#f5f5f7' : '#0B1020',
+      backgroundColor: shellConfig.theme === 'dark' ? '#0B1020' : '#f5f5f7',
       show: false,
       center: shouldCenter,
       title: initialTitle,
