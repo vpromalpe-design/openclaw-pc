@@ -164,7 +164,12 @@ interface LocalProgressPayload {
 
 function buildControlUIUrl(port: number, token: string | undefined, path = '/chat', session?: string | null): string {
   const base = `http://127.0.0.1:${port}${path}`
-  const query = session ? `?session=${encodeURIComponent(session)}&onboarding=1` : '?onboarding=1'
+  // v0.9.10: NO `onboarding=1` — it made Control UI hide its topbar
+  // (search/clear chat buttons) and sidebar nav via `.shell--onboarding`.
+  // Sidebar nav is hidden by the shell theme override instead, so the
+  // topbar (лупа/корзина) stays visible while our own nav remains the
+  // only sidebar.
+  const query = session ? `?session=${encodeURIComponent(session)}` : ''
   if (token && typeof token === 'string' && token.trim()) {
     return `${base}${query}#token=${encodeURIComponent(token.trim())}`
   }
@@ -1189,10 +1194,12 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
               </div>
             )}
 
-            {/* Desktop panel overlay (models/settings/etc.) */}
+            {/* Desktop panel overlay (models/settings/etc.) — v0.9.10: themed
+                scrim (light: white→blue gradient like the mockup; dark: deep
+                navy) instead of the hard-coded dark overlay. */}
             {hasActivePanel && (
-              <div className="absolute inset-0 z-30 flex min-h-0 flex-col bg-[rgba(11,16,32,0.66)] backdrop-blur-2xl">
-                <div className="shrink-0 flex items-center gap-2 border-b border-white/10 bg-white/[0.04] px-4 py-2 backdrop-blur-xl">
+              <div className="shell-panel-overlay absolute inset-0 z-30 flex min-h-0 flex-col">
+                <div className="shell-panel-head shrink-0 flex items-center gap-2 px-4 py-2">
                   <button
                     type="button"
                     onClick={() => handleNavigateToPanel('')}

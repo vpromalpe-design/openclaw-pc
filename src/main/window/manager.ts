@@ -276,6 +276,14 @@ export class WindowManager {
   background: var(--bg) !important;
   background-attachment: fixed !important;
 }
+/* v0.9.10: we no longer load Control UI with ?onboarding=1 (it hid the
+   topbar/chat actions). Without it Control UI shows its own left nav
+   (.shell-nav) — hide it, our shell sidebar replaces it. Desktop only;
+   the mobile drawer would need its own handling, but this app is
+   desktop-window only. */
+.shell-nav {
+  display: none !important;
+}
 `
     window.webContents.on(
       'did-frame-navigate',
