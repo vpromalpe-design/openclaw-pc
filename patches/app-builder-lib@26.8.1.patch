@@ -81,7 +81,7 @@ index b7f4752..bf3daab 100644
    !insertmacro MUI_UNPAGE_INSTFILES
    !ifmacrodef customUninstallPage
      !insertmacro customUninstallPage
-@@ -152,3 +187,119 @@
+@@ -152,3 +187,123 @@
      ${endif}
    !endif
  !macroend
@@ -135,6 +135,11 @@ index b7f4752..bf3daab 100644
 +!endif
 +
 +; "Who should this be installed for" page (nsDialogs, multiUserUi.nsh).
++; The mode page is only inserted when per-user installs are allowed
++; (page is wrapped in !ifndef INSTALL_MODE_PER_ALL_USERS), so mirror that
++; here — otherwise the uninstaller build defines the function but never
++; calls it (makensis -WX warning 6010).
++!ifndef INSTALL_MODE_PER_ALL_USERS
 +!ifdef MULTIUSER_INSTALLMODEPAGE
 +Function ${PREFIX}darkModePageShow
 +  !insertmacro DarkPageCommon
@@ -144,6 +149,7 @@ index b7f4752..bf3daab 100644
 +  !insertmacro DarkControl $MultiUser.InstallModePage.AllUsers
 +  !insertmacro DarkControl $MultiUser.InstallModePage.CurrentUser
 +FunctionEnd
++!endif
 +!endif
 +
 +; "Choose installation folder" page.
