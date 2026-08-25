@@ -1311,7 +1311,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                 <div className="t-val" style={{ fontSize: 13 }}>
                   {engineRunning && effectiveGpu === 'gpu' ? 'активен' : 'выкл'}
                 </div>
-                <div className="t-sub mono">{gpuName ?? 'видеокарта'}</div>
+                <div className="t-sub mono">{gpuName && gpuName.trim() ? gpuName : 'видеокарта'}</div>
               </button>
               <div className="shell-tile">
                 <div className="t-label">Telegram</div>
