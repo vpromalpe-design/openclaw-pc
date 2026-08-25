@@ -608,6 +608,18 @@ function resolveEngineAssetName(
 export async function ensureEngineBinary(
   variant: EngineVariant,
 ): Promise<string> {
+  // v0.9.8: llama.cpp zips may carry a top-level folder
+  // (llama-<tag>-bin-<variant>/). If a previous install left the binary in
+  // that nested folder, `getEngineServerPath()` (root-only) misses it and
+  // EVERY engine start re-downloads the whole build. Flatten a legacy
+  // layout WITHOUT downloading anything first.
+  const legacyDir = path.join(engineDir(), variant)
+  if (
+    !fs.existsSync(path.join(legacyDir, 'llama-server.exe')) &&
+    findLlamaServerExe(legacyDir)
+  ) {
+    flattenEngineLayout(legacyDir)
+  }
   const existing = getEngineServerPath(variant)
   if (existing) {
     // v0.8.23: the CUDA build may be on disk WITHOUT its runtime DLLs (a
@@ -666,6 +678,9 @@ export async function ensureEngineBinary(
   } catch {
     /* ignore */
   }
+  // v0.9.8: flatten a nested archive root so llama-server.exe + DLLs land at
+  // <variant>/ root — otherwise the next engine start re-downloads the build.
+  flattenEngineLayout(dir)
   if (variant === 'cuda') {
     // Official llama.cpp CUDA builds load cudart/cublas dynamically and die
     // with ExitCode 1 when the host has no CUDA Toolkit installed. Ship the
@@ -744,6 +759,38 @@ function findLlamaServerExe(dir: string): string | null {
     /* ignore */
   }
   return null
+}
+
+/**
+ * v0.9.8: move everything from a nested top-level folder (left by
+ * Expand-Archive of `llama-<tag>-bin-<variant>/` zips) up to the variant
+ * root. Without this the engine binary hides in a subfolder,
+ * `getEngineServerPath()` keeps returning null, every engine start
+ * re-downloads the build, and CUDA runtime DLLs land next to the wrong
+ * folder (cudart64_12.dll “missing” at spawn).
+ */
+function flattenEngineLayout(dir: string): void {
+  const nested = findLlamaServerExe(dir)
+  if (!nested) return
+  const nestedDir = path.dirname(nested)
+  if (nestedDir === dir) return
+  try {
+    for (const entry of fs.readdirSync(nestedDir, { withFileTypes: true })) {
+      const from = path.join(nestedDir, entry.name)
+      const to = path.join(dir, entry.name)
+      try {
+        fs.renameSync(from, to)
+      } catch {
+        if (entry.isDirectory()) fs.cpSync(from, to, { recursive: true })
+        else fs.copyFileSync(from, to)
+      }
+    }
+    fs.rmSync(nestedDir, { recursive: true, force: true })
+  } catch (err) {
+    logInfo(
+      `[local-engine] layout flatten failed: ${err instanceof Error ? err.message : String(err)}`,
+    )
+  }
 }
 
 function extractZip(zipPath: string, destDir: string): Promise<void> {

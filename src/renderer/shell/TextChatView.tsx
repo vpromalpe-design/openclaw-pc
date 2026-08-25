@@ -10,16 +10,21 @@ interface ChatMessage {
   error?: boolean
 }
 
-type TextChatViewProps = Record<string, never>
+export type { ChatMessage }
+
+type TextChatViewProps = {
+  /** v0.9.8: history lives in the shell so mode switches don't wipe it. */
+  history: ChatMessage[]
+  onHistoryChange: React.Dispatch<React.SetStateAction<ChatMessage[]>>
+}
 
 /**
  * «Просто текст / Plain text» mode (v0.9.0): a direct model chat with NO agent
  * runtime — no tools, no memory, no compaction. Each exchange goes through
  * IPC `textChat:send` → main → plain completion call with the active model.
  */
-export function TextChatView(_props: TextChatViewProps) {
+export function TextChatView({ history, onHistoryChange }: TextChatViewProps) {
   const { t } = useTranslation()
-  const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const scrollRef = useRef<HTMLDivElement | null>(null)
@@ -28,28 +33,32 @@ export function TextChatView(_props: TextChatViewProps) {
   useEffect(() => {
     const el = scrollRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [messages, sending])
+  }, [history, sending])
 
   const handleSend = async () => {
     const text = input.trim()
     if (!text || sending) return
     setInput('')
     setSending(true)
-    const history = messages.slice(-10).map((m) => ({ role: m.role, content: m.content }))
-    setMessages((prev) => [...prev, { role: 'user', content: text }])
+    const prev = history
+    const historyForCall = prev.slice(-10).map((m) => ({ role: m.role, content: m.content }))
+    onHistoryChange([...prev, { role: 'user', content: text }])
     try {
-      const res = await window.electronAPI.textChatSend({ text, history })
+      const res = await window.electronAPI.textChatSend({ text, history: historyForCall })
       if (res.ok && res.text) {
-        setMessages((prev) => [...prev, { role: 'assistant', content: res.text ?? '' }])
+        onHistoryChange((current) => [
+          ...current,
+          { role: 'assistant', content: res.text ?? '' },
+        ])
       } else {
-        setMessages((prev) => [
-          ...prev,
+        onHistoryChange((current) => [
+          ...current,
           { role: 'assistant', content: res.message ?? t('shell.chat.textError'), error: true },
         ])
       }
     } catch {
-      setMessages((prev) => [
-        ...prev,
+      onHistoryChange((current) => [
+        ...current,
         { role: 'assistant', content: t('shell.chat.textError'), error: true },
       ])
     } finally {
@@ -73,12 +82,12 @@ export function TextChatView(_props: TextChatViewProps) {
           <h2 className="text-sm font-semibold">{t('shell.chat.textModeTitle')}</h2>
           <span className="text-xs text-muted-foreground">{t('shell.chat.textModeHint')}</span>
         </div>
-        {messages.length > 0 && (
+        {history.length > 0 && (
           <Button
             variant="ghost"
             size="sm"
             className="h-7"
-            onClick={() => setMessages([])}
+            onClick={() => onHistoryChange([])}
             disabled={sending}
           >
             <Trash2 className="h-3.5 w-3.5 mr-1" />
@@ -89,14 +98,14 @@ export function TextChatView(_props: TextChatViewProps) {
 
       {/* Messages */}
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-3 space-y-3">
-        {messages.length === 0 && (
+        {history.length === 0 && (
           <div className="flex h-full items-center justify-center">
             <p className="max-w-md text-center text-sm text-muted-foreground">
               {t('shell.chat.textModeHint')}
             </p>
           </div>
         )}
-        {messages.map((m, i) => (
+        {history.map((m, i) => (
           <div
             key={i}
             className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}

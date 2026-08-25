@@ -23,7 +23,7 @@ import { ModelsView } from './ModelsView'
 import { SkillsView } from './SkillsView'
 import { UpdateView } from './UpdateView'
 import { FeishuAccessView } from './FeishuAccessView'
-import { TextChatView } from './TextChatView'
+import { TextChatView, type ChatMessage } from './TextChatView'
 import { Bot, Type } from 'lucide-react'
 import type { GatewayStatus, GatewayStatusValue } from '../../shared/types'
 import { useUpdateNoticeStore } from '@/stores/update-store'
@@ -254,6 +254,8 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** v0.9.0: «Агентская задача» (embedded webchat) vs «Просто текст» (direct model call). */
   const [chatMode, setChatMode] = useState<'agent' | 'text'>('agent')
+  /** v0.9.8: plain-text chat history lifted to the shell so switching modes doesn't reset it. */
+  const [textHistory, setTextHistory] = useState<ChatMessage[]>([])
   const updateAvailable = useUpdateNoticeStore((state) => state.available)
   const updateDismissed = useUpdateNoticeStore((state) => state.dismissed)
   const updateInfo = useUpdateNoticeStore((state) => state.info)
@@ -1138,7 +1140,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
             {/* v0.9.0: plain-text chat mode (direct model call, no agent loop) */}
             {textModeActive && (
               <div className="absolute inset-0 z-20 flex min-h-0 flex-col bg-background/70 backdrop-blur-xl">
-                <TextChatView />
+                <TextChatView history={textHistory} onHistoryChange={setTextHistory} />
               </div>
             )}
 
