@@ -16,3 +16,33 @@
 !macro customPageAfterChangeDir
   ; v0.8.24: блокирующая проверка пробелов удалена (см. шапку файла)
 !macroend
+
+; v0.9.12: финальная страница мастера — заголовок «OpenClaw PC» красным (#E84242, оригинальный бренд-красный)
+; Подключается через nsis.include ДО шаблона → перехватывает !ifmacrodef customFinishPage в assistedInstaller.nsh.
+!include nsDialogs.nsh
+
+!macro customFinishPage
+  !ifndef HIDE_RUN_AFTER_FINISH
+    Function StartApp
+      ${if} ${isUpdated}
+        StrCpy $1 "--updated"
+      ${else}
+        StrCpy $1 ""
+      ${endif}
+      ${StdUtils.ExecShellAsUser} $0 "$launchLink" "open" "$1"
+    FunctionEnd
+
+    !define MUI_FINISHPAGE_RUN
+    !define MUI_FINISHPAGE_RUN_FUNCTION "StartApp"
+  !endif
+  !define MUI_FINISHPAGE_TITLE "OpenClaw PC"
+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW FinishShow
+  !insertmacro MUI_PAGE_FINISH
+!macroend
+
+Function FinishShow
+  ; Заголовок страницы Finish = «OpenClaw PC» (Static) → красный #E84242, фон прозрачный
+  System::Call "user32::FindWindowExW(i $HWNDPARENT, i 0, w 'Static', w 'OpenClaw PC') i .r0"
+  IntCmp $0 0 +3
+  SetCtlColors $0 "0xE84242" "transparent"
+FunctionEnd
