@@ -33,6 +33,9 @@ import type {
   PairingApproveResult,
   PairingListApprovedResult,
   PairingListPendingResult,
+  AgentActivityPayload,
+  AgentsAddResult,
+  AgentsSetModelResult,
 } from './types'
 
 /** TCP port check result */
@@ -182,6 +185,9 @@ export interface ElectronAPI {
   diagnosticsExport: () => Promise<{ path: string; checksum: string }>
   sessionsList: () => Promise<unknown[]>
 
+  agentsAdd: (payload: { name: string; model?: string }) => Promise<AgentsAddResult>
+  agentsSetModel: (payload: { agentId: string; model: string }) => Promise<AgentsSetModelResult>
+
   providersList: () => Promise<ProvidersListResult>
   providersSaveProfile: (opts: { profileId: string; provider: string; apiKey: string }) => Promise<void>
   providersDeleteProfile: (opts: { profileId: string; provider?: string }) => Promise<void>
@@ -269,4 +275,5 @@ export interface ElectronAPI {
   onStreamGatewayLogs: (callback: (log: StructuredLogPayload) => void) => Unsubscribe
   onUpdateAvailable: (callback: (info: UpdateAvailablePayload) => void) => Unsubscribe
   onUpdateProgress: (callback: (progress: UpdateProgressPayload) => void) => Unsubscribe
+  onAgentsActivity: (callback: (payload: AgentActivityPayload) => void) => Unsubscribe
 }

@@ -13,6 +13,7 @@ import {
 } from './config/index.js'
 import { GatewayProcessManager } from './gateway/index.js'
 import { registerIpcHandlers, removeIpcHandlers } from './ipc/index.js'
+import { syncAgentActivityMonitor } from './agents/activity.js'
 import { TrayManager } from './tray/index.js'
 import { WindowManager } from './window/index.js'
 import { checkPort } from './utils/port-check.js'
@@ -127,6 +128,12 @@ const gatewayManager = new GatewayProcessManager({
     }
   },
 })
+
+// Agent activity heartbeat (v0.9.12 E3): re-ensure the RPC subscription
+// whenever the gateway is running. Idempotent; survives gateway restarts.
+setInterval(() => {
+  void syncAgentActivityMonitor(gatewayManager.getStatus().running)
+}, 10_000)
 
 async function cleanupBeforeQuit(): Promise<void> {
   if (isQuitting) return

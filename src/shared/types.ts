@@ -156,6 +156,27 @@ export interface AgentsConfig {
   list?: AgentListEntry[]
 }
 
+/** Agent activity event (main → renderer, v0.9.12 E3) */
+export interface AgentActivityPayload {
+  /** Agent id (e.g. `main`) */
+  agentId: string
+  /** True while the agent is processing a turn */
+  busy: boolean
+}
+
+/** Result of `agents:add` (v0.9.12 E1) */
+export interface AgentsAddResult {
+  ok: boolean
+  id?: string
+  error?: string
+}
+
+/** Result of `agents:setModel` (v0.9.12 E4) */
+export interface AgentsSetModelResult {
+  ok: boolean
+  error?: string
+}
+
 /** Feishu (Lark) channel config */
 export interface FeishuChannelConfig {
   appId?: string

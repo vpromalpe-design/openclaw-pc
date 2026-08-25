@@ -227,6 +227,15 @@ export const IPC_LOCAL_REORDER = 'local:reorder' as const
 /** Local download progress event (main → renderer) */
 export const IPC_LOCAL_PROGRESS = 'local:progress' as const
 
+/** Agents: add a new agent (v0.9.12) */
+export const IPC_AGENTS_ADD = 'agents:add' as const
+
+/** Agents: set agent model (v0.9.12) */
+export const IPC_AGENTS_SET_MODEL = 'agents:setModel' as const
+
+/** Agents: activity event — an agent started/finished processing a turn (main → renderer, v0.9.12) */
+export const IPC_AGENTS_ACTIVITY = 'agents:activity' as const
+
 /** Plain-text chat: direct model call without the agent runtime (v0.9.0) */
 export const IPC_TEXT_CHAT_SEND = 'textChat:send' as const
 

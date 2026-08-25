@@ -11,6 +11,7 @@ import type {
   VoiceSettingsLoadResult,
   VoiceSettingsApplyResult,
   VoiceTestResult,
+  AgentListEntry,
 } from '../../shared/types.js'
 import type { PortCheckResult } from '../utils/port-check.js'
 import { testModelConnection } from '../wizard/model-tester.js'
@@ -49,6 +50,8 @@ import {
   IPC_WIZARD_TEST_TELEGRAM,
   IPC_TELEGRAM_GET,
   IPC_TELEGRAM_SAVE,
+  IPC_AGENTS_ADD,
+  IPC_AGENTS_SET_MODEL,
   IPC_WIZARD_COMPLETE_SETUP,
   IPC_SYSTEM_OPEN_LOG_DIR,
   IPC_SHELL_GET_VERSIONS,
@@ -544,6 +547,63 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
       const force = Boolean(gw?.forcePortOnConflict)
       const restarted = await gatewayManager.restart({ port, bind, token: token || undefined, force })
       return { ok: true, restarted }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_AGENTS_ADD,
+    wrapHandler('AGENTS_ADD', (payload: unknown) => {
+      const raw = validatePlainObject(payload, 'agentsAdd')
+      const name = typeof raw.name === 'string' ? raw.name.trim() : ''
+      if (!name) throw new Error('agent name is required')
+      const model = typeof raw.model === 'string' && raw.model.trim() ? raw.model.trim() : undefined
+
+      const cfg = deps.readOpenClawConfig()
+      const list = Array.isArray(cfg?.agents?.list) ? cfg.agents.list : []
+
+      // Unique, filesystem-safe id derived from the name.
+      let base =
+        name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/gi, '-')
+          .replace(/^-+|-+$/g, '') || 'agent'
+      if (/^[0-9]/.test(base)) base = `agent-${base}`
+      const existing = new Set(list.map((a) => String(a?.id ?? '')))
+      let id = base
+      let n = 2
+      while (existing.has(id)) {
+        id = `${base}-${n++}`
+      }
+
+      const entry: AgentListEntry = { id, name }
+      if (model) entry.model = model
+      cfg.agents = cfg.agents ?? {}
+      cfg.agents.list = [...list, entry]
+      deps.writeOpenClawConfig(cfg)
+      readOpenClawConfig()
+      return { ok: true, id }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_AGENTS_SET_MODEL,
+    wrapHandler('AGENTS_SET_MODEL', (payload: unknown) => {
+      const raw = validatePlainObject(payload, 'agentsSetModel')
+      const agentId = typeof raw.agentId === 'string' ? raw.agentId.trim() : ''
+      const model = typeof raw.model === 'string' ? raw.model.trim() : ''
+      if (!agentId) throw new Error('agentId is required')
+      if (!model) throw new Error('model is required')
+
+      const cfg = deps.readOpenClawConfig()
+      const list = Array.isArray(cfg?.agents?.list) ? cfg.agents.list : []
+      const entry = list.find((a) => String(a?.id ?? '') === agentId)
+      if (!entry) throw new Error(`agent "${agentId}" not found in agents.list`)
+      entry.model = model
+      cfg.agents = cfg.agents ?? {}
+      cfg.agents.list = list
+      deps.writeOpenClawConfig(cfg)
+      readOpenClawConfig()
+      return { ok: true }
     }),
   )
 

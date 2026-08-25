@@ -13,6 +13,9 @@ import {
   IPC_GATEWAY_START,
   IPC_GATEWAY_STOP,
   IPC_GATEWAY_RESTART,
+  IPC_AGENTS_ADD,
+  IPC_AGENTS_SET_MODEL,
+  IPC_AGENTS_ACTIVITY,
   IPC_GATEWAY_STATUS,
   IPC_CONFIG_READ,
   IPC_CONFIG_WRITE,
@@ -171,6 +174,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   shellSetWindowTitle: (title: string) => invoke(IPC_SHELL_SET_WINDOW_TITLE, title),
   diagnosticsExport: () => invoke<{ path: string; checksum: string }>(IPC_DIAGNOSTICS_EXPORT),
   sessionsList: () => invoke<unknown[]>(IPC_SESSIONS_LIST),
+
+  agentsAdd: (payload: { name: string; model?: string }) =>
+    invoke<{ ok: boolean; id?: string; error?: string }>(IPC_AGENTS_ADD, payload),
+  agentsSetModel: (payload: { agentId: string; model: string }) =>
+    invoke<{ ok: boolean; error?: string }>(IPC_AGENTS_SET_MODEL, payload),
+  onAgentsActivity: (callback: (payload: unknown) => void) =>
+    on(IPC_AGENTS_ACTIVITY, callback),
 
   providersList: () => invoke(IPC_PROVIDERS_LIST),
   providersSaveProfile: (opts: { profileId: string; provider: string; apiKey: string }) =>

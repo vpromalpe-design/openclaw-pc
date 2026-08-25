@@ -584,6 +584,132 @@ body {
 .a-status.idle {
   background: var(--text-3);
 }
+/* v0.9.12 (E3): activity lamp — fast HDD-like blink while the agent works. */
+.a-status.busy {
+  background: #30d158;
+  animation: a-status-blink 0.5s steps(2, start) infinite;
+}
+@keyframes a-status-blink {
+  0% {
+    opacity: 1;
+    box-shadow: 0 0 10px #30d158;
+  }
+  50% {
+    opacity: 0.15;
+    box-shadow: none;
+  }
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 10px #30d158;
+  }
+}
+/* v0.9.12 (E4): per-agent row (item + ⋯ + lamp) and the model picker menu. */
+.shell-agent-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 3px;
+}
+.shell-agent-row .shell-agent-item {
+  margin-bottom: 0;
+  padding-right: 4px;
+}
+.shell-agent-row .a-more {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 8px;
+  border: none;
+  background: none;
+  color: var(--text-3);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  padding: 0;
+}
+.shell-agent-row .a-more:hover {
+  background: var(--glass-2);
+  color: #0a84ff;
+}
+.shell-agent-row .a-status {
+  margin-left: 0;
+}
+.shell-agent-row.menu-open {
+  z-index: 40;
+}
+.a-model-menu {
+  position: absolute;
+  top: calc(100% - 2px);
+  right: 0;
+  z-index: 60;
+  width: 240px;
+  max-height: 280px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  background: rgba(18, 26, 48, 0.95);
+  backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid var(--glass-border-2);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+.a-model-menu-title {
+  padding: 8px 10px;
+  font-size: 10px;
+  font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-3);
+  border-bottom: 1px solid var(--glass-border-2);
+}
+.a-model-menu-list {
+  overflow-y: auto;
+}
+.a-model-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  background: none;
+  border: none;
+  color: var(--text-2);
+  font-size: 12px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.a-model-menu-item:hover {
+  background: rgba(10, 132, 255, 0.14);
+  color: var(--text);
+}
+.a-model-menu-item.active {
+  color: #0a84ff;
+}
+.a-model-menu-item .a-model-menu-ic {
+  font-size: 13px;
+}
+.a-model-menu-item .a-model-menu-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
+  font-size: 11px;
+}
+.a-model-menu-item .a-model-menu-check {
+  color: #30d158;
+}
+.a-model-menu-empty {
+  padding: 10px;
+  font-size: 11.5px;
+  color: var(--text-3);
+  line-height: 1.45;
+}
 .shell-section-item {
   display: flex;
   align-items: center;
@@ -696,6 +822,138 @@ body {
   display: flex;
   justify-content: center;
   padding: 8px 10px 6px;
+}
+
+/* ── Chat tabs (v0.9.12, D1) ─────────────────────────────────────────────── */
+.chat-tabs {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px 0;
+  min-height: 40px;
+}
+.chat-tabs-agent {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(10, 132, 255, 0.4);
+  background: linear-gradient(180deg, rgba(10, 132, 255, 0.18), rgba(94, 92, 230, 0.1));
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.chat-tabs-agent:hover {
+  background: linear-gradient(180deg, rgba(10, 132, 255, 0.3), rgba(94, 92, 230, 0.18));
+}
+.chat-tabs-agent .chat-tabs-agent-ic {
+  font-size: 13px;
+  line-height: 1;
+}
+.chat-tabs-agent .caret {
+  font-size: 9px;
+  color: var(--text-3);
+}
+.chat-tabs-scroll {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.chat-tabs-scroll::-webkit-scrollbar {
+  display: none;
+}
+.chat-tab {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  max-width: 180px;
+  padding: 0 8px 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border-2);
+  background: var(--glass);
+  color: var(--text-2);
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.14s, border-color 0.14s, color 0.14s;
+}
+.chat-tab:hover {
+  background: var(--glass-2);
+}
+.chat-tab.active {
+  background: linear-gradient(180deg, rgba(10, 132, 255, 0.24), rgba(94, 92, 230, 0.14));
+  border-color: rgba(10, 132, 255, 0.5);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 var(--glass-hi-2), 0 3px 12px rgba(10, 132, 255, 0.16);
+}
+.chat-tab .chat-tab-ic {
+  font-size: 12px;
+  line-height: 1;
+}
+.chat-tab .chat-tab-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chat-tab .chat-tab-x {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: none;
+  background: none;
+  color: var(--text-3);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  transition: background 0.12s, color 0.12s;
+}
+.chat-tab .chat-tab-x:hover {
+  background: rgba(255, 55, 95, 0.22);
+  color: #ff375f;
+}
+.chat-tab .chat-tab-busy {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #30d158;
+  box-shadow: 0 0 8px #30d158;
+  animation: a-status-blink 0.5s steps(2, start) infinite;
+}
+.chat-tab-add {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border-2);
+  background: var(--glass);
+  color: var(--text-2);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.14s, color 0.14s, border-color 0.14s;
+}
+.chat-tab-add:hover {
+  color: #0a84ff;
+  border-color: rgba(10, 132, 255, 0.45);
+  background: rgba(10, 132, 255, 0.1);
 }
 
 /* ── Right bento panel ────────────────────────────────────────────────────── */

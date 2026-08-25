@@ -46,6 +46,8 @@ export interface GatewayRpcClientOptions {
   password?: string
   timeoutMs?: number
   maxRetries?: number
+  /** Optional listener for gateway event frames (v0.9.12: agent activity via sessions.subscribe). */
+  onEvent?: (event: string, payload: unknown) => void
 }
 
 // ─── Wire frames (upstream gateway protocol) ─────────────────────────────────
@@ -94,6 +96,7 @@ export class GatewayRpcClient {
   private readonly pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
   private connectNonce: string | null = null;
   private closed = false
+  private readonly onEvent?: (event: string, payload: unknown) => void
 
   constructor(options: GatewayRpcClientOptions) {
     this.port = options.port
@@ -101,6 +104,7 @@ export class GatewayRpcClient {
     this.password = options.password?.trim() || undefined
     this.defaultTimeoutMs = options.timeoutMs ?? 15_000
     this.maxRetries = Math.max(0, options.maxRetries ?? 3)
+    this.onEvent = options.onEvent
   }
 
   /** Open WebSocket and finish connect handshake */
@@ -299,6 +303,14 @@ export class GatewayRpcClient {
             const message = err?.message ?? 'RPC error'
             pending.reject(new GatewayRpcError(message, code, err?.retryable ?? false))
           }
+        }
+        return
+      }
+      if (isEventFrame(parsed) && this.onEvent) {
+        try {
+          this.onEvent(parsed.event, parsed.payload)
+        } catch {
+          // listener errors must not break the socket loop
         }
       }
     } catch {

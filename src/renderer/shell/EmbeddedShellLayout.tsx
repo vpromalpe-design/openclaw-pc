@@ -25,6 +25,7 @@ import { SkillsView } from './SkillsView'
 import { UpdateView } from './UpdateView'
 import { FeishuAccessView } from './FeishuAccessView'
 import { TextChatView, type ChatMessage } from './TextChatView'
+import { AgentSettingsView } from './AgentSettingsView'
 import { Bot, Type, Send } from 'lucide-react'
 import type { GatewayStatus, GatewayStatusValue } from '../../shared/types'
 import { useUpdateNoticeStore } from '@/stores/update-store'
@@ -61,6 +62,7 @@ export type EmbeddedPanel =
   | 'updates'
   | 'feishu-settings'
   | 'telegram'
+  | 'agent-settings'
 
 export interface EmbeddedShellLayoutProps {
   activePanel: EmbeddedPanel
@@ -117,6 +119,14 @@ function shortModel(model: string | null | undefined): string {
   if (!model) return '—'
   const parts = model.split('/')
   return parts[parts.length - 1] ?? model
+}
+
+/** v0.9.12 (D1): a chat tab. The first tab of every agent is kind 'agent' (Control UI); 'text' tabs are plain-text chats. */
+interface ChatTab {
+  id: string
+  kind: 'agent' | 'text'
+  title: string
+  history: ChatMessage[]
 }
 
 /** Human time for a session row: HH:MM today, «вчера», else DD.MM. */
@@ -263,8 +273,15 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** v0.9.0: «Агентская задача» (embedded webchat) vs «Просто текст» (direct model call). */
   const [chatMode, setChatMode] = useState<'agent' | 'text'>('agent')
-  /** v0.9.8: plain-text chat history lifted to the shell so switching modes doesn't reset it. */
-  const [textHistory, setTextHistory] = useState<ChatMessage[]>([])
+  /** v0.9.12 (D1): per-agent chat tabs. First tab is always the agent (Control UI), rest are plain-text chats. */
+  const [tabsByAgent, setTabsByAgent] = useState<Record<string, ChatTab[]>>({})
+  const [activeTabByAgent, setActiveTabByAgent] = useState<Record<string, string>>({})
+  const [nextTabNumByAgent, setNextTabNumByAgent] = useState<Record<string, number>>({})
+  /** v0.9.12 (E3): per-agent activity lamp (busy while the agent processes a turn). */
+  const [agentActivity, setAgentActivity] = useState<Record<string, boolean>>({})
+  /** v0.9.12 (E4): model picker options (connected providers) + which agent's ⋯ menu is open. */
+  const [modelOptions, setModelOptions] = useState<string[]>([])
+  const [agentModelMenu, setAgentModelMenu] = useState<string | null>(null)
   const updateAvailable = useUpdateNoticeStore((state) => state.available)
   const updateDismissed = useUpdateNoticeStore((state) => state.dismissed)
   const updateInfo = useUpdateNoticeStore((state) => state.info)
@@ -297,6 +314,89 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   /** BUG-1: config keys the current gateway schema rejects (e.g. channels.telegram.network.proxy). */
   const [configWarning, setConfigWarning] = useState<string | null>(null)
 
+  /** v0.9.12 (D1): make sure an agent has its first (agent) tab and it is active. */
+  const ensureAgentTabs = useCallback((agentId: string, agentName: string) => {
+    const firstTabId = `tab-${agentId}-agent`
+    setTabsByAgent((prev) => {
+      if (prev[agentId]) return prev
+      return {
+        ...prev,
+        [agentId]: [{ id: firstTabId, kind: 'agent', title: agentName, history: [] }],
+      }
+    })
+    setActiveTabByAgent((prev) =>
+      prev[agentId] ? prev : { ...prev, [agentId]: firstTabId },
+    )
+  }, [])
+
+  /** v0.9.12 (D1): create a new plain-text chat tab for an agent and activate it. */
+  const newTextTab = useCallback((agentId: string) => {
+    const num = nextTabNumByAgent[agentId] ?? 2
+    setNextTabNumByAgent((prev) => ({ ...prev, [agentId]: num + 1 }))
+    const tab: ChatTab = {
+      id: `tab-${agentId}-text-${Date.now().toString(36)}`,
+      kind: 'text',
+      title: `Чат ${num}`,
+      history: [],
+    }
+    setTabsByAgent((prev) => ({
+      ...prev,
+      [agentId]: [...(prev[agentId] ?? []), tab],
+    }))
+    setActiveTabByAgent((prev) => ({ ...prev, [agentId]: tab.id }))
+    setChatMode('text')
+  }, [nextTabNumByAgent])
+
+  /** v0.9.12 (D1): activate a tab; switches the mode strip to its kind. */
+  const activateTab = useCallback(
+    (agentId: string, tabId: string) => {
+      setActiveTabByAgent((prev) => ({ ...prev, [agentId]: tabId }))
+      const tab = (tabsByAgent[agentId] ?? []).find((tb) => tb.id === tabId)
+      if (tab) setChatMode(tab.kind)
+    },
+    [tabsByAgent],
+  )
+
+  /** v0.9.12 (D1): close a text tab (agent tabs are not closable). */
+  const closeTab = useCallback(
+    (agentId: string, tabId: string) => {
+      const list = tabsByAgent[agentId] ?? []
+      const target = list.find((tb) => tb.id === tabId)
+      if (!target || target.kind === 'agent') return
+      const next = list.filter((tb) => tb.id !== tabId)
+      setTabsByAgent((prev) => ({ ...prev, [agentId]: next }))
+      setActiveTabByAgent((prev) => {
+        if (prev[agentId] !== tabId) return prev
+        const fallback = next[next.length - 1] ?? next[0]
+        const nextId = fallback?.id ?? `tab-${agentId}-agent`
+        setChatMode(fallback?.kind ?? 'agent')
+        return { ...prev, [agentId]: nextId }
+      })
+    },
+    [tabsByAgent],
+  )
+
+  /** v0.9.12 (D1): history updater for the ACTIVE tab (drives TextChatView). */
+  const handleTabHistoryChange = useCallback(
+    (updater: React.SetStateAction<ChatMessage[]>) => {
+      setTabsByAgent((prev) => {
+        const list = prev[activeAgent] ?? []
+        const idx = list.findIndex((tb) => tb.id === activeTabByAgent[activeAgent])
+        if (idx === -1) return prev
+        const tab = list[idx]
+        if (tab.kind !== 'text') return prev
+        const value =
+          typeof updater === 'function'
+            ? (updater as (prevH: ChatMessage[]) => ChatMessage[])(tab.history)
+            : updater
+        const next = list.slice()
+        next[idx] = { ...tab, history: value }
+        return { ...prev, [activeAgent]: next }
+      })
+    },
+    [activeAgent, activeTabByAgent],
+  )
+
   const refreshShellData = useCallback(async () => {
     try {
       const config = await window.electronAPI.configRead()
@@ -320,6 +420,12 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
             model: typeof a.model === 'string' ? a.model : undefined,
           })),
         )
+        list.forEach((a) => {
+          ensureAgentTabs(
+            String(a.id ?? 'agent'),
+            String(a.name ?? a.id ?? 'agent'),
+          )
+        })
       }
       const tg = config?.channels?.telegram as { botToken?: string; network?: { proxy?: unknown } } | undefined
       setTelegramEnabled(Boolean(tg?.botToken))
@@ -371,7 +477,17 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     } catch {
       setSessions([])
     }
-  }, [])
+    try {
+      // v0.9.12 (E4): model picker options — all models of connected providers.
+      const res = await window.electronAPI.modelsList()
+      const opts = (res?.models ?? [])
+        .map((m) => (m.provider ? `${m.provider}/${m.id}` : m.id))
+        .filter((id): id is string => Boolean(id))
+      setModelOptions(Array.from(new Set(opts)).sort())
+    } catch {
+      // non-fatal — model picker stays empty
+    }
+  }, [ensureAgentTabs])
 
   useEffect(() => {
     const unsub = window.electronAPI.onGatewayLog((log) => {
@@ -444,6 +560,19 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
   }, [openMenu])
+
+  // v0.9.12 (E4): close the agent model picker when clicking outside it.
+  useEffect(() => {
+    if (!agentModelMenu) return
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('.a-model-menu') && !target.closest('.a-more')) {
+        setAgentModelMenu(null)
+      }
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [agentModelMenu])
 
   // v0.9.11: dark theme is forced. Keep the class on <html> so every
   // `.dark`-scoped token block in globals.css stays active.
@@ -727,6 +856,60 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     setControlRoute(next)
   }
 
+  /** v0.9.12 (E3): agent activity lamp — subscribe to busy/idle events. */
+  useEffect(() => {
+    const unsub = window.electronAPI.onAgentsActivity((payload) => {
+      const p = payload as { agentId?: string; busy?: boolean } | null
+      if (!p || typeof p.agentId !== 'string' || !p.agentId) return
+      const agentId = p.agentId
+      setAgentActivity((prev) => {
+        if (prev[agentId] === Boolean(p.busy)) return prev
+        return { ...prev, [agentId]: Boolean(p.busy) }
+      })
+      // Safety net: if the terminal event was lost, auto-clear after 90s.
+      if (p.busy) {
+        setTimeout(() => {
+          setAgentActivity((prev) =>
+            prev[agentId] ? { ...prev, [agentId]: false } : prev,
+          )
+        }, 90_000)
+      }
+    })
+    return () => unsub()
+  }, [])
+
+  /** v0.9.12 (D1): mode strip «Агентская задача» → activate the agent tab. */
+  const handleAgentModeClick = useCallback(() => {
+    const list = tabsByAgent[activeAgent] ?? []
+    const agentTab = list.find((tb) => tb.kind === 'agent')
+    if (agentTab) {
+      activateTab(activeAgent, agentTab.id)
+    } else {
+      setChatMode('agent')
+    }
+  }, [activeAgent, tabsByAgent, activateTab])
+
+  /** v0.9.12 (D1): mode strip «Просто текст» → open a fresh text tab (or stay). */
+  const handleTextModeClick = useCallback(() => {
+    const list = tabsByAgent[activeAgent] ?? []
+    const activeTab = list.find((tb) => tb.id === activeTabByAgent[activeAgent])
+    if (activeTab?.kind === 'text') return
+    newTextTab(activeAgent)
+  }, [activeAgent, activeTabByAgent, tabsByAgent, newTextTab])
+
+  /** v0.9.12 (E4): set an agent's model (writes agents.list[].model, gateway hot-reloads). */
+  const setAgentModel = async (agentId: string, model: string) => {
+    setAgentModelMenu(null)
+    try {
+      const res = await window.electronAPI.agentsSetModel({ agentId, model })
+      if (res.ok) {
+        void refreshShellData()
+      }
+    } catch {
+      // non-fatal — keep previous model
+    }
+  }
+
   const runConnectionCheck = async () => {
     setCheckState('checking')
     try {
@@ -820,6 +1003,11 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   // (mockup); hide it on Обзор/Активность/Сеансы/Cron/Задачи/Навыки routes.
   const inChat = controlRoute === '/chat'
   const textModeActive = chatMode === 'text' && !hasActivePanel && showControlUIIframe && inChat
+  // v0.9.12 (D1): the active tab drives what the chat canvas shows.
+  const activeTabs = tabsByAgent[activeAgent] ?? []
+  const activeTabId = activeTabByAgent[activeAgent] ?? activeTabs[0]?.id
+  const activeTab = activeTabs.find((tb) => tb.id === activeTabId) ?? activeTabs[0]
+  const activeTabHistory = activeTab?.kind === 'text' ? activeTab.history : []
 
   if (gatewayView === 'error' && errorInfo) {
     return (
@@ -846,6 +1034,16 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
         return <VoiceSettingsView onBack={() => handleNavigateToPanel('')} />
       case 'telegram':
         return <TelegramSettingsView onBack={() => handleNavigateToPanel('')} />
+      case 'agent-settings':
+        return (
+          <AgentSettingsView
+            onBack={() => handleNavigateToPanel('')}
+            onAgentCreated={(agentId) => {
+              void refreshShellData()
+              openChatForAgent(agentId)
+            }}
+          />
+        )
       case 'about':
         return <AboutView onBack={() => handleNavigateToPanel('')} />
       case 'dashboard':
@@ -983,7 +1181,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                 className="shell-menu-item"
                 onClick={() => {
                   setOpenMenu(null)
-                  handleNavigateToPanel('settings')
+                  handleNavigateToPanel('agent-settings')
                 }}
               >
                 <span className="ic">＋</span>
@@ -1079,28 +1277,78 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                 <span
                   className="plus"
                   title="Добавить агента"
-                  onClick={() => handleNavigateToPanel('settings')}
+                  onClick={() => handleNavigateToPanel('agent-settings')}
                 >
                   ＋
                 </span>
               </div>
               {agents.map((a) => (
-                <button
+                <div
                   key={a.id}
-                  type="button"
-                  className={cn('shell-agent-item', activeAgent === a.id && 'active')}
-                  onClick={() => openChatForAgent(a.id)}
-                  title={`Агент ${a.name}`}
+                  className={cn('shell-agent-row', agentModelMenu === a.id && 'menu-open')}
                 >
-                  <div className="shell-agent-av">{a.name.charAt(0).toUpperCase()}</div>
-                  <div className="a-body">
-                    <div className="a-name">{a.name}</div>
-                    <div className="a-sub">
-                      {shortModel(a.model ?? primaryModel)} · 1M ctx
+                  <button
+                    type="button"
+                    className={cn('shell-agent-item', activeAgent === a.id && 'active')}
+                    onClick={() => openChatForAgent(a.id)}
+                    title={`Агент ${a.name}`}
+                  >
+                    <div className="shell-agent-av">{a.name.charAt(0).toUpperCase()}</div>
+                    <div className="a-body">
+                      <div className="a-name">{a.name}</div>
+                      <div className="a-sub">
+                        {shortModel(a.model ?? primaryModel)} · 1M ctx
+                      </div>
                     </div>
-                  </div>
-                  <span className={cn('a-status', activeAgent === a.id ? 'on' : 'idle')} />
-                </button>
+                  </button>
+                  <button
+                    type="button"
+                    className="a-more"
+                    title="Модель агента"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setAgentModelMenu(agentModelMenu === a.id ? null : a.id)
+                    }}
+                  >
+                    ⋯
+                  </button>
+                  <span
+                    className={cn(
+                      'a-status',
+                      agentActivity[a.id]
+                        ? 'busy'
+                        : activeAgent === a.id
+                          ? 'on'
+                          : 'idle',
+                    )}
+                    title={agentActivity[a.id] ? 'Агент работает…' : 'свободен'}
+                  />
+                  {agentModelMenu === a.id && (
+                    <div className="a-model-menu">
+                      <div className="a-model-menu-title">Модель · {a.name}</div>
+                      <div className="a-model-menu-list">
+                        {modelOptions.length === 0 && (
+                          <div className="a-model-menu-empty">моделей нет — добавьте провайдера в Моделях</div>
+                        )}
+                        {modelOptions.map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            className={cn(
+                              'a-model-menu-item',
+                              (a.model ?? primaryModel) === m && 'active',
+                            )}
+                            onClick={() => void setAgentModel(a.id, m)}
+                          >
+                            <span className="a-model-menu-ic">{'🧠'}</span>
+                            <span className="a-model-menu-name">{m}</span>
+                            {(a.model ?? primaryModel) === m && <span className="a-model-menu-check">✓</span>}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
 
@@ -1164,6 +1412,59 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
 
           {/* ── Center: embedded Control UI / panels ── */}
           <section className="shell-chat-area">
+            {/* v0.9.12 (D1): browser-style chat tabs row — per-agent: [agent chip] [agent tab] [text tabs ×] [＋ Новый чат] */}
+            {showControlUIIframe && !hasActivePanel && inChat && (
+              <div className="chat-tabs">
+                <button
+                  type="button"
+                  className="chat-tabs-agent"
+                  onClick={() => setOpenMenu(openMenu === 'agent' ? null : 'agent')}
+                  title="Переключить агента"
+                >
+                  <span className="chat-tabs-agent-ic">{agentIcon(activeAgent)}</span>
+                  <span className="chat-tabs-agent-name">{activeAgent}</span>
+                  <span className="caret">▾</span>
+                </button>
+                <div className="chat-tabs-scroll">
+                  {(tabsByAgent[activeAgent] ?? []).map((tab) => (
+                    <div
+                      key={tab.id}
+                      className={cn('chat-tab', tab.id === activeTabByAgent[activeAgent] && 'active')}
+                      onClick={() => activateTab(activeAgent, tab.id)}
+                      role="button"
+                      title={tab.title}
+                    >
+                      <span className="chat-tab-ic">{tab.kind === 'agent' ? '🤖' : '💬'}</span>
+                      <span className="chat-tab-title">{tab.title}</span>
+                      {tab.kind === 'agent' && agentActivity[activeAgent] && (
+                        <span className="chat-tab-busy" title="Агент работает…" />
+                      )}
+                      {tab.kind === 'text' && (
+                        <button
+                          type="button"
+                          className="chat-tab-x"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            closeTab(activeAgent, tab.id)
+                          }}
+                          title="Закрыть вкладку"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="chat-tab-add"
+                  onClick={() => newTextTab(activeAgent)}
+                  title="Новый чат"
+                >
+                  ＋ Новый чат
+                </button>
+              </div>
+            )}
             <div className="shell-chat-canvas">
               {showControlUIIframe ? (
                 <iframe
@@ -1194,7 +1495,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
             {/* v0.9.0: plain-text chat mode (direct model call, no agent loop) */}
             {textModeActive && (
               <div className="absolute inset-0 z-20 flex min-h-0 flex-col bg-background/70 backdrop-blur-xl">
-                <TextChatView history={textHistory} onHistoryChange={setTextHistory} />
+                <TextChatView history={activeTabHistory} onHistoryChange={handleTabHistoryChange} />
               </div>
             )}
 
@@ -1266,7 +1567,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                   <button
                     type="button"
                     className={cn('shell-mode-btn', chatMode === 'agent' && 'active')}
-                    onClick={() => setChatMode('agent')}
+                    onClick={handleAgentModeClick}
                     title={t('shell.chat.agentModeHint')}
                   >
                     <Bot className="h-3.5 w-3.5" />
@@ -1275,7 +1576,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                   <button
                     type="button"
                     className={cn('shell-mode-btn', chatMode === 'text' && 'active')}
-                    onClick={() => setChatMode('text')}
+                    onClick={handleTextModeClick}
                     title={t('shell.chat.textModeHint')}
                   >
                     <Type className="h-3.5 w-3.5" />
