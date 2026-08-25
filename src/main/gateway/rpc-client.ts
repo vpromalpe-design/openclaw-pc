@@ -7,8 +7,13 @@ import WebSocket from 'ws'
 import { DEFAULT_GATEWAY_PORT } from '../../shared/constants.js'
 import { readShellConfig, readOpenClawConfig } from '../config/index.js'
 
-const PROTOCOL_VERSION = 3
-const CLIENT_ID = 'openclaw-pc'
+// Upstream gateway protocol version (packages/gateway-protocol/src/version.ts):
+// MIN_CLIENT_PROTOCOL_VERSION = 4 — older versions are rejected with
+// "protocol mismatch". Keep in sync when the bundled OpenClaw bumps it.
+const PROTOCOL_VERSION = 4
+// Use a gateway-approved client id: upstream validates `client.id` against
+// GATEWAY_CLIENT_IDS (packages/gateway-protocol/src/client-info.ts).
+const CLIENT_ID = 'openclaw-control-ui'
 const CLIENT_VERSION = '0.1.2'
 
 // ─── Errors ────────────────────────────────────────────────────────────────
@@ -147,6 +152,11 @@ export class GatewayRpcClient {
 
       const ws = new WebSocket(url, {
         handshakeTimeout: 10_000,
+        headers: {
+          // The gateway validates the WebSocket Origin against the Control UI
+          // host (gateway.controlUi.allowedOrigins). Mirror the browser origin.
+          Origin: `http://127.0.0.1:${this.port}`,
+        },
       })
 
       ws.on('error', (err: Error) => {

@@ -27,6 +27,7 @@ import {
   IPC_SHELL_RESIZE_FOR_MAIN_INTERFACE,
   IPC_SHELL_SET_WINDOW_TITLE,
   IPC_DIAGNOSTICS_EXPORT,
+  IPC_SESSIONS_LIST,
   IPC_PROVIDERS_LIST,
   IPC_PROVIDERS_SAVE_PROFILE,
   IPC_PROVIDERS_DELETE_PROFILE,
@@ -158,6 +159,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   shellResizeForMainInterface: () => invoke(IPC_SHELL_RESIZE_FOR_MAIN_INTERFACE),
   shellSetWindowTitle: (title: string) => invoke(IPC_SHELL_SET_WINDOW_TITLE, title),
   diagnosticsExport: () => invoke<{ path: string; checksum: string }>(IPC_DIAGNOSTICS_EXPORT),
+  sessionsList: () => invoke<unknown[]>(IPC_SESSIONS_LIST),
 
   providersList: () => invoke(IPC_PROVIDERS_LIST),
   providersSaveProfile: (opts: { profileId: string; provider: string; apiKey: string }) =>

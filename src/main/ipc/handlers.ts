@@ -53,6 +53,7 @@ import {
   IPC_SHELL_RESIZE_FOR_MAIN_INTERFACE,
   IPC_SHELL_SET_WINDOW_TITLE,
   IPC_DIAGNOSTICS_EXPORT,
+  IPC_SESSIONS_LIST,
   IPC_PROVIDERS_LIST,
   IPC_PROVIDERS_SAVE_PROFILE,
   IPC_PROVIDERS_DELETE_PROFILE,
@@ -525,6 +526,24 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
     wrapHandler('SHELL_SET_WINDOW_TITLE', (title: unknown) => {
       if (typeof title !== 'string') throw new Error('title must be a string')
       deps.setMainWindowTitle?.(title)
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_SESSIONS_LIST,
+    wrapHandler('SESSIONS_LIST', async (): Promise<unknown[]> => {
+      const { createGatewayRpcClientFromConfig } = await import('../gateway/rpc-client.js')
+      const client = await createGatewayRpcClientFromConfig()
+      try {
+        const res = (await client.request('sessions.list', { limit: 20 })) as
+          | { sessions?: unknown[] }
+          | unknown[]
+          | null
+        if (Array.isArray(res)) return res
+        return (res as { sessions?: unknown[] })?.sessions ?? []
+      } finally {
+        client.close()
+      }
     }),
   )
 

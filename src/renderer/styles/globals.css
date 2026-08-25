@@ -201,3 +201,759 @@ body {
   background-color: #26b84c !important;
   border-color: #26b84c !important;
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+   Shell frame (v0.9.5): top bar + agent/section/session sidebar + right bento
+   panel around the embedded Control UI. Mirrors the approved Liquid Glass
+   mockup (openclaw-pc-mockup-glass-4).
+   ──────────────────────────────────────────────────────────────────────────── */
+
+.shell-frame {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: 58px minmax(0, 1fr) 32px;
+  height: 100%;
+  gap: 12px;
+  padding: 12px;
+  min-height: 0;
+}
+
+.shell-glass {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06),
+    0 20px 50px rgba(0, 0, 0, 0.5);
+  border-radius: 22px;
+}
+
+/* ── Top bar ─────────────────────────────────────────────────────────────── */
+.shell-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  position: relative;
+  z-index: 50;
+  min-width: 0;
+}
+.shell-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 190px;
+}
+.shell-brand-ic {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.35));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 4px 16px rgba(10, 132, 255, 0.45);
+  display: grid;
+  place-items: center;
+  font-size: 17px;
+  flex-shrink: 0;
+}
+.shell-brand-name {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI Variable Display', 'Segoe UI', sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.2px;
+  text-shadow: 0 1px 10px rgba(255, 255, 255, 0.2);
+  white-space: nowrap;
+}
+.shell-brand-name small {
+  display: block;
+  font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
+  font-size: 9.5px;
+  color: rgba(255, 255, 255, 0.45);
+  font-weight: 400;
+  letter-spacing: 0.5px;
+}
+.shell-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px 7px 10px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 0.16s, background 0.16s;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.shell-pill:hover {
+  background: rgba(255, 255, 255, 0.16);
+  transform: scale(1.02);
+}
+.shell-pill .caret {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 9px;
+}
+.shell-gw-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 500;
+  background: rgba(48, 209, 88, 0.14);
+  border: 1px solid rgba(48, 209, 88, 0.3);
+  color: #c9f8d5;
+  backdrop-filter: blur(16px);
+  white-space: nowrap;
+  font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
+}
+.shell-gw-pill .pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #30d158;
+  animation: shell-pulse 2.4s infinite;
+  flex-shrink: 0;
+}
+.shell-gw-pill.err {
+  background: rgba(255, 69, 58, 0.14);
+  border-color: rgba(255, 69, 58, 0.35);
+  color: #ffd0cc;
+}
+.shell-gw-pill.err .pulse {
+  background: #ff453a;
+  animation: none;
+}
+@keyframes shell-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(48, 209, 88, 0.5); }
+  55% { box-shadow: 0 0 0 7px rgba(48, 209, 88, 0); }
+}
+.shell-icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(16px);
+  color: rgba(255, 255, 255, 0.72);
+  cursor: pointer;
+  font-size: 15px;
+  transition: all 0.18s;
+  flex-shrink: 0;
+}
+.shell-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  transform: scale(1.05);
+}
+.shell-dropdown {
+  position: relative;
+}
+.shell-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  min-width: 250px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0)),
+    rgba(18, 26, 48, 0.7);
+  backdrop-filter: blur(60px) saturate(220%) brightness(1.1);
+  -webkit-backdrop-filter: blur(60px) saturate(220%) brightness(1.1);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05),
+    0 24px 60px rgba(0, 0, 0, 0.55);
+  border-radius: 20px;
+  padding: 7px;
+  opacity: 0;
+  transform: translateY(-8px) scale(0.97);
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+  z-index: 100;
+}
+.shell-menu.open {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+.shell-menu-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: rgba(255, 255, 255, 0.45);
+  padding: 9px 12px 5px;
+  font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
+}
+.shell-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 12px;
+  border-radius: 13px;
+  cursor: pointer;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.72);
+  transition: background 0.15s, color 0.15s;
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  font-family: inherit;
+}
+.shell-menu-item:hover {
+  background: rgba(10, 132, 255, 0.25);
+  color: #fff;
+}
+.shell-menu-item .ic {
+  width: 20px;
+  text-align: center;
+  font-size: 15px;
+}
+.shell-menu-item .hint {
+  margin-left: auto;
+  font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
+  font-size: 9.5px;
+  color: rgba(255, 255, 255, 0.45);
+}
+.shell-menu-sep {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.12);
+  margin: 6px 10px;
+}
+
+/* ── Main grid: sidebar | content | bento ─────────────────────────────────── */
+.shell-main {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) 300px;
+  gap: 12px;
+  min-height: 0;
+}
+.shell-main.no-panel {
+  grid-template-columns: 240px minmax(0, 1fr);
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+.shell-sidebar {
+  padding: 16px 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 0;
+}
+.shell-side-group .shell-g-title {
+  font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
+  font-size: 9.5px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+  padding: 0 8px 9px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.shell-g-title .plus {
+  cursor: pointer;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.45);
+}
+.shell-g-title .plus:hover {
+  color: #0a84ff;
+}
+.shell-agent-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 10px;
+  border-radius: 16px;
+  cursor: pointer;
+  margin-bottom: 3px;
+  border: 1px solid transparent;
+  transition: all 0.16s;
+  width: 100%;
+  background: none;
+  color: #fff;
+  text-align: left;
+  font-family: inherit;
+}
+.shell-agent-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.shell-agent-item.active {
+  background: linear-gradient(180deg, rgba(10, 132, 255, 0.22), rgba(94, 92, 230, 0.14));
+  border-color: rgba(10, 132, 255, 0.4);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 4px 18px rgba(10, 132, 255, 0.18);
+}
+.shell-agent-av {
+  width: 32px;
+  height: 32px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+}
+.shell-agent-item.active .shell-agent-av {
+  background: linear-gradient(135deg, #0a84ff, #5e5ce6);
+  color: #fff;
+  border: none;
+  box-shadow: 0 4px 14px rgba(10, 132, 255, 0.5);
+}
+.shell-agent-item .a-name {
+  font-weight: 500;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.shell-agent-item .a-sub {
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.45);
+  font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 130px;
+}
+.shell-agent-item .a-body {
+  min-width: 0;
+  flex: 1;
+}
+.a-status {
+  margin-left: auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.a-status.on {
+  background: #30d158;
+  box-shadow: 0 0 10px #30d158;
+}
+.a-status.idle {
+  background: rgba(255, 255, 255, 0.45);
+}
+.shell-section-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 13px;
+  cursor: pointer;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.72);
+  transition: background 0.15s, color 0.15s;
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  font-family: inherit;
+}
+.shell-section-item:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+}
+.shell-section-item.active {
+  background: rgba(10, 132, 255, 0.18);
+  color: #fff;
+  border: 1px solid rgba(10, 132, 255, 0.35);
+}
+.shell-section-item .t {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shell-session-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 13px;
+  cursor: pointer;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.72);
+  transition: background 0.15s, color 0.15s;
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  font-family: inherit;
+}
+.shell-session-item:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+}
+.shell-session-item .t {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shell-session-item .tm {
+  margin-left: auto;
+  font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
+  font-size: 9.5px;
+  color: rgba(255, 255, 255, 0.45);
+  flex-shrink: 0;
+}
+.shell-side-foot {
+  margin-top: auto;
+  padding: 12px 8px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+.shell-disk {
+  display: flex;
+  justify-content: space-between;
+  font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.45);
+  margin-bottom: 7px;
+  gap: 8px;
+}
+.shell-disk-bar {
+  height: 5px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.shell-disk-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #0a84ff, #bf5af2);
+  box-shadow: 0 0 8px rgba(10, 132, 255, 0.6);
+}
+
+/* ── Center: embedded Control UI ──────────────────────────────────────────── */
+.shell-chat-area {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 22px;
+  background: rgba(11, 16, 32, 0.55);
+}
+
+/* ── Right bento panel ────────────────────────────────────────────────────── */
+.shell-status-panel {
+  padding: 16px 14px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  min-height: 0;
+}
+.shell-sp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.shell-sp-head .t {
+  font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
+  font-size: 9.5px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+}
+.shell-bento {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.shell-tile {
+  background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  padding: 12px;
+  transition: transform 0.18s, border-color 0.18s;
+}
+.shell-tile:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+.shell-tile.wide {
+  grid-column: 1 / -1;
+}
+.shell-tile .t-label {
+  font-size: 9.5px;
+  color: rgba(255, 255, 255, 0.45);
+  font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.shell-tile .t-val {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  margin-top: 7px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.shell-tile .t-val.mono {
+  font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
+  font-weight: 500;
+  font-size: 12px;
+}
+.shell-tile .t-sub {
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.45);
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.shell-tile .t-sub.mono {
+  font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
+}
+.shell-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.shell-dot.ok {
+  background: #30d158;
+  box-shadow: 0 0 10px #30d158;
+}
+.shell-dot.warn {
+  background: #ffd60a;
+  box-shadow: 0 0 10px #ffd60a;
+}
+.shell-dot.busy {
+  background: #0a84ff;
+  box-shadow: 0 0 10px #0a84ff;
+  animation: shell-pulse 1.6s infinite;
+}
+.shell-dot.err {
+  background: #ff453a;
+  box-shadow: 0 0 10px #ff453a;
+}
+.shell-progress {
+  margin-top: 9px;
+}
+.shell-progress .p-top {
+  display: flex;
+  justify-content: space-between;
+  font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
+  font-size: 9.5px;
+  color: rgba(255, 255, 255, 0.45);
+  margin-bottom: 6px;
+  gap: 8px;
+}
+.shell-progress .p-bar {
+  height: 7px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.shell-progress .p-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 7px;
+  background: linear-gradient(90deg, #0a84ff, #bf5af2);
+  box-shadow: 0 0 10px rgba(10, 132, 255, 0.5);
+  transition: width 0.3s;
+  position: relative;
+}
+.shell-progress .p-bar i::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  animation: shell-shine 1.8s infinite;
+}
+@keyframes shell-shine {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.shell-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.shell-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+  font-weight: 500;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: all 0.16s;
+  white-space: nowrap;
+}
+.shell-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  transform: scale(1.02);
+}
+.shell-btn.primary {
+  background: linear-gradient(135deg, #0a84ff, #5e5ce6);
+  border: none;
+  box-shadow:
+    0 6px 20px rgba(10, 132, 255, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  font-weight: 600;
+}
+.shell-btn.primary:hover {
+  box-shadow:
+    0 8px 26px rgba(10, 132, 255, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.shell-btn.ghost {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.72);
+  box-shadow: none;
+}
+.shell-btn.ghost:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.shell-btn.ok {
+  background: rgba(48, 209, 88, 0.2);
+  border-color: rgba(48, 209, 88, 0.45);
+  color: #c9f8d5;
+}
+.shell-mini-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  padding: 4px 2px;
+}
+.shell-mini-links a {
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.45);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.shell-mini-links a:hover {
+  color: #0a84ff;
+}
+
+/* ── Status bar ───────────────────────────────────────────────────────────── */
+.shell-statusbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 18px;
+  font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.45);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.shell-statusbar .sep {
+  color: rgba(255, 255, 255, 0.2);
+}
+.shell-statusbar .ok {
+  color: #30d158;
+}
+.shell-statusbar .sp-r {
+  margin-left: auto;
+  display: flex;
+  gap: 16px;
+}
+.shell-statusbar .lat {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+/* Mode switch (floating, above Control UI composer) */
+.shell-mode-switch {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+.shell-mode-btn {
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.18s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.shell-mode-btn.active {
+  background: linear-gradient(135deg, #0a84ff, #5e5ce6);
+  color: #fff;
+  box-shadow:
+    0 4px 14px rgba(10, 132, 255, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+.shell-mode-btn:not(.active):hover {
+  color: #fff;
+}
+
+@media (max-width: 1180px) {
+  .shell-main {
+    grid-template-columns: 240px minmax(0, 1fr);
+  }
+  .shell-status-panel {
+    display: none;
+  }
+}
+@media (max-width: 900px) {
+  .shell-main,
+  .shell-main.no-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .shell-sidebar {
+    display: none;
+  }
+  .shell-brand-name small {
+    display: none;
+  }
+}

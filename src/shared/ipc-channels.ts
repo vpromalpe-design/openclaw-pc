@@ -71,6 +71,9 @@ export const IPC_SHELL_SET_WINDOW_TITLE = 'shell:setWindowTitle' as const
 /** Export redacted diagnostics bundle */
 export const IPC_DIAGNOSTICS_EXPORT = 'diagnostics:export' as const
 
+/** Gateway sessions: recent list (sidebar «Сессии») */
+export const IPC_SESSIONS_LIST = 'sessions:list' as const
+
 /** Providers: list profiles */
 export const IPC_PROVIDERS_LIST = 'providers:list' as const
 
@@ -297,6 +300,7 @@ export const IPC_INVOKE_CHANNELS = [
   IPC_SHELL_RESIZE_FOR_MAIN_INTERFACE,
   IPC_SHELL_SET_WINDOW_TITLE,
   IPC_DIAGNOSTICS_EXPORT,
+  IPC_SESSIONS_LIST,
   IPC_PROVIDERS_LIST,
   IPC_PROVIDERS_SAVE_PROFILE,
   IPC_PROVIDERS_DELETE_PROFILE,

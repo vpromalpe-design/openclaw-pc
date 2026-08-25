@@ -177,6 +177,7 @@ export interface ElectronAPI {
   shellResizeForMainInterface: () => Promise<void>
   shellSetWindowTitle: (title: string) => Promise<void>
   diagnosticsExport: () => Promise<{ path: string; checksum: string }>
+  sessionsList: () => Promise<unknown[]>
 
   providersList: () => Promise<ProvidersListResult>
   providersSaveProfile: (opts: { profileId: string; provider: string; apiKey: string }) => Promise<void>

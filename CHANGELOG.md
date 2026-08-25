@@ -2,6 +2,17 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.9.5] - 2026-08-25
+
+### Added
+
+- **Liquid Glass main screen (per approved mockup)** — the main window is now wrapped in the dark glass shell: a top bar (🦞 brand + version, agent switcher pill, «＋ Новый чат», Gateway pill, ⚙️ and ⋯ menus), a left sidebar (Агенты from config, Разделы — Чат/Модели/Голос/Обзор/Активность/Сеансы/Cron/Задачи/Навыки, and live Сессии from the Gateway), the embedded Control UI in the center (its own sidebar/topbar hidden via the built-in `onboarding` mode) and a right status panel (Gateway, Модель, Локальный движок with download progress, Telegram, Агенты; actions: Проверить соединение, Запустить/Остановить движок, Скачать CUDA-сборку) plus the dark status bar (● gateway online · agent · model · engine · token · UTC clock).
+- **Live session list in the sidebar** — new `sessions:list` IPC: the main process connects to the Gateway over WebSocket RPC (`sessions.list`) and exposes the real sessions (agent chats, Telegram chats, Cron runs) in the sidebar; clicking a session opens it in the embedded chat.
+
+### Fixed
+
+- **Gateway RPC from the desktop app was rejected** — the embedded Gateway RPC client now sends an allowed `client.id` (`openclaw-control-ui`) and the current protocol version (4), and mirrors the Control UI `Origin` header, so `sessions.list` (and other backend RPC calls) authenticate against the Gateway instead of failing with «invalid connect params / protocol mismatch / origin not allowed».
+
 ## [0.9.4] - 2026-08-25
 
 ### Fixed
