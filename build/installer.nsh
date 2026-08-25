@@ -42,6 +42,8 @@
 
 !ifndef BUILD_UNINSTALLER
 Function FinishShow
+  ; тёмная тема electron-builder (иначе warning 6010 — функция перестала быть референсирована)
+  Call darkFinishShow
   ; Заголовок страницы Finish = «OpenClaw PC» (Static) → красный #E84242, фон прозрачный
   System::Call "user32::FindWindowExW(i $HWNDPARENT, i 0, w 'Static', w 'OpenClaw PC') i .r0"
   IntCmp $0 0 +3
