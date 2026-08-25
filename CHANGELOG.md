@@ -2,6 +2,12 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.9.4] - 2026-08-25
+
+### Fixed
+
+- **Embedded Control UI was light** — the app now forces the native dark theme (`nativeTheme.themeSource`), so the built-in Control UI (theme mode: system) renders dark like the Liquid Glass shell instead of the default light UI. The window background is dark (#0B1020) so there is no white flash while the Gateway/iframe loads, and switching the theme in Settings keeps the embedded UI in sync.
+
 ## [0.9.3] - 2026-08-24
 
 ### Fixed
