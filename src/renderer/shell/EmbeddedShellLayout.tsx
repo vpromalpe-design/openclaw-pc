@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import {
   Settings,
@@ -26,6 +27,7 @@ import { UpdateView } from './UpdateView'
 import { FeishuAccessView } from './FeishuAccessView'
 import { TextChatView, type ChatMessage } from './TextChatView'
 import { AgentSettingsView } from './AgentSettingsView'
+import { AgentMenuPortal } from './AgentMenu'
 import { Bot, Type, Send } from 'lucide-react'
 import type { GatewayStatus, GatewayStatusValue } from '../../shared/types'
 import { useUpdateNoticeStore } from '@/stores/update-store'
@@ -281,9 +283,11 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   const [nextTabNumByAgent, setNextTabNumByAgent] = useState<Record<string, number>>({})
   /** v0.9.12 (E3): per-agent activity lamp (busy while the agent processes a turn). */
   const [agentActivity, setAgentActivity] = useState<Record<string, boolean>>({})
-  /** v0.9.12 (E4): model picker options (connected providers) + which agent's ⋯ menu is open. */
+  /** v0.9.12 (E4): model picker options (connected providers) + which agent's ⋯ menu is open.
+   *  v0.9.14: menu is rendered via portal at fixed screen coords (x = button right edge,
+   *  y = button bottom) so the sidebar frame no longer clips it. */
   const [modelOptions, setModelOptions] = useState<string[]>([])
-  const [agentModelMenu, setAgentModelMenu] = useState<string | null>(null)
+  const [agentModelMenu, setAgentModelMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const updateAvailable = useUpdateNoticeStore((state) => state.available)
   const updateDismissed = useUpdateNoticeStore((state) => state.dismissed)
   const updateInfo = useUpdateNoticeStore((state) => state.info)
@@ -861,7 +865,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     }
   }
 
-  const openChatForAgent = (agentId: string) => {
+  const openChatForAgent = useCallback((agentId: string) => {
     setActiveAgent(agentId)
     setActiveSection('chat')
     onPanelChange('')
@@ -871,7 +875,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     // Switch the Control UI session to the agent's main session.
     const next: ControlRoute = '/chat'
     setControlRoute(next)
-  }
+  }, [onPanelChange])
 
   /** v0.9.12 (E3): agent activity lamp — subscribe to busy/idle events. */
   useEffect(() => {
@@ -926,6 +930,37 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
       // non-fatal — keep previous model
     }
   }
+
+  const handleRemoveAgent = useCallback(
+    async (a: AgentInfo) => {
+      setAgentModelMenu(null)
+      if (a.isDefault) return
+      const ok = window.confirm(
+        `Удалить агента «${a.name}» и все его чаты? Это действие нельзя отменить.`,
+      )
+      if (!ok) return
+      try {
+        const res = await window.electronAPI.agentsRemove({ agentId: a.id })
+        if (!res.ok) {
+          window.alert(res.error ?? 'Не удалось удалить агента')
+          return
+        }
+        setTabsByAgent((prev) => {
+          const next = { ...prev }
+          delete next[a.id]
+          return next
+        })
+        if (activeAgent === a.id) {
+          const rest = agents.filter((x) => x.id !== a.id)
+          openChatForAgent(rest[0]?.id ?? 'main')
+        }
+        void refreshShellData()
+      } catch (err) {
+        window.alert(`Не удалось удалить агента: ${String(err)}`)
+      }
+    },
+    [activeAgent, agents, openChatForAgent, refreshShellData],
+  )
 
   const runConnectionCheck = async () => {
     setCheckState('checking')
@@ -1330,7 +1365,12 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
         {/* ══════════ MAIN ══════════ */}
         <div className="shell-main">
           {/* ── Sidebar ── */}
-          <aside className="shell-glass shell-sidebar">
+          <aside
+            className="shell-glass shell-sidebar"
+            onScroll={() => {
+              if (agentModelMenu) setAgentModelMenu(null)
+            }}
+          >
             <div className="shell-side-group">
               <div className="shell-g-title">
                 Агенты
@@ -1345,7 +1385,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
               {agents.map((a) => (
                 <div
                   key={a.id}
-                  className={cn('shell-agent-row', agentModelMenu === a.id && 'menu-open')}
+                  className={cn('shell-agent-row', agentModelMenu?.id === a.id && 'menu-open')}
                 >
                   <button
                     type="button"
@@ -1367,7 +1407,16 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                     title="Модель агента"
                     onClick={(e) => {
                       e.stopPropagation()
-                      setAgentModelMenu(agentModelMenu === a.id ? null : a.id)
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                      if (agentModelMenu?.id === a.id) {
+                        setAgentModelMenu(null)
+                      } else {
+                        setAgentModelMenu({
+                          id: a.id,
+                          x: rect.right,
+                          y: rect.bottom,
+                        })
+                      }
                     }}
                   >
                     ⋯
@@ -1383,31 +1432,20 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                     )}
                     title={agentActivity[a.id] ? 'Агент работает…' : 'свободен'}
                   />
-                  {agentModelMenu === a.id && (
-                    <div className="a-model-menu">
-                      <div className="a-model-menu-title">Модель · {a.name}</div>
-                      <div className="a-model-menu-list">
-                        {modelOptions.length === 0 && (
-                          <div className="a-model-menu-empty">моделей нет — добавьте провайдера в Моделях</div>
-                        )}
-                        {modelOptions.map((m) => (
-                          <button
-                            key={m}
-                            type="button"
-                            className={cn(
-                              'a-model-menu-item',
-                              (a.model ?? primaryModel) === m && 'active',
-                            )}
-                            onClick={() => void setAgentModel(a.id, m)}
-                          >
-                            <span className="a-model-menu-ic">{'🧠'}</span>
-                            <span className="a-model-menu-name">{m}</span>
-                            {(a.model ?? primaryModel) === m && <span className="a-model-menu-check">✓</span>}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  {agentModelMenu && agentModelMenu.id === a.id &&
+                    createPortal(
+                      <AgentMenuPortal
+                        agent={a}
+                        primaryModel={primaryModel ?? undefined}
+                        modelOptions={modelOptions}
+                        anchorX={agentModelMenu.x}
+                        anchorY={agentModelMenu.y}
+                        onClose={() => setAgentModelMenu(null)}
+                        onSetModel={(m) => void setAgentModel(a.id, m)}
+                        onRemove={() => void handleRemoveAgent(a)}
+                      />,
+                      document.body,
+                    )}
                 </div>
               ))}
             </div>

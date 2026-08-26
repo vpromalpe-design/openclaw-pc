@@ -52,6 +52,7 @@ import {
   IPC_TELEGRAM_SAVE,
   IPC_AGENTS_ADD,
   IPC_AGENTS_SET_MODEL,
+  IPC_AGENTS_REMOVE,
   IPC_WIZARD_COMPLETE_SETUP,
   IPC_SYSTEM_OPEN_LOG_DIR,
   IPC_SHELL_GET_VERSIONS,
@@ -171,7 +172,7 @@ import {
   validateRegistryItem,
 } from '../registry/index.js'
 import { tailLogsWithGateway } from '../logs/index.js'
-import { logError } from '../utils/logger.js'
+import { logError, logWarn } from '../utils/logger.js'
 import { getLogAggregator } from '../diagnostics/log-aggregator.js'
 import { runBackupCreateCli, runBackupVerifyCli } from '../backup/index.js'
 import { syncLoginItemToSystem } from '../login-item/index.js'
@@ -630,6 +631,50 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
       cfg.agents.list = list
       deps.writeOpenClawConfig(cfg)
       readOpenClawConfig()
+      return { ok: true }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_AGENTS_REMOVE,
+    wrapHandler('AGENTS_REMOVE', (payload: unknown) => {
+      const raw = validatePlainObject(payload, 'agentsRemove')
+      const agentId = typeof raw.agentId === 'string' ? raw.agentId.trim() : ''
+      if (!agentId) throw new Error('agentId is required')
+      if (agentId === 'main') {
+        throw new Error('нельзя удалить основного агента (main)')
+      }
+
+      const cfg = deps.readOpenClawConfig()
+      const list = Array.isArray(cfg?.agents?.list) ? cfg.agents.list : []
+      const exists = list.some((a) => String(a?.id ?? '') === agentId)
+      if (!exists) throw new Error(`agent "${agentId}" not found in agents.list`)
+
+      // 1. Drop the agent from the config.
+      cfg.agents = cfg.agents ?? {}
+      cfg.agents.list = list.filter((a) => String(a?.id ?? '') !== agentId)
+      deps.writeOpenClawConfig(cfg)
+      readOpenClawConfig()
+
+      // 2. Delete the agent state dir (chats = sessions/, auth profiles, etc.).
+      //    Node fs handles non-ASCII paths natively (UTF-16) — no CLI involved.
+      const agentDir = path.join(deps.getUserDataDir(), 'agents', agentId)
+      try {
+        if (fs.existsSync(agentDir)) {
+          fs.rmSync(agentDir, { recursive: true, force: true })
+        }
+      } catch (err) {
+        logWarn(`[AGENTS_REMOVE] failed to delete agent dir ${agentDir}: ${String(err)}`)
+      }
+
+      // 3. Restart the gateway so it forgets the agent (in-memory sessions).
+      const gw = cfg.gateway
+      const port = gw?.port ?? DEFAULT_GATEWAY_PORT
+      const bind = gw?.bind ?? 'loopback'
+      const token = gw?.auth?.token?.trim()
+      const force = Boolean(gw?.forcePortOnConflict)
+      void gatewayManager.restart({ port, bind, token: token || undefined, force })
+
       return { ok: true }
     }),
   )

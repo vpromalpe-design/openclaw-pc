@@ -655,6 +655,12 @@ body {
   box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
   overflow: hidden;
 }
+/* v0.9.14: portal-rendered menu — fixed coords, above everything, never clipped by the sidebar frame. */
+.a-model-menu.portal {
+  position: fixed;
+  z-index: 9999;
+  max-height: 280px;
+}
 .a-model-menu-title {
   padding: 8px 10px;
   font-size: 10px;
@@ -700,6 +706,49 @@ body {
   text-overflow: ellipsis;
   font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
   font-size: 11px;
+}
+.a-model-menu-sep {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--glass-border-2);
+  flex-shrink: 0;
+}
+.a-model-menu-empty {
+  padding: 10px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.a-model-menu-remove {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  color: #ff453a;
+  font-size: 12px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  flex-shrink: 0;
+}
+.a-model-menu-remove:hover {
+  background: rgba(255, 69, 58, 0.14);
+  color: #ff6b60;
+}
+.a-model-menu-remove-ic {
+  font-size: 13px;
+  line-height: 1;
+}
+.a-model-menu-remove-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
 }
 .a-model-menu-item .a-model-menu-check {
   color: #30d158;

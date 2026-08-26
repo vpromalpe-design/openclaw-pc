@@ -260,6 +260,9 @@ export const IPC_AGENTS_ADD = 'agents:add' as const
 /** Agents: set agent model (v0.9.12) */
 export const IPC_AGENTS_SET_MODEL = 'agents:setModel' as const
 
+/** Agents: remove an agent and all its chats (v0.9.14) */
+export const IPC_AGENTS_REMOVE = 'agents:remove' as const
+
 /** Agents: activity event — an agent started/finished processing a turn (main → renderer, v0.9.12) */
 export const IPC_AGENTS_ACTIVITY = 'agents:activity' as const
 

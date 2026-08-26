@@ -194,6 +194,12 @@ export interface AgentsSetModelResult {
   error?: string
 }
 
+/** Result of `agents:remove` (v0.9.14) */
+export interface AgentsRemoveResult {
+  ok: boolean
+  error?: string
+}
+
 /** Feishu (Lark) channel config */
 export interface FeishuChannelConfig {
   appId?: string

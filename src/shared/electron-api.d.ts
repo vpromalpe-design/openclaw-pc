@@ -36,6 +36,7 @@ import type {
   AgentActivityPayload,
   AgentsAddResult,
   AgentsSetModelResult,
+  AgentsRemoveResult,
 } from './types'
 
 /** TCP port check result */
@@ -187,6 +188,7 @@ export interface ElectronAPI {
 
   agentsAdd: (payload: { name: string; model?: string }) => Promise<AgentsAddResult>
   agentsSetModel: (payload: { agentId: string; model: string }) => Promise<AgentsSetModelResult>
+  agentsRemove: (payload: { agentId: string }) => Promise<AgentsRemoveResult>
 
   providersList: () => Promise<ProvidersListResult>
   providersSaveProfile: (opts: { profileId: string; provider: string; apiKey: string }) => Promise<void>
