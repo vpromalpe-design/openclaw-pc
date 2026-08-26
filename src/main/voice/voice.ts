@@ -13,6 +13,7 @@
 
 import { app, BrowserWindow } from 'electron'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import http from 'node:http'
 import https from 'node:https'
@@ -45,6 +46,34 @@ function piperDir(): string {
 
 function whisperDir(): string {
   return path.join(voiceDir(), 'whisper')
+}
+
+// whisper-cli (official Windows builds use ANSI CRT) crashes with 0xC0000409 on
+// non-ASCII paths (e.g. C:\Users\Дамир\...). Keep its inputs/outputs in an
+// ASCII-only work dir and copy files there around each run.
+const ASCII_RE = /^[\x20-\x7E]*$/
+
+function ensureWhisperWorkDir(): string {
+  const whisper = whisperDir()
+  if (ASCII_RE.test(whisper)) {
+    const dir = path.join(whisper, 'work')
+    fs.mkdirSync(dir, { recursive: true })
+    return dir
+  }
+  const candidates = [
+    process.env.PROGRAMDATA ? path.join(process.env.PROGRAMDATA, 'OpenClaw PC', 'voice', 'whisper', 'work') : '',
+    path.join('C:\\Windows\\Temp', 'OpenClawPC-voice', 'whisper', 'work'),
+    path.join(os.tmpdir(), 'OpenClawPC-voice', 'whisper', 'work'),
+  ].filter(Boolean)
+  for (const dir of candidates) {
+    try {
+      fs.mkdirSync(dir, { recursive: true })
+      return dir
+    } catch {
+      /* try next candidate */
+    }
+  }
+  return path.join(whisper, 'work') // last resort: old behaviour
 }
 
 function findFileRecursive(dir: string, name: string): string | null {
@@ -795,30 +824,42 @@ export async function whisperTranscribe(wavPath: string, modelId: WhisperModelId
   const modelPath = path.join(whisperDir(), 'models', spec.file)
   if (!fs.existsSync(modelPath)) throw new Error('Модель распознавания не скачана. Скачайте её в настройках голоса.')
 
-  const outBase = path.join(voiceDir(), `whisper-out-${Date.now()}`)
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(
-      whisperExe(),
-      ['-m', modelPath, '-f', wavPath, '-l', 'ru', '-otxt', '-nt', '-np', '-of', outBase],
-      { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] },
-    )
-    let stderr = ''
-    child.stderr?.on('data', (c: Buffer) => (stderr += c.toString('utf8')))
-    child.on('error', reject)
-    child.on('exit', (code) => {
-      if (code === 0) resolve()
-      else reject(new Error(`whisper-cli exited with code ${code}: ${stderr.slice(0, 300)}`))
-    })
-  })
+  // whisper-cli crashes on non-ASCII paths — run from an ASCII-only work dir.
+  const work = ensureWhisperWorkDir()
+  const modelCache = path.join(work, 'models-cache', spec.file)
+  fs.mkdirSync(path.dirname(modelCache), { recursive: true })
+  if (!fs.existsSync(modelCache) || fs.statSync(modelCache).size !== fs.statSync(modelPath).size) {
+    fs.copyFileSync(modelPath, modelCache)
+  }
+  const stamp = Date.now()
+  const wavCopy = path.join(work, `in-${stamp}.wav`)
+  const outBase = path.join(work, `out-${stamp}`)
+  fs.copyFileSync(wavPath, wavCopy)
   try {
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn(
+        whisperExe(),
+        ['-m', modelCache, '-f', wavCopy, '-l', 'ru', '-otxt', '-nt', '-np', '-of', outBase],
+        { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] },
+      )
+      let stderr = ''
+      child.stderr?.on('data', (c: Buffer) => (stderr += c.toString('utf8')))
+      child.on('error', reject)
+      child.on('exit', (code) => {
+        if (code === 0) resolve()
+        else reject(new Error(`whisper-cli exited with code ${code}: ${stderr.slice(0, 300)}`))
+      })
+    })
     const txtPath = `${outBase}.txt`
     const text = fs.existsSync(txtPath) ? fs.readFileSync(txtPath, 'utf8').trim() : ''
     return text
   } finally {
-    try {
-      fs.unlinkSync(`${outBase}.txt`)
-    } catch {
-      /* ignore */
+    for (const f of [wavCopy, `${outBase}.txt`]) {
+      try {
+        fs.unlinkSync(f)
+      } catch {
+        /* ignore */
+      }
     }
   }
 }
