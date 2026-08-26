@@ -1616,6 +1616,17 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
         if (variant) {
           // Download + unpack the llama.cpp build (progress on IPC_LOCAL_PROGRESS).
           await installEngineVariant(variant)
+          // v0.9.14: installing a GPU/CPU build expresses intent — persist it
+          // so the wizard's choice survives into the main panel (GPU tile green
+          // without manual switching in Models). GPU builds store 'auto': on
+          // laptops where the WMI GPU probe is broken ('none') resolveEngineVariant
+          // falls back to the CUDA build already on disk instead of the CPU one.
+          const shell = deps.readShellConfig()
+          const nextMode = variant === 'cpu' ? 'cpu' : 'auto'
+          if (shell.localEngineMode !== nextMode) {
+            shell.localEngineMode = nextMode
+            deps.writeShellConfig(shell)
+          }
           return getLocalEngineRuntimeState()
         }
       }

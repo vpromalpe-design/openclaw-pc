@@ -21,6 +21,7 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { OPENCLAW_CONFIG_FILE } from '../../shared/constants.js'
 import { addProfileToAuthOrder } from '../providers/provider-config.js'
+import { startLocalEngine } from '../models/local-engine.js'
 
 export interface WizardCompleteResult {
   ok: boolean
@@ -1099,6 +1100,32 @@ export async function handleWizardCompleteSetup(
   }
   if (!validationResult.valid && isEnvLimit) {
     console.warn('[wizard] Config validate skipped (bundle unavailable), proceeding with Gateway start')
+  }
+
+  // 4.5 Local engine: if the wizard configured a local GGUF model, start the
+  // engine BEFORE the gateway so the local provider is already serving when
+  // the gateway boots. Without this the main panel opens "cold" and the
+  // user has to connect the model manually in the Models page.
+  if (sanitized.modelConfig.provider === 'local') {
+    const localModelId = sanitized.modelConfig.modelId.trim()
+    if (localModelId) {
+      try {
+        const config = readOpenClawConfig()
+        if (config) {
+          await startLocalEngine(localModelId, config, (c) => {
+            deps.writeOpenClawConfig(c)
+            readOpenClawConfig()
+          })
+        }
+      } catch (err) {
+        // Non-fatal: the Models panel still shows the error state and the
+        // engine can be started from there.
+        console.warn(
+          '[wizard] Local engine start failed (non-fatal):',
+          err instanceof Error ? err.message : String(err),
+        )
+      }
+    }
   }
 
   // 5. Start Gateway with the wizard-configured port, bind, and token (--token / --auth token)
