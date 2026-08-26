@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Mic, MicOff, Download, AudioLines } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { recordMic } from '@/utils/mic-recorder'
 import {
   Select,
   SelectContent,
@@ -40,89 +41,9 @@ function Toggle({ checked, onChange, id }: { checked: boolean; onChange: (v: boo
   )
 }
 
-/** Encode Float32 PCM samples (mono) into a 16-bit PCM WAV file (base64). */
-function encodeWav(samples: Float32Array, sampleRate: number): string {
-  const buffer = new ArrayBuffer(44 + samples.length * 2)
-  const view = new DataView(buffer)
-  const writeStr = (offset: number, s: string) => {
-    for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i))
-  }
-  writeStr(0, 'RIFF')
-  view.setUint32(4, 36 + samples.length * 2, true)
-  writeStr(8, 'WAVE')
-  writeStr(12, 'fmt ')
-  view.setUint32(16, 16, true)
-  view.setUint16(20, 1, true) // PCM
-  view.setUint16(22, 1, true) // mono
-  view.setUint32(24, sampleRate, true)
-  view.setUint32(28, sampleRate * 2, true) // byte rate
-  view.setUint16(32, 2, true) // block align
-  view.setUint16(34, 16, true) // bits per sample
-  writeStr(36, 'data')
-  view.setUint32(40, samples.length * 2, true)
-  let offset = 44
-  for (let i = 0; i < samples.length; i++) {
-    const s = Math.max(-1, Math.min(1, samples[i]!))
-    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true)
-    offset += 2
-  }
-  // base64
-  let binary = ''
-  const bytes = new Uint8Array(buffer)
-  const chunk = 0x8000
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
-  }
-  return btoa(binary)
-}
-
 /** Record mic for `durationMs`, return WAV base64 at 16 kHz mono. */
 async function recordMicBase64(durationMs: number): Promise<string> {
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
-  })
-  const ctx = new AudioContext({ sampleRate: 16000 })
-  const src = ctx.createMediaStreamSource(stream)
-  const processor = ctx.createScriptProcessor(4096, 1, 1)
-  const chunks: Float32Array[] = []
-  processor.onaudioprocess = (e) => {
-    chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)))
-  }
-  const gain = ctx.createGain()
-  gain.gain.value = 0
-  src.connect(processor)
-  processor.connect(gain)
-  gain.connect(ctx.destination)
-  try {
-    await new Promise<void>((resolve) => setTimeout(resolve, durationMs))
-  } finally {
-    processor.disconnect()
-    src.disconnect()
-    stream.getTracks().forEach((tr) => tr.stop())
-    await ctx.close().catch(() => undefined)
-  }
-  const total = chunks.reduce((n, c) => n + c.length, 0)
-  const merged = new Float32Array(total)
-  let offset = 0
-  for (const c of chunks) {
-    merged.set(c, offset)
-    offset += c.length
-  }
-  // Resample to 16 kHz if the context used a different rate.
-  let samples = merged
-  if (ctx.sampleRate !== 16000 && ctx.sampleRate > 0 && samples.length > 0) {
-    const ratio = 16000 / ctx.sampleRate
-    const out = new Float32Array(Math.max(1, Math.floor(samples.length * ratio)))
-    for (let i = 0; i < out.length; i++) {
-      const pos = i / ratio
-      const i0 = Math.floor(pos)
-      const i1 = Math.min(samples.length - 1, i0 + 1)
-      const frac = pos - i0
-      out[i] = samples[i0]! * (1 - frac) + samples[i1]! * frac
-    }
-    samples = out
-  }
-  return encodeWav(samples, 16000)
+  return recordMic({ maxMs: durationMs })
 }
 
 /**

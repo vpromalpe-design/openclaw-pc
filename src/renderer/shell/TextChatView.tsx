@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Loader2, Send, Trash2, AlertTriangle } from 'lucide-react'
+import { Loader2, Mic, Square, Send, Trash2, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { recordMic } from '@/utils/mic-recorder'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -27,8 +28,61 @@ export function TextChatView({ history, onHistoryChange }: TextChatViewProps) {
   const { t } = useTranslation()
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [sttReady, setSttReady] = useState(false)
+  const [dictating, setDictating] = useState(false)
+  const [transcribing, setTranscribing] = useState(false)
+  const [dictError, setDictError] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
+  const stopDictationRef = useRef<(() => void) | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void window.electronAPI
+      .sttLoad()
+      .then((res) => {
+        if (!cancelled) {
+          setSttReady(res.whisper.installed && res.whisper.modelsInstalled.includes(res.model))
+        }
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+      stopDictationRef.current?.()
+    }
+  }, [])
+
+  /** Toggle mic dictation: press → record, press again → transcribe into input. */
+  const toggleDictate = async () => {
+    if (dictating) {
+      stopDictationRef.current?.()
+      return
+    }
+    setDictError(null)
+    setDictating(true)
+    let stopResolve: () => void = () => undefined
+    const stopSignal = new Promise<void>((r) => {
+      stopResolve = r
+    })
+    stopDictationRef.current = stopResolve
+    try {
+      const audioBase64 = await recordMic({ stopSignal, maxMs: 15000 })
+      setDictating(false)
+      setTranscribing(true)
+      const res = await window.electronAPI.sttTranscribe({ audioBase64 })
+      if (res.ok && res.text) {
+        setInput((prev) => (prev.trim() ? `${prev.trim()} ${res.text}` : res.text!))
+      } else {
+        setDictError(res.error ?? t('voice.stt.transcribeFailed'))
+      }
+    } catch (e) {
+      setDictating(false)
+      setDictError(e instanceof Error ? e.message : t('voice.stt.transcribeFailed'))
+    } finally {
+      setTranscribing(false)
+      stopDictationRef.current = null
+    }
+  }
 
   useEffect(() => {
     const el = scrollRef.current
@@ -140,7 +194,52 @@ export function TextChatView({ history, onHistoryChange }: TextChatViewProps) {
 
       {/* Composer */}
       <div className="shrink-0 border-t border-border/80 bg-background/80 p-3 backdrop-blur">
+        {(dictating || transcribing || dictError) && (
+          <div
+            className={`mb-2 flex items-center gap-2 text-xs ${
+              dictError ? 'text-destructive' : 'text-muted-foreground'
+            }`}
+          >
+            {dictating ? (
+          <>
+                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-destructive" />
+                {t('voice.stt.recording')}
+          </>
+            ) : transcribing ? (
+          <>
+                <Loader2 className="h-3 w-3 animate-spin" />
+                {t('voice.stt.transcribing')}
+          </>
+            ) : (
+          <>
+                <AlertTriangle className="h-3 w-3" />
+                {dictError}
+          </>
+            )}
+          </div>
+        )}
         <div className="flex items-end gap-2">
+          <Button
+            size="icon"
+            variant={dictating ? 'destructive' : 'ghost'}
+            className="h-11 w-11 shrink-0 rounded-full"
+            onClick={() => void toggleDictate()}
+            disabled={transcribing || sending || !sttReady}
+            title={
+              sttReady
+                ? t('voice.stt.micHint')
+                : t('voice.stt.notInstalled')
+            }
+            aria-label={t('voice.stt.record')}
+          >
+            {dictating ? (
+              <Square className="h-4 w-4" />
+            ) : transcribing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Mic className="h-4 w-4" />
+            )}
+          </Button>
           <Textarea
             ref={inputRef}
             value={input}
