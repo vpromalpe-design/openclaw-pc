@@ -11,11 +11,12 @@
  * and push to the renderer as `tts:utterance` audio for playback.
  */
 
-import { BrowserWindow } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import http from 'node:http'
 import https from 'node:https'
+import zlib from 'node:zlib'
 import { spawn } from 'node:child_process'
 import { createReadStream } from 'node:fs'
 import * as tar from 'tar'
@@ -275,6 +276,83 @@ const SHERPA_BINARY_URL =
   `https://github.com/k2-fsa/sherpa-onnx/releases/download/${SHERPA_ONNX_VERSION}/` +
   `sherpa-onnx-${SHERPA_ONNX_VERSION}-win-x64-shared-MD-Release.tar.bz2`
 
+// Native N-API addon (sherpa-onnx-node JS wrapper + sherpa-onnx-win-x64 binary).
+// The CLI accepts text only as an argv argument, and Windows CRT converts argv
+// to the ANSI codepage (cp1251), so Cyrillic arrives as garbage. The addon
+// takes text through its JS API (UTF-8), so we synthesize in a separate
+// bundled node.exe process (the addon cannot run inside Electron: Electron
+// forbids napi_create_external_buffer, which the addon uses for audio output).
+// Node 22 ABI (bundled resources/node/node.exe = v22.23.2, modules 127) is
+// compatible with the prebuilt sherpa-onnx.node (pure N-API).
+const SHERPA_NODE_JS_URL = `https://registry.npmjs.org/sherpa-onnx-node/-/sherpa-onnx-node-1.13.6.tgz`
+const SHERPA_NODE_BIN_URL = `https://registry.npmjs.org/sherpa-onnx-win-x64/-/sherpa-onnx-win-x64-1.13.6.tgz`
+
+function nodeAddonDir(): string {
+  return path.join(piperDir(), 'node-addon')
+}
+
+/** Bundled Node.js used by the engine runtime (resources/node/node.exe, v22). */
+function bundledNodeExe(): string {
+  // Production layout: <install>/resources/app.asar + <install>/resources/node/node.exe
+  const candidate = path.join(path.dirname(app.getAppPath()), 'node', process.platform === 'win32' ? 'node.exe' : 'node')
+  if (fs.existsSync(candidate)) return candidate
+  return process.env.OPENCLAW_NODE || 'node'
+}
+
+/** Extract a .tgz (gzip) archive into destDir (pure-JS, works in electron main). */
+async function extractTgz(archivePath: string, destDir: string): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const extractor = tar.x({ cwd: destDir, strict: true })
+    const gunzip = zlib.createGunzip()
+    createReadStream(archivePath)
+      .pipe(gunzip)
+      .on('error', reject)
+      .pipe(extractor)
+      .on('error', reject)
+      .on('finish', resolve)
+  })
+}
+
+/**
+ * Standalone synthesis worker, written to node-addon/tts-worker.js at install
+ * time and executed by the bundled node.exe (NOT inside Electron, see above).
+ * argv[2] = base64url(JSON): { addonDir, model, tokens, dataDir, text, outWav, numThreads }
+ */
+const TTS_WORKER_SOURCE = `// sherpa-onnx TTS worker (runs under bundled node.exe, NOT inside Electron)
+'use strict'
+const fs = require('node:fs')
+const path = require('node:path')
+function fail(msg) {
+  try { fs.writeFileSync(process.env.TTS_WORKER_ERR || path.join(require('node:os').tmpdir(), 'tts-worker-error.txt'), String(msg)) } catch {}
+  console.error('TTS_WORKER_ERROR:', msg)
+  process.exit(1)
+}
+let payload
+ try {
+  payload = JSON.parse(Buffer.from(process.argv[2] || '', 'base64url').toString('utf8'))
+} catch (e) { return fail('bad payload: ' + e.message) }
+try {
+  const sherpa = require(path.join(payload.addonDir, 'sherpa-onnx.js'))
+  const tts = new sherpa.OfflineTts({
+    model: {
+      vits: { model: payload.model, tokens: payload.tokens, dataDir: payload.dataDir },
+      debug: false,
+      numThreads: payload.numThreads || 2,
+      provider: 'cpu',
+    },
+    maxNumSentences: 1,
+  })
+  const genCfg = new sherpa.GenerationConfig({ sid: 0, speed: 1.0, silenceScale: 0.2 })
+  const audio = tts.generate({ text: payload.text, generationConfig: genCfg })
+  if (!audio || !audio.samples || !audio.samples.length) return fail('no audio generated')
+  sherpa.writeWave(payload.outWav, { samples: audio.samples, sampleRate: audio.sampleRate })
+  console.log('TTS_WORKER_OK', audio.sampleRate, audio.samples.length)
+  process.exit(0)
+} catch (e) {
+  return fail((e && e.stack) || String(e))
+}
+`
+
 function sherpaModelUrl(voice: PiperVoiceKey): string {
   return `https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-ru_RU-${voice}-medium-int8.tar.bz2`
 }
@@ -323,7 +401,13 @@ function moveEntrySync(from: string, to: string): void {
 }
 
 export function piperStatus(): { installed: boolean; voiceInstalled: boolean } {
-  const installed = fs.existsSync(piperExe())
+  // "installed" now also requires the native addon (engine + addon + worker),
+  // otherwise the UI shows the Install button and installPiper fills the gap.
+  const installed =
+    fs.existsSync(piperExe()) &&
+    fs.existsSync(path.join(nodeAddonDir(), 'sherpa-onnx.js')) &&
+    fs.existsSync(path.join(nodeAddonDir(), 'sherpa-onnx.node')) &&
+    fs.existsSync(path.join(nodeAddonDir(), 'tts-worker.js'))
   const voiceInstalled = Object.keys(PIPER_VOICES).some((k) =>
     fs.existsSync(path.join(piperDir(), 'models', k, PIPER_VOICES[k as PiperVoiceKey].modelFile)),
   )
@@ -379,7 +463,51 @@ export async function installPiper(onProgress?: (p: VoiceProgress) => void): Pro
       }
     }
 
-    // 2) Voice models for ALL configured voices + shared espeak-ng-data.
+    // 2) Native N-API addon (JS wrapper + binary + worker). Needed for correct
+    //    UTF-8 synthesis — the CLI mangles Cyrillic argv on Windows.
+    const addonDir = nodeAddonDir()
+    if (!fs.existsSync(path.join(addonDir, 'sherpa-onnx.js')) || !fs.existsSync(path.join(addonDir, 'sherpa-onnx.node'))) {
+      fs.mkdirSync(addonDir, { recursive: true })
+      for (const [label, url, fileName] of [
+        ['sherpa-onnx-node (JS wrapper)', SHERPA_NODE_JS_URL, 'sherpa-onnx-node.tgz'],
+        ['sherpa-onnx-win-x64 (binary)', SHERPA_NODE_BIN_URL, 'sherpa-onnx-win-x64.tgz'],
+      ]) {
+        cb({ scope: 'tts', stage: 'downloading', component: 'sherpa-node-addon', progress: 0 })
+        logInfo(`[voice] installPiper: downloading ${label}...`)
+        const archive = await downloadWithFallback(
+          { url, fileName },
+          (progress) => cb({ scope: 'tts', stage: 'downloading', component: 'sherpa-node-addon', progress }),
+        )
+        cb({ scope: 'tts', stage: 'extracting', component: 'sherpa-node-addon', progress: 1 })
+        await extractTgz(archive, addonDir)
+        try {
+          fs.unlinkSync(archive)
+        } catch {
+          /* ignore */
+        }
+        // npm tarballs contain a top-level package/ folder; move contents up.
+        const pkgDir = path.join(addonDir, 'package')
+        if (fs.existsSync(pkgDir)) {
+          for (const entry of fs.readdirSync(pkgDir)) {
+            moveEntrySync(path.join(pkgDir, entry), path.join(addonDir, entry))
+          }
+          try {
+            fs.rmSync(pkgDir, { recursive: true, force: true })
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+      const workerPath = path.join(addonDir, 'tts-worker.js')
+      if (!fs.existsSync(workerPath)) {
+        fs.writeFileSync(workerPath, TTS_WORKER_SOURCE, 'utf8')
+      }
+      if (!fs.existsSync(path.join(addonDir, 'sherpa-onnx.node'))) {
+        throw new Error('sherpa-onnx.node not found after addon installation')
+      }
+    }
+
+    // 3) Voice models for ALL configured voices + shared espeak-ng-data.
     const espeakDir = path.join(dir, 'espeak-ng-data')
     for (const voiceKey of Object.keys(PIPER_VOICES) as PiperVoiceKey[]) {
       const v = PIPER_VOICES[voiceKey]
@@ -458,10 +586,13 @@ export async function piperSynthesize(
   text: string,
   voiceKey: PiperVoiceKey,
 ): Promise<{ mime: string; data: Buffer }> {
-  const exe = piperExe()
-  if (!fs.existsSync(exe)) throw new Error('Piper не установлен. Установите его в настройках голоса.')
+  const addonDir = nodeAddonDir()
+  const worker = path.join(addonDir, 'tts-worker.js')
+  const nodeExe = bundledNodeExe()
+  if (!fs.existsSync(worker)) throw new Error('Piper не установлен. Установите его в настройках голоса.')
   const v = PIPER_VOICES[voiceKey]
-  // ASCII paths via junction — sherpa-onnx cannot open non-ASCII paths (see piperAsciiDir).
+  // ASCII paths via junction — the addon handles non-ASCII fine, but the CLI
+  // engine doesn't; keep every path we pass ASCII for uniformity.
   const base = piperAsciiDir()
   const modelPath = path.join(base, 'models', voiceKey, v.modelFile)
   const tokensPath = path.join(base, 'models', voiceKey, v.tokensFile)
@@ -470,29 +601,32 @@ export async function piperSynthesize(
   if (!fs.existsSync(espeakDir)) throw new Error('espeak-ng-data не найден. Переустановите Piper в настройках голоса.')
 
   const outWav = path.join(base, `piper-out-${Date.now()}.wav`)
+  // addonDir via junction too: the addon .node loads DLLs from its own folder
+  // (LoadLibraryEx altered search path), but require() of the JS wrapper with
+  // a non-ASCII path is safer through the ASCII junction on some systems.
+  const addonAsciiDir = path.join(base, 'node-addon')
+  const payload = {
+    addonDir: addonAsciiDir,
+    model: modelPath,
+    tokens: tokensPath,
+    dataDir: espeakDir,
+    text,
+    outWav,
+    numThreads: 2,
+  }
+  const payloadB64 = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')
   try {
     await new Promise<void>((resolve, reject) => {
-      // Text is passed as a CLI argument (Node spawn uses UTF-16 via CreateProcessW
-      // on Windows, so Cyrillic is fine). Guard against text that looks like a flag.
-      const safeText = text.startsWith('-') ? `. ${text}` : text
-      const child = spawn(
-        exe,
-        [
-          `--vits-model=${modelPath}`,
-          `--vits-tokens=${tokensPath}`,
-          `--vits-data-dir=${espeakDir}`,
-          `--output-filename=${outWav}`,
-          `--num-threads=2`,
-          safeText,
-        ],
-        { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] },
-      )
+      const child = spawn(nodeExe, [worker, payloadB64], {
+        windowsHide: true,
+        stdio: ['ignore', 'ignore', 'pipe'],
+      })
       let stderr = ''
       child.stderr?.on('data', (c: Buffer) => (stderr += c.toString('utf8')))
       child.on('error', reject)
       child.on('exit', (code) => {
-        if (code === 0) resolve()
-        else reject(new Error(`piper exited with code ${code}: ${stderr.slice(0, 300)}`))
+        if (code === 0 && fs.existsSync(outWav)) resolve()
+        else reject(new Error(`piper worker exited with code ${code}: ${stderr.slice(0, 300)}`))
       })
     })
     const data = fs.readFileSync(outWav)

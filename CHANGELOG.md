@@ -6,7 +6,11 @@ All notable changes to OpenClaw Desktop will be documented in this file.
 
 ### Fixed
 
-- **Piper падал на Windows 11 (0xC0000409), голоса Дмитрий/Денис не скачивались**: движок заменён с piper 2023.11.14-2 (несовместим с Win11 Build 26200 — баг ucrtbase.dll, issue OHF-Voice/piper1-gpl #260) на **sherpa-onnx** (k2-fsa) — `sherpa-onnx-offline-tts.exe`, совместим с новыми сборками Windows. Установка теперь скачивает и распаковывает движок + **все три русских голоса** (Ирина/Дмитрий/Денис, vits-piper medium int8) + общий espeak-ng-data (распаковка tar.bz2 встроена в приложение). Текст в синтез передаётся аргументом командной строки (UTF-16, кириллица корректна).
+- **Piper говорил «непонятной речью» на русском (кракозябры)**: CLI sherpa-onnx получал текст только argv-аргументом, а Windows CRT конвертирует argv в ANSI (cp1251), движок ждёт UTF-8 → текст искажался. Синтез переведён на **нативный N-API аддон sherpa-onnx-node** (`sherpa-onnx-win-x64`), который принимает текст через JS API (UTF-8, без argv). Аддон не может работать внутри Electron (Electron запрещает `napi_create_external_buffer`, который аддон использует для аудио), поэтому синтез выполняется в отдельном процессе бандлового Node.js (`resources/node/node.exe`, v22 — ABI совместим с пребилтом, чистый N-API): worker-скрипт (`node-addon/tts-worker.js`) + payload base64url (текст и пути) + WAV на диск. Установка Piper теперь дополнительно скачивает JS-обёртку и бинарник аддона из npm registry (~23 МБ) и пишет worker-скрипт; статус установки учитывает наличие аддона.
+
+### Fixed
+
+- **Piper падал на Windows 11 (0xC0000409), голоса Дмитрий/Денис не скачивались**: движок заменён с piper 2023.11.14-2 (несовместим с Win11 Build 26200 — баг ucrtbase.dll, issue OHF-Voice/piper1-gpl #260) на **sherpa-onnx** (k2-fsa) — `sherpa-onnx-offline-tts.exe`, совместим с новыми сборками Windows. Установка теперь скачивает и распаковывает движок + **все три русских голоса** (Ирина/Дмитрий/Денис, vits-piper medium int8) + общий espeak-ng-data (распаковка tar.bz2 встроена в приложение).
 
 ## [0.9.13] - 2026-08-26
 
