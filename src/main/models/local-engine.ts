@@ -455,6 +455,16 @@ interface GpuInfo {
 }
 
 let cachedGpu: GpuInfo | null = null
+
+/** v0.9.13: user n_ctx slider bounds (tokens). */
+export const CONTEXT_SIZE_MIN = 512
+export const CONTEXT_SIZE_MAX = 32768
+export const CONTEXT_SIZE_DEFAULT = 32768
+/** Clamp user-provided context size to the supported range; default 32768. */
+export function clampContextSize(value?: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return CONTEXT_SIZE_DEFAULT
+  return Math.min(CONTEXT_SIZE_MAX, Math.max(CONTEXT_SIZE_MIN, Math.round(value)))
+}
 /** Detect the discrete GPU vendor via WMI (fast, no drivers queried). */
 export async function detectGpu(): Promise<GpuInfo> {
   if (cachedGpu) return cachedGpu
@@ -1461,6 +1471,9 @@ async function startLocalEngineInner(
   let variant = resolveEngineVariant(shellConfig.localEngineMode ?? 'auto', gpu)
   const serverPath = await ensureEngineBinary(variant)
 
+  // v0.9.13: user-configurable context window (n_ctx). Default stays 32768.
+  const ctxSize = clampContextSize(shellConfig.localModelContextSize)
+
   const spawnArgs = [
     '-m',
     model.path,
@@ -1470,7 +1483,7 @@ async function startLocalEngineInner(
     String(LOCAL_ENGINE_BACKEND_PORT),
     '--no-ui',
     '-c',
-    '32768',
+    String(ctxSize),
     '-ngl',
     variant === 'cpu' ? '0' : '99',
     // 32k context (q8_0 KV ≈ 3.2 GB for the 12B gemma4 model): the agent's
@@ -1564,7 +1577,7 @@ async function startLocalEngineInner(
     const cpuPath = await ensureEngineBinary('cpu')
     const cpuArgs = spawnArgs.map((a) => a)
     cpuArgs[cpuArgs.indexOf('-ngl') + 1] = '0'
-    cpuArgs[cpuArgs.indexOf('-c') + 1] = '32768'
+    cpuArgs[cpuArgs.indexOf('-c') + 1] = String(ctxSize)
     ok = await spawnServer(cpuPath, cpuArgs)
   }
   if (!ok) {

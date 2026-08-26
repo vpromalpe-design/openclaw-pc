@@ -204,6 +204,39 @@ export interface ElectronAPI {
   voiceSettingsApply: (payload: VoiceSettingsApplyPayload) => Promise<VoiceSettingsApplyResult>
   voiceTest: (opts: { provider: 'google' | 'openai'; apiKey: string }) => Promise<VoiceTestResult>
 
+  // v0.9.13 (Этап F): TTS / STT
+  ttsLoad: () => Promise<{
+    enabled: boolean
+    provider: 'edge' | 'elevenlabs' | 'piper'
+    voice: string
+    hasKey: boolean
+    piper: { installed: boolean; voiceInstalled: boolean }
+  }>
+  ttsApply: (payload: {
+    enabled?: boolean
+    provider?: 'edge' | 'elevenlabs' | 'piper'
+    voice?: string
+    apiKey?: string | null
+  }) => Promise<{ ok: boolean }>
+  ttsTest: () => Promise<{ ok: boolean; mime?: string; audioBase64?: string; error?: string }>
+  ttsVoices: (payload: { provider: string; apiKey?: string }) =>
+    Promise<{ ok: boolean; voices?: { id: string; name: string }[]; error?: string }>
+  ttsInstall: () => Promise<{ ok: boolean }>
+  onTtsUtterance: (cb: (payload: { mime: string; audioBase64: string; text: string }) => void) => () => void
+  sttLoad: () => Promise<{
+    enabled: boolean
+    model: 'tiny' | 'base' | 'small' | 'medium'
+    whisper: {
+      installed: boolean
+      modelsInstalled: string[]
+      models: { id: string; name: string }[]
+    }
+  }>
+  sttApply: (payload: { enabled?: boolean; model?: string }) => Promise<{ ok: boolean }>
+  sttInstall: (payload: { model: string }) => Promise<{ ok: boolean }>
+  sttTranscribe: (payload: { audioBase64: string }) => Promise<{ ok: boolean; text?: string; error?: string }>
+  onVoiceProgress: (cb: (payload: unknown) => void) => () => void
+
   modelsViewList: () => Promise<ModelsViewResult>
   modelsViewApply: (payload: ModelsViewApplyRequest) => Promise<{ ok: boolean; restarted: boolean; backupPath: string | null }>
   localList: () => Promise<{ localModels: LocalModelInfo[]; engineState: LocalEngineState }>

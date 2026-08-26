@@ -101,6 +101,8 @@ export function ModelsView({ onBack }: ModelsViewProps) {
   const [localTest, setLocalTest] = useState<TestStatus>('idle')
   const [localTestMsg, setLocalTestMsg] = useState('')
   const [smallModelWarning, setSmallModelWarning] = useState<string | null>(null)
+  const [ctxSize, setCtxSize] = useState(32768)
+  const [ctxApplying, setCtxApplying] = useState(false)
 
   const assessSize = (sizeBytes: number, name: string) => {
     if (sizeBytes > 0 && sizeBytes < 6_500_000_000) {
@@ -136,6 +138,16 @@ export function ModelsView({ onBack }: ModelsViewProps) {
 
   useEffect(() => {
     void load()
+    void (async () => {
+      try {
+        const cfg = await window.electronAPI.shellGetConfig()
+        if (typeof cfg.localModelContextSize === 'number' && cfg.localModelContextSize > 0) {
+          setCtxSize(cfg.localModelContextSize)
+        }
+      } catch {
+        // non-fatal: keep default
+      }
+    })()
     const unsub = window.electronAPI.onLocalProgress((p) => {
       // Engine binary / CUDA runtime downloads carry no modelId — surface
       // their progress in the engine section banner (v0.8.30).
@@ -436,6 +448,29 @@ export function ModelsView({ onBack }: ModelsViewProps) {
     }
   }
 
+  // v0.9.13: context window (n_ctx) slider — applies immediately with engine restart.
+  const handleCtxSizeChange = async (value: number) => {
+    const v = Math.min(32768, Math.max(512, Math.round(value)))
+    setCtxSize(v)
+    setCtxApplying(true)
+    setError(null)
+    try {
+      await window.electronAPI.shellSetConfig({ localModelContextSize: v })
+      if (engineState?.running) {
+        // Restart the engine so -c takes effect. Start may adopt the running
+        // server, so stop first.
+        await window.electronAPI.localEngineStop()
+        if (selectedLocal) {
+          await window.electronAPI.localEngineStart({ modelId: selectedLocal })
+        }
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('shell.models.applyFailed'))
+    } finally {
+      setCtxApplying(false)
+    }
+  }
+
   const handleLocalMove = async (dir: -1 | 1) => {
     if (!selectedLocal) return
     const idx = downloadedLocalModels.findIndex((m) => m.id === selectedLocal)
@@ -659,6 +694,43 @@ export function ModelsView({ onBack }: ModelsViewProps) {
               )}
             </div>
             <p className="text-xs text-muted-foreground">{t('shell.models.localTestHint')}</p>
+          </div>
+
+          {/* Context window (n_ctx) — v0.9.13 */}
+          <div className="rounded-md border border-border p-3 space-y-2.5 mb-3">
+            <div className="flex items-center justify-between gap-2">
+              <label htmlFor="local-ctx-size" className="text-sm font-medium block">
+                {t('shell.models.ctxTitle')}
+              </label>
+              <span className="text-sm font-semibold tabular-nums">
+                {ctxSize.toLocaleString('ru-RU')} {t('shell.models.ctxTokens')}
+              </span>
+            </div>
+            <input
+              id="local-ctx-size"
+              type="range"
+              min={512}
+              max={32768}
+              step={512}
+              value={ctxSize}
+              disabled={ctxApplying}
+              onChange={(e) => void handleCtxSizeChange(Number(e.target.value))}
+              className="w-full accent-[var(--accent)]"
+            />
+            <div className="flex justify-between text-[10px] text-muted-foreground">
+              <span>512</span>
+              <span>16k</span>
+              <span>32k</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t('shell.models.ctxHint')}
+            </p>
+            {ctxApplying && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5" role="status">
+                <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
+                {t('shell.models.ctxApplying')}
+              </p>
+            )}
           </div>
 
           {/* llama.cpp engine binaries (CPU / CUDA / Vulkan) — v0.8.30 */}

@@ -31,6 +31,7 @@ import type { GatewayStatus, GatewayStatusValue } from '../../shared/types'
 import { useUpdateNoticeStore } from '@/stores/update-store'
 import { cn } from '@/lib/utils'
 import { installShellSounds } from '@/lib/sounds'
+import { playTtsAudio } from '@/lib/tts-playback'
 
 const TIMEOUT_MS = 300_000
 
@@ -589,6 +590,14 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
 
   // Liquid Glass UI sounds («тук» on clicks, «пук» on opening menus) — ported from the approved mockup.
   useEffect(() => installShellSounds(), [])
+
+  // v0.9.13 (Этап F1): speak agent answers (TTS) — play audio pushed by main.
+  useEffect(() => {
+    const unsub = window.electronAPI.onTtsUtterance((u) => {
+      void playTtsAudio(u.mime, u.audioBase64)
+    })
+    return unsub
+  }, [])
 
   const clearTimeoutTimer = useCallback(() => {
     if (timeoutRef.current) {

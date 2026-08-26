@@ -51,6 +51,17 @@ import {
   IPC_VOICE_SETTINGS_LOAD,
   IPC_VOICE_SETTINGS_APPLY,
   IPC_VOICE_TEST,
+  IPC_TTS_LOAD,
+  IPC_TTS_APPLY,
+  IPC_TTS_TEST,
+  IPC_TTS_VOICES,
+  IPC_TTS_INSTALL,
+  IPC_TTS_UTTERANCE,
+  IPC_STT_LOAD,
+  IPC_STT_APPLY,
+  IPC_STT_INSTALL,
+  IPC_STT_TRANSCRIBE,
+  IPC_VOICE_PROGRESS,
   IPC_MODELS_VIEW_LIST,
   IPC_MODELS_VIEW_APPLY,
   IPC_LOCAL_LIST,
@@ -201,6 +212,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
   voiceSettingsLoad: () => invoke(IPC_VOICE_SETTINGS_LOAD),
   voiceSettingsApply: (payload: unknown) => invoke(IPC_VOICE_SETTINGS_APPLY, payload),
   voiceTest: (opts: unknown) => invoke(IPC_VOICE_TEST, opts),
+
+  // v0.9.13 (Этап F): TTS / STT
+  ttsLoad: () => invoke(IPC_TTS_LOAD),
+  ttsApply: (payload: unknown) => invoke(IPC_TTS_APPLY, payload),
+  ttsTest: () => invoke<{ ok: boolean; mime?: string; audioBase64?: string; error?: string }>(IPC_TTS_TEST),
+  ttsVoices: (payload: { provider: string; apiKey?: string }) =>
+    invoke<{ ok: boolean; voices?: { id: string; name: string }[]; error?: string }>(IPC_TTS_VOICES, payload),
+  ttsInstall: () => invoke(IPC_TTS_INSTALL),
+  onTtsUtterance: (cb: (payload: { mime: string; audioBase64: string; text: string }) => void) =>
+    on(IPC_TTS_UTTERANCE, cb as (...args: unknown[]) => void),
+  sttLoad: () => invoke(IPC_STT_LOAD),
+  sttApply: (payload: unknown) => invoke(IPC_STT_APPLY, payload),
+  sttInstall: (payload: { model: string }) => invoke(IPC_STT_INSTALL, payload),
+  sttTranscribe: (payload: { audioBase64: string }) =>
+    invoke<{ ok: boolean; text?: string; error?: string }>(IPC_STT_TRANSCRIBE, payload),
+  onVoiceProgress: (cb: (payload: unknown) => void) => on(IPC_VOICE_PROGRESS, cb),
 
   modelsViewList: () => invoke(IPC_MODELS_VIEW_LIST),
   modelsViewApply: (payload: { primary: string | null; fallbacks: string[]; restart: boolean }) =>

@@ -15,6 +15,7 @@
 import { BrowserWindow } from 'electron'
 import { createGatewayRpcClientFromConfig, GatewayRpcClient } from '../gateway/rpc-client.js'
 import { IPC_AGENTS_ACTIVITY } from '../../shared/ipc-channels.js'
+import { speakAgentAnswer } from '../voice/voice.js'
 
 let client: GatewayRpcClient | null = null
 let subscribed = false
@@ -36,6 +37,17 @@ function agentIdFromSessionKey(sessionKey: string | undefined): string | null {
 }
 
 function handleEvent(event: string, payload: unknown): void {
+  // v0.9.13 (Этап F): speak the final assistant answer when TTS is enabled.
+  if (event === 'chat') {
+    const p = payload as
+      | { state?: unknown; message?: { content?: Array<{ type?: string; text?: string }> } }
+      | null
+    if (p && typeof p === 'object' && p.state === 'final') {
+      const text = p.message?.content?.[0]?.text
+      if (typeof text === 'string' && text.trim()) speakAgentAnswer(text)
+    }
+    return
+  }
   if (event !== 'sessions.changed') return
   const p = payload as { agentId?: unknown; sessionKey?: unknown; phase?: unknown } | null
   if (!p || typeof p !== 'object') return

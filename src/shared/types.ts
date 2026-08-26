@@ -41,6 +41,23 @@ export interface ShellConfig {
   lastUpdateCheck?: string
   /** Local engine compute mode: auto (GPU when available) | cpu | gpu */
   localEngineMode?: 'auto' | 'cpu' | 'gpu'
+  /** Local engine context window (n_ctx) in tokens; default 32768. Applied on engine restart. */
+  localModelContextSize?: number
+  /** v0.9.13 (Этап F): text-to-speech settings (agent answers → speaker). */
+  tts?: {
+    enabled: boolean
+    provider: 'edge' | 'elevenlabs' | 'piper'
+    /** Edge ShortName (e.g. ru-RU-SvetlanaNeural) | ElevenLabs voice_id | piper voice key (irina/dmitri/denis) */
+    voice?: string
+    /** ElevenLabs API key (optional for edge/piper) */
+    apiKey?: string
+  }
+  /** v0.9.13 (Этап F): local speech-to-text via whisper.cpp. */
+  stt?: {
+    enabled: boolean
+    /** whisper.cpp model: tiny | base | small | medium */
+    model?: string
+  }
   /** User-defined display/switch order for downloaded local models (ids). */
   localModelsOrder?: string[]
   /** Telegram panel: display-only bot name (saved in shell config, not openclaw.json) */

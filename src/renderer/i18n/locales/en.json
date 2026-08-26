@@ -773,7 +773,11 @@
       "connectShort": "Connect",
       "smallModelWarning": "Models under 12B parameters are a poor fit for agent tasks (tools, files, memory). We recommend 12B+ or cloud models for agent work.",
       "smallModelWarningTitle": "Heads-up: small model",
-      "unknownSizeHint": "For agent tasks, 12B+ parameter models are recommended."
+      "unknownSizeHint": "For agent tasks, 12B+ parameter models are recommended.",
+      "ctxTitle": "Local model context (n_ctx)",
+      "ctxTokens": "tokens",
+      "ctxHint": "Context window for the local engine. Larger means the model \"remembers\" more of the conversation, but uses more memory (KV cache) and slows first token. Applies immediately: the engine restarts.",
+      "ctxApplying": "Restarting the engine…"
     },
     "chat": {
       "agentMode": "Agent task",
@@ -863,6 +867,44 @@
       "saved": "Saved ✓ Restarting gateway…",
       "saveFailed": "Failed to save",
       "loadFailed": "Failed to load voice settings"
+    },
+    "tts": {
+      "title": "Agent answers (TTS)",
+      "desc": "The agent will speak its answers. Choose an engine and voice, then test below.",
+      "loading": "Loading voice settings…",
+      "provider": "TTS engine",
+      "voice": "Voice",
+      "edgeHint": "Free Microsoft Edge online service — internet is needed only at synthesis time.",
+      "elevenKey": "ElevenLabs API key",
+      "keySaved": "Key saved",
+      "saveKey": "Save",
+      "piperNotInstalled": "Piper is not installed yet. Download the engine and the Russian voice (fully offline).",
+      "installPiper": "Download Piper + voice",
+      "installing": "Installing…",
+      "piperSizeHint": "~60 MB (engine + \"Irina\" voice). Voices: Irina, Dmitri, Denis.",
+      "piperHint": "Fully local and offline. More voices can be added later.",
+      "test": "Test voice",
+      "testOk": "Voice works",
+      "testFailed": "Failed to synthesize voice",
+      "installFailed": "Piper install failed",
+      "enableAria": "Enable answer voice-over"
+    },
+    "stt": {
+      "title": "Speech recognition (local)",
+      "desc": "Local speech recognition via whisper.cpp — everything runs on your PC, no internet needed. API options (Google/OpenAI) are configured below.",
+      "loading": "Loading recognition settings…",
+      "model": "Recognition model",
+      "notInstalled": "whisper.cpp is not installed yet. Download the engine and the selected model.",
+      "install": "Download whisper.cpp",
+      "installing": "Installing…",
+      "sizeHint": "tiny ~75 MB (fast) · base ~142 MB (balanced) · small ~466 MB (more accurate) · medium ~1.5 GB (max accuracy).",
+      "record": "Record & transcribe",
+      "recording": "Recording… speak now",
+      "transcribing": "Transcribing…",
+      "transcribeFailed": "Failed to transcribe speech",
+      "emptyResult": "Nothing recognized — try again or pick a larger model.",
+      "micHint": "Test: press the button and say a phrase. Allow microphone access if prompted.",
+      "installFailed": "whisper.cpp install failed"
     }
   }
 }

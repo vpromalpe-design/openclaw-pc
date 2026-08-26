@@ -72,6 +72,15 @@ import {
   IPC_VOICE_SETTINGS_LOAD,
   IPC_VOICE_SETTINGS_APPLY,
   IPC_VOICE_TEST,
+  IPC_TTS_LOAD,
+  IPC_TTS_APPLY,
+  IPC_TTS_TEST,
+  IPC_TTS_VOICES,
+  IPC_TTS_INSTALL,
+  IPC_STT_LOAD,
+  IPC_STT_APPLY,
+  IPC_STT_INSTALL,
+  IPC_STT_TRANSCRIBE,
   IPC_MODELS_VIEW_LIST,
   IPC_MODELS_VIEW_APPLY,
   IPC_LOCAL_LIST,
@@ -179,6 +188,24 @@ import {
   restoreConfigBackup,
 } from '../models/models-view.js'
 import { sendTextChat } from '../models/text-chat.js'
+import {
+  edgeListVoices,
+  edgeSynthesize,
+  elevenListVoices,
+  elevenSynthesize,
+  piperSynthesize,
+  piperStatus,
+  installPiper,
+  installWhisper,
+  whisperStatus,
+  whisperTranscribe,
+  setVoiceProgressHandler,
+  PIPER_VOICES,
+  WHISPER_MODELS,
+  type TtsProvider,
+  type PiperVoiceKey,
+  type WhisperModelId,
+} from '../voice/voice.js'
 import {
   listLocalModels,
   getEngineState,
@@ -1102,8 +1129,176 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
     }),
   )
 
+  // ─── TTS (Этап F, v0.9.13) ────────────────────────────────────────────────
+
+  const readTts = () => deps.readShellConfig().tts ?? { enabled: false, provider: 'edge' }
+
+  ipcMain.handle(
+    IPC_TTS_LOAD,
+    wrapHandler('TTS_LOAD', () => {
+      const tts = readTts()
+      const piper = piperStatus()
+      return {
+        enabled: Boolean(tts.enabled),
+        provider: (tts.provider === 'elevenlabs' || tts.provider === 'piper' ? tts.provider : 'edge') as TtsProvider,
+        voice: typeof tts.voice === 'string' ? tts.voice : '',
+        hasKey: Boolean(tts.apiKey && typeof tts.apiKey === 'string' && tts.apiKey.trim()),
+        piper: { installed: piper.installed, voiceInstalled: piper.voiceInstalled },
+      }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_TTS_APPLY,
+    wrapHandler('TTS_APPLY', (payload: unknown) => {
+      const raw = validatePlainObject(payload, 'tts:apply')
+      const shell = deps.readShellConfig()
+      const current = shell.tts ?? { enabled: false, provider: 'edge' as TtsProvider }
+      const next: NonNullable<ShellConfig['tts']> = { ...current }
+      if (typeof raw.enabled === 'boolean') next.enabled = raw.enabled
+      if (raw.provider === 'edge' || raw.provider === 'elevenlabs' || raw.provider === 'piper') {
+        next.provider = raw.provider as TtsProvider
+      }
+      if (typeof raw.voice === 'string') next.voice = raw.voice
+      if (raw.apiKey === null) {
+        delete next.apiKey
+      } else if (typeof raw.apiKey === 'string') {
+        const key = raw.apiKey.trim()
+        if (key) next.apiKey = key
+        else delete next.apiKey
+      }
+      deps.writeShellConfig({ ...shell, tts: next })
+      return { ok: true }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_TTS_TEST,
+    wrapHandler('TTS_TEST', async () => {
+      const tts = readTts()
+      const provider = tts.provider === 'elevenlabs' || tts.provider === 'piper' ? tts.provider : 'edge'
+      try {
+        if (provider === 'piper') {
+          const voiceKey: PiperVoiceKey =
+            tts.voice === 'dmitri' || tts.voice === 'denis' ? (tts.voice as PiperVoiceKey) : 'irina'
+          const r = await piperSynthesize('Привет! Это проверка голоса.', voiceKey)
+          return { ok: true, mime: r.mime, audioBase64: r.data.toString('base64') }
+        }
+        if (provider === 'elevenlabs') {
+          if (!tts.apiKey) return { ok: false, error: 'Введите API-ключ ElevenLabs' }
+          const r = await elevenSynthesize('Привет! Это проверка голоса.', tts.voice || '', tts.apiKey)
+          return { ok: true, mime: r.mime, audioBase64: r.data.toString('base64') }
+        }
+        const r = await edgeSynthesize('Привет! Это проверка голоса.', tts.voice || 'ru-RU-SvetlanaNeural')
+        return { ok: true, mime: r.mime, audioBase64: r.data.toString('base64') }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) }
+      }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_TTS_VOICES,
+    wrapHandler('TTS_VOICES', async (payload: unknown) => {
+      const raw = validatePlainObject(payload, 'tts:voices')
+      const provider = raw.provider === 'elevenlabs' || raw.provider === 'piper' ? raw.provider : 'edge'
+      if (provider === 'piper') {
+        return { ok: true, voices: Object.entries(PIPER_VOICES).map(([id, v]) => ({ id, name: v.name })) }
+      }
+      if (provider === 'elevenlabs') {
+        const key = typeof raw.apiKey === 'string' ? raw.apiKey.trim() : ''
+        if (!key) return { ok: false, error: 'Введите API-ключ ElevenLabs' }
+        const voices = await elevenListVoices(key)
+        return { ok: true, voices }
+      }
+      const voices = (await edgeListVoices()).map((v) => ({ id: v.ShortName, name: `${v.FriendlyName} (${v.Locale})` }))
+      return { ok: true, voices }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_TTS_INSTALL,
+    wrapHandler('TTS_INSTALL', async () => {
+      await installPiper()
+      return { ok: true }
+    }),
+  )
+
+  // ─── STT (Этап F, v0.9.13) ────────────────────────────────────────────────
+
+  const readStt = () => deps.readShellConfig().stt ?? { enabled: false, model: 'base' }
+
+  ipcMain.handle(
+    IPC_STT_LOAD,
+    wrapHandler('STT_LOAD', () => {
+      const stt = readStt()
+      const model: WhisperModelId = stt.model === 'tiny' || stt.model === 'small' || stt.model === 'medium' ? stt.model : 'base'
+      const whisper = whisperStatus()
+      return {
+        enabled: Boolean(stt.enabled),
+        model,
+        whisper: {
+          installed: whisper.installed,
+          modelsInstalled: whisper.modelsInstalled,
+          models: Object.entries(WHISPER_MODELS).map(([id, m]) => ({ id, name: m.name })),
+        },
+      }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_STT_APPLY,
+    wrapHandler('STT_APPLY', (payload: unknown) => {
+      const raw = validatePlainObject(payload, 'stt:apply')
+      const shell = deps.readShellConfig()
+      const current = shell.stt ?? { enabled: false, model: 'base' }
+      const next: NonNullable<ShellConfig['stt']> = { ...current }
+      if (typeof raw.enabled === 'boolean') next.enabled = raw.enabled
+      if (raw.model === 'tiny' || raw.model === 'base' || raw.model === 'small' || raw.model === 'medium') {
+        next.model = raw.model as WhisperModelId
+      }
+      deps.writeShellConfig({ ...shell, stt: next })
+      return { ok: true }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_STT_INSTALL,
+    wrapHandler('STT_INSTALL', async (payload: unknown) => {
+      const raw = validatePlainObject(payload, 'stt:install')
+      const model: WhisperModelId =
+        raw.model === 'tiny' || raw.model === 'small' || raw.model === 'medium' ? raw.model : 'base'
+      await installWhisper(model)
+      return { ok: true }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_STT_TRANSCRIBE,
+    wrapHandler('STT_TRANSCRIBE', async (payload: unknown) => {
+      const raw = validatePlainObject(payload, 'stt:transcribe')
+      const audioBase64 = typeof raw.audioBase64 === 'string' ? raw.audioBase64 : ''
+      if (!audioBase64) throw new Error('audioBase64 is required')
+      const stt = readStt()
+      const model: WhisperModelId = stt.model === 'tiny' || stt.model === 'small' || stt.model === 'medium' ? stt.model : 'base'
+      const wavPath = path.join(deps.getUserDataDir(), 'voice', `mic-${Date.now()}.wav`)
+      try {
+        fs.writeFileSync(wavPath, Buffer.from(audioBase64, 'base64'))
+        const text = await whisperTranscribe(wavPath, model)
+        return { ok: true, text }
+      } finally {
+        try {
+          fs.unlinkSync(wavPath)
+        } catch {
+          /* ignore */
+        }
+      }
+    }),
+  )
+
   // ─── Models page (v0.8.7) ────────────────────────────────────────────────
   setLocalProgressSender(deps.sendToRenderer ?? null)
+  setVoiceProgressHandler(deps.sendToRenderer ?? null)
 
   ipcMain.handle(
     IPC_MODELS_VIEW_LIST,

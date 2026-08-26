@@ -119,6 +119,33 @@ export const IPC_VOICE_SETTINGS_APPLY = 'voiceSettings:apply' as const
 /** Voice: test provider connectivity (wizard step + settings section) */
 export const IPC_VOICE_TEST = 'voice:test' as const
 
+// v0.9.13 (Этап F): TTS / STT (Edge / ElevenLabs / Piper / whisper.cpp) —
+// settings live in the desktop shell config (config.json), not openclaw.json.
+/** TTS: load settings snapshot (tts section of shell config + install state) */
+export const IPC_TTS_LOAD = 'tts:load' as const
+/** TTS: apply settings (enabled / provider / voice / apiKey) */
+export const IPC_TTS_APPLY = 'tts:apply' as const
+/** TTS: synthesize a test phrase with current settings */
+export const IPC_TTS_TEST = 'tts:test' as const
+/** TTS: fetch voice list for a provider (edge: live; elevenlabs: needs key; piper: catalog) */
+export const IPC_TTS_VOICES = 'tts:voices' as const
+/** TTS: install local component (piper binary + voice model) */
+export const IPC_TTS_INSTALL = 'tts:install' as const
+/** TTS: main → renderer, agent answer audio for playback */
+export const IPC_TTS_UTTERANCE = 'tts:utterance' as const
+
+/** STT: load settings snapshot */
+export const IPC_STT_LOAD = 'stt:load' as const
+/** STT: apply settings (enabled / whisper model) */
+export const IPC_STT_APPLY = 'stt:apply' as const
+/** STT: install whisper.cpp binary + model */
+export const IPC_STT_INSTALL = 'stt:install' as const
+/** STT: transcribe WAV (base64) with local whisper */
+export const IPC_STT_TRANSCRIBE = 'stt:transcribe' as const
+
+/** Voice: install/download progress (main → renderer, payload VoiceProgress) */
+export const IPC_VOICE_PROGRESS = 'voice:progress' as const
+
 /** Skills list */
 export const IPC_SKILLS_LIST = 'skills:list' as const
 
@@ -361,6 +388,15 @@ export const IPC_INVOKE_CHANNELS = [
   IPC_LOCAL_ENGINE_MODE,
   IPC_LOCAL_REORDER,
   IPC_TEXT_CHAT_SEND,
+  IPC_TTS_LOAD,
+  IPC_TTS_APPLY,
+  IPC_TTS_TEST,
+  IPC_TTS_VOICES,
+  IPC_TTS_INSTALL,
+  IPC_STT_LOAD,
+  IPC_STT_APPLY,
+  IPC_STT_INSTALL,
+  IPC_STT_TRANSCRIBE,
   IPC_PLUGINS_LIST,
   IPC_PLUGINS_TOGGLE,
   IPC_PLUGINS_INSTALL,
@@ -383,4 +419,6 @@ export const IPC_EVENT_CHANNELS = [
   IPC_UPDATE_PROGRESS,
   IPC_LOCAL_PROGRESS,
   IPC_LOCAL_FIRST_REQUEST,
+  IPC_VOICE_PROGRESS,
+  IPC_TTS_UTTERANCE,
 ] as const

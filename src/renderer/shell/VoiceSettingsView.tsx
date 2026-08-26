@@ -1,6 +1,8 @@
 import { useTranslation } from 'react-i18next'
 import { ShellLayout } from './ShellLayout'
 import { VoiceSettingsSection } from './VoiceSettingsSection'
+import { TtsSettingsSection } from './TtsSettingsSection'
+import { SttSettingsSection } from './SttSettingsSection'
 
 export interface VoiceSettingsViewProps {
   /** Back navigation when embedded in parent layout */
@@ -21,6 +23,9 @@ export function VoiceSettingsView({ onBack }: VoiceSettingsViewProps = {}) {
   return (
     <ShellLayout title={t('voice.settings.title')} onBack={handleBack}>
       <div className="w-full max-w-2xl flex flex-col gap-8">
+        {/* v0.9.13 (Этап F): TTS + local STT sections joined the voice panel */}
+        <TtsSettingsSection />
+        <SttSettingsSection />
         <VoiceSettingsSection />
       </div>
     </ShellLayout>
