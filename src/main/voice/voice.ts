@@ -252,6 +252,36 @@ async function extractTarBz2(archivePath: string, destDir: string): Promise<void
   })
 }
 
+/** Recursive directory copy via copyFileSync — safe with non-ASCII paths on Windows. */
+function copyDirSync(src: string, dst: string): void {
+  fs.mkdirSync(dst, { recursive: true })
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    const s = path.join(src, entry.name)
+    const d = path.join(dst, entry.name)
+    if (entry.isDirectory()) copyDirSync(s, d)
+    else fs.copyFileSync(s, d)
+  }
+}
+
+/**
+ * Move a file/dir, falling back to copy+remove. fs.cpSync is NOT used:
+ * it crashes / throws EIO with non-ASCII paths on Windows (observed on
+ * C:\Users\<Кириллица>\... with both node.exe and the Electron runtime).
+ */
+function moveEntrySync(from: string, to: string): void {
+  try {
+    if (fs.existsSync(to)) fs.rmSync(to, { recursive: true, force: true })
+    fs.renameSync(from, to)
+    return
+  } catch {
+    /* fall through to copy+remove */
+  }
+  const st = fs.lstatSync(from)
+  if (st.isDirectory()) copyDirSync(from, to)
+  else fs.copyFileSync(from, to)
+  fs.rmSync(from, { recursive: true, force: true })
+}
+
 export function piperStatus(): { installed: boolean; voiceInstalled: boolean } {
   const installed = fs.existsSync(piperExe())
   const voiceInstalled = Object.keys(PIPER_VOICES).some((k) =>
@@ -318,11 +348,13 @@ export async function installPiper(onProgress?: (p: VoiceProgress) => void): Pro
       if (fs.existsSync(modelPath)) continue
       fs.mkdirSync(voiceDirPath, { recursive: true })
       cb({ scope: 'tts', stage: 'downloading', component: `piper-voice-${voiceKey}`, progress: 0 })
+      logInfo(`[voice] installPiper: downloading voice ${voiceKey}...`)
       const archive = await downloadWithFallback(
         { url: sherpaModelUrl(voiceKey), fileName: `vits-piper-${voiceKey}.tar.bz2` },
         (progress) => cb({ scope: 'tts', stage: 'downloading', component: `piper-voice-${voiceKey}`, progress }),
       )
       cb({ scope: 'tts', stage: 'extracting', component: `piper-voice-${voiceKey}`, progress: 1 })
+      logInfo(`[voice] installPiper: extracting voice ${voiceKey}...`)
       await extractTarBz2(archive, voiceDirPath)
       try {
         fs.unlinkSync(archive)
@@ -334,15 +366,7 @@ export async function installPiper(onProgress?: (p: VoiceProgress) => void): Pro
       const pkgDir = path.join(voiceDirPath, `vits-piper-ru_RU-${voiceKey}-medium-int8`)
       if (fs.existsSync(pkgDir)) {
         for (const entry of fs.readdirSync(pkgDir)) {
-          const from = path.join(pkgDir, entry)
-          const to = path.join(voiceDirPath, entry)
-          try {
-            if (fs.existsSync(to)) fs.rmSync(to, { recursive: true, force: true })
-            fs.renameSync(from, to)
-          } catch {
-            fs.cpSync(from, to, { recursive: true })
-            fs.rmSync(from, { recursive: true, force: true })
-          }
+          moveEntrySync(path.join(pkgDir, entry), path.join(voiceDirPath, entry))
         }
         try {
           fs.rmSync(pkgDir, { recursive: true, force: true })
@@ -354,14 +378,26 @@ export async function installPiper(onProgress?: (p: VoiceProgress) => void): Pro
         throw new Error(`model ${v.modelFile} not found after extraction`)
       }
       // espeak-ng-data lives inside the voice package; keep one shared copy.
+      // Rename (not cpSync — see moveEntrySync note about non-ASCII paths).
       const nestedEspeak = path.join(voiceDirPath, 'espeak-ng-data')
       if (!fs.existsSync(espeakDir) && fs.existsSync(nestedEspeak)) {
-        fs.cpSync(nestedEspeak, espeakDir, { recursive: true })
+        moveEntrySync(nestedEspeak, espeakDir)
       }
       try {
         if (fs.existsSync(nestedEspeak)) fs.rmSync(nestedEspeak, { recursive: true, force: true })
       } catch {
         /* ignore */
+      }
+    }
+    // Ensure shared espeak-ng-data exists even if all voices were already
+    // installed (e.g. previous interrupted install left it nested inside a voice).
+    if (!fs.existsSync(espeakDir)) {
+      for (const voiceKey of Object.keys(PIPER_VOICES) as PiperVoiceKey[]) {
+        const nested = path.join(modelsDir, voiceKey, 'espeak-ng-data')
+        if (fs.existsSync(nested)) {
+          moveEntrySync(nested, espeakDir)
+          break
+        }
       }
     }
     cb({ scope: 'tts', stage: 'done', component: 'piper', progress: 1 })
