@@ -6,6 +6,10 @@ All notable changes to OpenClaw Desktop will be documented in this file.
 
 ### Fixed
 
+- **STT не скачивался (ошибка 404)**: бинарник whisper.cpp качался с релиза `v1.7.4`, в котором **нет ассетов** (пустой релиз) — теперь `v1.7.6` (последний тег с `whisper-bin-x64.zip`). Модели распознавания качались с мёртвого HF-репозитория `ggml-org/whisper.cpp` (401) — теперь `ggerganov/whisper.cpp` (основной + hf-mirror fallback). Путь к `whisper-cli.exe` ищется рекурсивно — в v1.7.6 архив раскладывается в `Release/`, а не `whisper-bin-x64/`.
+
+### Fixed
+
 - **Piper говорил «непонятной речью» на русском (кракозябры)**: CLI sherpa-onnx получал текст только argv-аргументом, а Windows CRT конвертирует argv в ANSI (cp1251), движок ждёт UTF-8 → текст искажался. Синтез переведён на **нативный N-API аддон sherpa-onnx-node** (`sherpa-onnx-win-x64`), который принимает текст через JS API (UTF-8, без argv). Аддон не может работать внутри Electron (Electron запрещает `napi_create_external_buffer`, который аддон использует для аудио), поэтому синтез выполняется в отдельном процессе бандлового Node.js (`resources/node/node.exe`, v22 — ABI совместим с пребилтом, чистый N-API): worker-скрипт (`node-addon/tts-worker.js`) + payload base64url (текст и пути) + WAV на диск. Установка Piper теперь дополнительно скачивает JS-обёртку и бинарник аддона из npm registry (~23 МБ) и пишет worker-скрипт; статус установки учитывает наличие аддона.
 
 ### Fixed

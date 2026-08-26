@@ -112,8 +112,10 @@ function piperAsciiDir(): string {
 }
 
 function whisperExe(): string {
-  // whisper-bin-x64.zip contains a top-level folder whisper-bin-x64/
-  return path.join(whisperDir(), 'whisper-bin-x64', 'whisper-cli.exe')
+  // whisper-bin-x64.zip layout changed between releases (whisper-bin-x64/ in
+  // older tags, Release/ in v1.7.6+) — locate the exe wherever it landed.
+  const found = findFileRecursive(whisperDir(), 'whisper-cli.exe')
+  return found ?? path.join(whisperDir(), 'whisper-bin-x64', 'whisper-cli.exe')
 }
 
 // ─── Download helpers (same pattern as local-engine) ─────────────────────────
@@ -717,8 +719,9 @@ export const WHISPER_MODELS: Record<WhisperModelId, { name: string; file: string
   medium: { name: 'medium (1.5 ГБ, макс. точность)', file: 'ggml-medium.bin', sizeBytes: 1_500_000_000 },
 }
 
+// v1.7.4 has NO release assets (404); v1.7.6 is the closest tag with whisper-bin-x64.zip.
 const WHISPER_BINARY_URL =
-  'https://github.com/ggerganov/whisper.cpp/releases/download/v1.7.4/whisper-bin-x64.zip'
+  'https://github.com/ggerganov/whisper.cpp/releases/download/v1.7.6/whisper-bin-x64.zip'
 
 export function whisperStatus(): { installed: boolean; modelsInstalled: string[] } {
   const installed = fs.existsSync(whisperExe())
@@ -764,8 +767,8 @@ export async function installWhisper(
       cb({ scope: 'stt', stage: 'downloading', component: `whisper-model-${spec.file}`, progress: 0 })
       await downloadWithFallback(
         {
-          url: `https://huggingface.co/ggml-org/whisper.cpp/resolve/main/${spec.file}`,
-          mirrorUrl: `https://hf-mirror.com/ggml-org/whisper.cpp/resolve/main/${spec.file}`,
+          url: `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${spec.file}`,
+          mirrorUrl: `https://hf-mirror.com/ggerganov/whisper.cpp/resolve/main/${spec.file}`,
           fileName: path.join('whisper', 'models', spec.file),
           total: spec.sizeBytes,
         },
