@@ -63,12 +63,19 @@ function statusLabel(
 type TestStatus = 'idle' | 'testing' | 'ok' | 'fail'
 type EngineVariant = 'cpu' | 'cuda' | 'vulkan'
 
+/** Sentinel option in the model select: type any model id (OpenRouter etc.). */
+const CUSTOM_MODEL_OPTION = '__custom__'
+
 interface ProviderDraft {
   modelId: string
   apiKey: string
   showKey: boolean
   customBaseUrl: string
   customCompatibility: 'openai' | 'anthropic'
+  /** OpenRouter: editable endpoint (default https://openrouter.ai/api/v1). */
+  openrouterBaseUrl: string
+  /** True when the user chose «Свой ID модели» instead of a preset. */
+  customModel: boolean
   test: TestStatus
   message: string
 }
@@ -79,6 +86,8 @@ const emptyDraft = (modelId: string): ProviderDraft => ({
   showKey: false,
   customBaseUrl: '',
   customCompatibility: 'openai',
+  openrouterBaseUrl: 'https://openrouter.ai/api/v1',
+  customModel: false,
   test: 'idle',
   message: '',
 })
@@ -306,9 +315,18 @@ export function ModelsView({ onBack }: ModelsViewProps) {
     setExpandedProvider((cur) => {
       const next = cur === entry.providerId ? null : entry.providerId
       if (next && !drafts[entry.providerId]) {
+        const presets =
+          MODELS_BY_PROVIDER[entry.providerId as keyof typeof MODELS_BY_PROVIDER] ?? []
+        const draft = emptyDraft(entry.modelId ?? '')
+        // A model that is not one of the bundled presets (e.g. a custom
+        // OpenRouter model id) must open the panel in custom-input mode.
+        draft.customModel =
+          presets.length === 0 ||
+          !presets.some((m) => m.id === entry.modelId) ||
+          !entry.modelId
         setDrafts((d) => ({
           ...d,
-          [entry.providerId]: emptyDraft(entry.modelId ?? ''),
+          [entry.providerId]: draft,
         }))
       }
       return next
@@ -366,6 +384,10 @@ export function ModelsView({ onBack }: ModelsViewProps) {
             : undefined,
         customCompatibility:
           entry.providerId === 'custom' ? draft.customCompatibility : undefined,
+        openrouterBaseUrl:
+          entry.providerId === 'openrouter' && draft.openrouterBaseUrl.trim()
+            ? draft.openrouterBaseUrl.trim()
+            : undefined,
       }
       const res = await window.electronAPI.providersTest(cfg)
       if (res.ok) {
@@ -398,6 +420,12 @@ export function ModelsView({ onBack }: ModelsViewProps) {
       if (entry.providerId === 'custom') {
         if (draft.customBaseUrl.trim()) config.baseUrl = draft.customBaseUrl.trim()
         config.compatibility = draft.customCompatibility
+      }
+      // OpenRouter: persist the endpoint + api flavour so the gateway can
+      // actually reach the model (seed default is used when left untouched).
+      if (entry.providerId === 'openrouter') {
+        if (draft.openrouterBaseUrl.trim()) config.baseUrl = draft.openrouterBaseUrl.trim()
+        config.api = 'openai-completions'
       }
       await window.electronAPI.providersSaveProviderConfig({
         providerId: entry.providerId,
@@ -1033,10 +1061,16 @@ function ProviderRowGroup({
                 <label htmlFor={`cfg-model-${e.providerId}`} className="text-xs font-medium">
                   {t('shell.models.colModel')}
                 </label>
-                {providerPresets.length > 0 ? (
+                {providerPresets.length > 0 && !draft.customModel ? (
                   <Select
                     value={draft.modelId}
-                    onValueChange={(v) => onDraft({ modelId: v, test: 'idle', message: '' })}
+                    onValueChange={(v) => {
+                      if (v === CUSTOM_MODEL_OPTION) {
+                        onDraft({ customModel: true, modelId: '', test: 'idle', message: '' })
+                      } else {
+                        onDraft({ modelId: v, test: 'idle', message: '' })
+                      }
+                    }}
                   >
                     <SelectTrigger id={`cfg-model-${e.providerId}`} className="w-full">
                       <SelectValue placeholder={t('shell.models.selectModel')} />
@@ -1047,17 +1081,38 @@ function ProviderRowGroup({
                           {m.label}
                         </SelectItem>
                       ))}
+                      <SelectItem value={CUSTOM_MODEL_OPTION}>
+                        {t('wizard.model.customModelId')}
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 ) : (
-                  <Input
-                    id={`cfg-model-${e.providerId}`}
-                    type="text"
-                    value={draft.modelId}
-                    onChange={(ev) => onDraft({ modelId: ev.target.value, test: 'idle', message: '' })}
-                    placeholder={t('shell.models.modelIdPlaceholder')}
-                    className="font-mono"
-                  />
+                  <div className="space-y-2">
+                    <Input
+                      id={`cfg-model-${e.providerId}`}
+                      type="text"
+                      value={draft.modelId}
+                      onChange={(ev) => onDraft({ modelId: ev.target.value, test: 'idle', message: '' })}
+                      placeholder={t('shell.models.modelIdPlaceholder')}
+                      className="font-mono"
+                    />
+                    {providerPresets.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onDraft({
+                            customModel: false,
+                            modelId: providerPresets[0]!.id,
+                            test: 'idle',
+                            message: '',
+                          })
+                        }
+                        className="text-xs text-primary hover:underline"
+                      >
+                        {t('wizard.model.backToPresets')}
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -1086,6 +1141,30 @@ function ProviderRowGroup({
                   </button>
                 </div>
               </div>
+
+              {/* OpenRouter extras: editable endpoint — the panel used to only
+                  offer Model + API key, which is not enough to configure
+                  OpenRouter (v0.9.14). */}
+              {e.providerId === 'openrouter' && (
+                <div className="space-y-1.5">
+                  <label htmlFor={`cfg-orurl-${e.providerId}`} className="text-xs font-medium">
+                    {t('wizard.model.apiBaseUrl')}
+                  </label>
+                  <Input
+                    id={`cfg-orurl-${e.providerId}`}
+                    type="text"
+                    value={draft.openrouterBaseUrl}
+                    onChange={(ev) =>
+                      onDraft({ openrouterBaseUrl: ev.target.value, test: 'idle', message: '' })
+                    }
+                    placeholder="https://openrouter.ai/api/v1"
+                    className="font-mono"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {t('wizard.model.openrouterBaseUrlHint')}
+                  </p>
+                </div>
+              )}
 
               {/* Custom provider extras */}
               {e.providerId === 'custom' && (
