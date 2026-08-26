@@ -98,6 +98,11 @@ export class GatewayRpcClient {
   private closed = false
   private readonly onEvent?: (event: string, payload: unknown) => void
 
+  /** True while the underlying WebSocket is open (connection may still be mid-handshake). */
+  get isConnected(): boolean {
+    return Boolean(this.ws && this.ws.readyState === WebSocket.OPEN)
+  }
+
   constructor(options: GatewayRpcClientOptions) {
     this.port = options.port
     this.token = options.token?.trim() || undefined

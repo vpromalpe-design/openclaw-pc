@@ -544,9 +544,13 @@ let lastSpokenAt = 0
  */
 export function speakAgentAnswer(text: string): void {
   const cfg = readShellConfig()
-  if (!cfg.tts?.enabled) return
+  if (!cfg.tts?.enabled) {
+    logInfo('[voice] speakAgentAnswer: skipped (tts disabled)')
+    return
+  }
   const trimmed = trimForSpeech(text ?? '').trim()
   if (!trimmed) return
+  logInfo(`[voice] speakAgentAnswer: ${trimmed.slice(0, 80)}`)
   // Dedupe: gateway may emit the same final text twice (e.g. delta + final).
   const now = Date.now()
   if (trimmed === lastSpokenText && now - lastSpokenAt < 5000) return
