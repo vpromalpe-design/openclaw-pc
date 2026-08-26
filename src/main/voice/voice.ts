@@ -70,6 +70,46 @@ function piperExe(): string {
   return found ?? path.join(piperDir(), 'engine', 'sherpa-onnx-offline-tts.exe')
 }
 
+/**
+ * sherpa-onnx converts its argv to ANSI on Windows, so it CANNOT open files
+ * whose paths contain non-ASCII characters (e.g. C:\Users\Дамир\... becomes
+ * C:\Users\???\... and the model "does not exist"). We expose the real piper
+ * dir through an ASCII junction (no admin rights needed) so every path passed
+ * to the engine (model, tokens, espeak-ng-data, output wav) stays ASCII.
+ * Falls back to the real dir if no junction can be created.
+ */
+function piperAsciiDir(): string {
+  const real = piperDir()
+  const candidates = [
+    path.join(process.env.ProgramData ?? 'C:\\ProgramData', 'OpenClawPC-piper'),
+    path.join(process.env.PUBLIC ?? 'C:\\Users\\Public', 'OpenClawPC-piper'),
+  ]
+  for (const link of candidates) {
+    try {
+      if (fs.existsSync(link)) {
+        const st = fs.lstatSync(link)
+        if (st.isSymbolicLink()) {
+          const target = fs.readlinkSync(link)
+          if (target.toLowerCase() === real.toLowerCase() && fs.existsSync(path.join(link, 'models'))) {
+            return link
+          }
+          // Stale junction (userData moved) — remove and recreate below.
+          fs.rmSync(link, { recursive: true, force: true })
+        } else {
+          // A real directory occupies the path — don't touch it.
+          return real
+        }
+      }
+      fs.mkdirSync(path.dirname(link), { recursive: true })
+      fs.symlinkSync(real, link, 'junction')
+      if (fs.existsSync(path.join(link, 'models'))) return link
+    } catch {
+      /* try next candidate */
+    }
+  }
+  return real
+}
+
 function whisperExe(): string {
   // whisper-bin-x64.zip contains a top-level folder whisper-bin-x64/
   return path.join(whisperDir(), 'whisper-bin-x64', 'whisper-cli.exe')
@@ -421,13 +461,15 @@ export async function piperSynthesize(
   const exe = piperExe()
   if (!fs.existsSync(exe)) throw new Error('Piper не установлен. Установите его в настройках голоса.')
   const v = PIPER_VOICES[voiceKey]
-  const modelPath = path.join(piperDir(), 'models', voiceKey, v.modelFile)
-  const tokensPath = path.join(piperDir(), 'models', voiceKey, v.tokensFile)
+  // ASCII paths via junction — sherpa-onnx cannot open non-ASCII paths (see piperAsciiDir).
+  const base = piperAsciiDir()
+  const modelPath = path.join(base, 'models', voiceKey, v.modelFile)
+  const tokensPath = path.join(base, 'models', voiceKey, v.tokensFile)
   if (!fs.existsSync(modelPath)) throw new Error('Голосовая модель Piper не найдена. Установите её в настройках голоса.')
-  const espeakDir = path.join(piperDir(), 'espeak-ng-data')
+  const espeakDir = path.join(base, 'espeak-ng-data')
   if (!fs.existsSync(espeakDir)) throw new Error('espeak-ng-data не найден. Переустановите Piper в настройках голоса.')
 
-  const outWav = path.join(voiceDir(), `piper-out-${Date.now()}.wav`)
+  const outWav = path.join(base, `piper-out-${Date.now()}.wav`)
   try {
     await new Promise<void>((resolve, reject) => {
       // Text is passed as a CLI argument (Node spawn uses UTF-16 via CreateProcessW
