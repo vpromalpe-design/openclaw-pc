@@ -17,6 +17,9 @@ import path from 'node:path'
 import http from 'node:http'
 import https from 'node:https'
 import { spawn } from 'node:child_process'
+import { createReadStream } from 'node:fs'
+import * as tar from 'tar'
+import unbzip2Stream from 'unbzip2-stream'
 import { MsEdgeTTS, OUTPUT_FORMAT, type Voice as EdgeVoice } from 'msedge-tts'
 import { getUserDataDir } from '../utils/paths.js'
 import { logInfo, logWarn, logError } from '../utils/logger.js'
@@ -43,8 +46,28 @@ function whisperDir(): string {
   return path.join(voiceDir(), 'whisper')
 }
 
+function findFileRecursive(dir: string, name: string): string | null {
+  let entries: fs.Dirent[]
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true })
+  } catch {
+    return null
+  }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      const found = findFileRecursive(full, name)
+      if (found) return found
+    } else if (entry.name.toLowerCase() === name.toLowerCase()) {
+      return full
+    }
+  }
+  return null
+}
+
 function piperExe(): string {
-  return path.join(piperDir(), 'piper', 'piper.exe')
+  const found = findFileRecursive(piperDir(), 'sherpa-onnx-offline-tts.exe')
+  return found ?? path.join(piperDir(), 'engine', 'sherpa-onnx-offline-tts.exe')
 }
 
 function whisperExe(): string {
@@ -197,27 +220,42 @@ function emitProgress(payload: VoiceProgress): void {
   }
 }
 
-// ─── Piper (local, offline) ──────────────────────────────────────────────────
+// ─── Piper (local, offline) — движок sherpa-onnx (k2-fsa) ───────────────────
+// piper 2023.11.14-2 крашится на Windows 11 Build 26200 (0xC0000409, ucrtbase.dll,
+// OHF-Voice/piper1-gpl #260) → заменён на sherpa-onnx-offline-tts (совместим).
 
-export const PIPER_VOICES: Record<PiperVoiceKey, { name: string; modelFile: string; jsonFile: string }> = {
-  irina: { name: 'Ирина (женский)', modelFile: 'ru_RU-irina-medium.onnx', jsonFile: 'ru_RU-irina-medium.onnx.json' },
-  dmitri: { name: 'Дмитрий (мужской)', modelFile: 'ru_RU-dmitri-medium.onnx', jsonFile: 'ru_RU-dmitri-medium.onnx.json' },
-  denis: { name: 'Денис (мужской)', modelFile: 'ru_RU-denis-medium.onnx', jsonFile: 'ru_RU-denis-medium.onnx.json' },
+export const PIPER_VOICES: Record<PiperVoiceKey, { name: string; modelFile: string; tokensFile: string }> = {
+  irina: { name: 'Ирина (женский)', modelFile: 'ru_RU-irina-medium.onnx', tokensFile: 'tokens.txt' },
+  dmitri: { name: 'Дмитрий (мужской)', modelFile: 'ru_RU-dmitri-medium.onnx', tokensFile: 'tokens.txt' },
+  denis: { name: 'Денис (мужской)', modelFile: 'ru_RU-denis-medium.onnx', tokensFile: 'tokens.txt' },
 }
 
-const PIPER_BINARY_URL =
-  'https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip'
+const SHERPA_ONNX_VERSION = 'v1.13.6'
+const SHERPA_BINARY_URL =
+  `https://github.com/k2-fsa/sherpa-onnx/releases/download/${SHERPA_ONNX_VERSION}/` +
+  `sherpa-onnx-${SHERPA_ONNX_VERSION}-win-x64-shared-MD-Release.tar.bz2`
 
-function piperVoiceBaseUrl(voice: PiperVoiceKey): string {
-  const v = PIPER_VOICES[voice]
-  const rel = `ru/ru_RU/${voice}/medium/${v.modelFile}`
-  return `https://huggingface.co/rhasspy/piper-voices/resolve/main/${rel}`
+function sherpaModelUrl(voice: PiperVoiceKey): string {
+  return `https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-ru_RU-${voice}-medium-int8.tar.bz2`
+}
+
+/** Extract a .tar.bz2 archive into destDir (pure-JS, works in electron main). */
+async function extractTarBz2(archivePath: string, destDir: string): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const extractor = tar.x({ cwd: destDir, strict: true })
+    createReadStream(archivePath)
+      .pipe(unbzip2Stream())
+      .on('error', reject)
+      .pipe(extractor)
+      .on('error', reject)
+      .on('finish', resolve)
+  })
 }
 
 export function piperStatus(): { installed: boolean; voiceInstalled: boolean } {
   const installed = fs.existsSync(piperExe())
   const voiceInstalled = Object.keys(PIPER_VOICES).some((k) =>
-    fs.existsSync(path.join(piperDir(), 'models', PIPER_VOICES[k as PiperVoiceKey].modelFile)),
+    fs.existsSync(path.join(piperDir(), 'models', k, PIPER_VOICES[k as PiperVoiceKey].modelFile)),
   )
   return { installed, voiceInstalled }
 }
@@ -227,39 +265,107 @@ export async function installPiper(onProgress?: (p: VoiceProgress) => void): Pro
   fs.mkdirSync(dir, { recursive: true })
   const cb = onProgress ?? emitProgress
   try {
-    cb({ scope: 'tts', stage: 'downloading', component: 'piper', progress: 0 })
-    const zip = await downloadWithFallback(
-      { url: PIPER_BINARY_URL, fileName: 'piper_windows_amd64.zip' },
-      (progress) => cb({ scope: 'tts', stage: 'downloading', component: 'piper', progress }),
-    )
-    cb({ scope: 'tts', stage: 'extracting', component: 'piper', progress: 1 })
-    await extractZip(zip, dir)
-    try {
-      fs.unlinkSync(zip)
-    } catch {
-      /* ignore */
-    }
+    // 1) Engine (sherpa-onnx-offline-tts.exe). Skip if already installed.
     if (!fs.existsSync(piperExe())) {
-      throw new Error('piper.exe not found after extraction')
+      // Remove legacy rhasspy piper leftovers (broken on Win11 26200).
+      for (const legacy of [path.join(dir, 'piper'), path.join(dir, 'piper_windows_amd64.zip')]) {
+        try {
+          if (fs.existsSync(legacy)) fs.rmSync(legacy, { recursive: true, force: true })
+        } catch {
+          /* ignore */
+        }
+      }
+      cb({ scope: 'tts', stage: 'downloading', component: 'sherpa-onnx', progress: 0 })
+      const archive = await downloadWithFallback(
+        { url: SHERPA_BINARY_URL, fileName: 'sherpa-onnx.tar.bz2' },
+        (progress) => cb({ scope: 'tts', stage: 'downloading', component: 'sherpa-onnx', progress }),
+      )
+      cb({ scope: 'tts', stage: 'extracting', component: 'sherpa-onnx', progress: 1 })
+      const engineDir = path.join(dir, 'engine')
+      fs.mkdirSync(engineDir, { recursive: true })
+      await extractTarBz2(archive, engineDir)
+      try {
+        fs.unlinkSync(archive)
+      } catch {
+        /* ignore */
+      }
+      if (!fs.existsSync(piperExe())) {
+        throw new Error('sherpa-onnx-offline-tts.exe not found after extraction')
+      }
     }
 
-    // Voice model (default: Ирина medium) + its .onnx.json config.
-    const voiceDirPath = path.join(dir, 'models')
-    fs.mkdirSync(voiceDirPath, { recursive: true })
-    const voice: PiperVoiceKey = 'irina'
-    const v = PIPER_VOICES[voice]
-    for (const file of [v.modelFile, v.jsonFile]) {
-      const target = path.join(voiceDirPath, file)
-      if (fs.existsSync(target)) continue
-      const base = piperVoiceBaseUrl(voice)
-      cb({ scope: 'tts', stage: 'downloading', component: `piper-voice-${file}`, progress: 0 })
-      await downloadWithFallback(
-        { url: `${base}`, mirrorUrl: `https://hf-mirror.com/rhasspy/piper-voices/resolve/main/ru/ru_RU/${voice}/medium/${file}`, fileName: path.join('piper', 'models', file) },
-        (progress) => cb({ scope: 'tts', stage: 'downloading', component: `piper-voice-${file}`, progress }),
+    // Remove stale top-level model files from the old layout (models/<file>.onnx).
+    const modelsDir = path.join(dir, 'models')
+    if (fs.existsSync(modelsDir)) {
+      for (const entry of fs.readdirSync(modelsDir)) {
+        const full = path.join(modelsDir, entry)
+        if (!fs.statSync(full).isDirectory()) {
+          try {
+            fs.unlinkSync(full)
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+    }
+
+    // 2) Voice models for ALL configured voices + shared espeak-ng-data.
+    const espeakDir = path.join(dir, 'espeak-ng-data')
+    for (const voiceKey of Object.keys(PIPER_VOICES) as PiperVoiceKey[]) {
+      const v = PIPER_VOICES[voiceKey]
+      const voiceDirPath = path.join(modelsDir, voiceKey)
+      const modelPath = path.join(voiceDirPath, v.modelFile)
+      if (fs.existsSync(modelPath)) continue
+      fs.mkdirSync(voiceDirPath, { recursive: true })
+      cb({ scope: 'tts', stage: 'downloading', component: `piper-voice-${voiceKey}`, progress: 0 })
+      const archive = await downloadWithFallback(
+        { url: sherpaModelUrl(voiceKey), fileName: `vits-piper-${voiceKey}.tar.bz2` },
+        (progress) => cb({ scope: 'tts', stage: 'downloading', component: `piper-voice-${voiceKey}`, progress }),
       )
+      cb({ scope: 'tts', stage: 'extracting', component: `piper-voice-${voiceKey}`, progress: 1 })
+      await extractTarBz2(archive, voiceDirPath)
+      try {
+        fs.unlinkSync(archive)
+      } catch {
+        /* ignore */
+      }
+      // The voice package extracts into a nested folder; move its contents up
+      // so <voiceDirPath>/ru_RU-<voice>-medium.onnx and tokens.txt live directly there.
+      const pkgDir = path.join(voiceDirPath, `vits-piper-ru_RU-${voiceKey}-medium-int8`)
+      if (fs.existsSync(pkgDir)) {
+        for (const entry of fs.readdirSync(pkgDir)) {
+          const from = path.join(pkgDir, entry)
+          const to = path.join(voiceDirPath, entry)
+          try {
+            if (fs.existsSync(to)) fs.rmSync(to, { recursive: true, force: true })
+            fs.renameSync(from, to)
+          } catch {
+            fs.cpSync(from, to, { recursive: true })
+            fs.rmSync(from, { recursive: true, force: true })
+          }
+        }
+        try {
+          fs.rmSync(pkgDir, { recursive: true, force: true })
+        } catch {
+          /* ignore */
+        }
+      }
+      if (!fs.existsSync(modelPath)) {
+        throw new Error(`model ${v.modelFile} not found after extraction`)
+      }
+      // espeak-ng-data lives inside the voice package; keep one shared copy.
+      const nestedEspeak = path.join(voiceDirPath, 'espeak-ng-data')
+      if (!fs.existsSync(espeakDir) && fs.existsSync(nestedEspeak)) {
+        fs.cpSync(nestedEspeak, espeakDir, { recursive: true })
+      }
+      try {
+        if (fs.existsSync(nestedEspeak)) fs.rmSync(nestedEspeak, { recursive: true, force: true })
+      } catch {
+        /* ignore */
+      }
     }
     cb({ scope: 'tts', stage: 'done', component: 'piper', progress: 1 })
-    logInfo('[voice] piper installed')
+    logInfo('[voice] piper (sherpa-onnx) installed')
   } catch (err) {
     cb({
       scope: 'tts',
@@ -276,18 +382,37 @@ export async function piperSynthesize(
   text: string,
   voiceKey: PiperVoiceKey,
 ): Promise<{ mime: string; data: Buffer }> {
-  const modelFile = PIPER_VOICES[voiceKey].modelFile
-  const modelPath = path.join(piperDir(), 'models', modelFile)
-  if (!fs.existsSync(piperExe())) throw new Error('Piper не установлен. Установите его в настройках голоса.')
+  const exe = piperExe()
+  if (!fs.existsSync(exe)) throw new Error('Piper не установлен. Установите его в настройках голоса.')
+  const v = PIPER_VOICES[voiceKey]
+  const modelPath = path.join(piperDir(), 'models', voiceKey, v.modelFile)
+  const tokensPath = path.join(piperDir(), 'models', voiceKey, v.tokensFile)
   if (!fs.existsSync(modelPath)) throw new Error('Голосовая модель Piper не найдена. Установите её в настройках голоса.')
+  const espeakDir = path.join(piperDir(), 'espeak-ng-data')
+  if (!fs.existsSync(espeakDir)) throw new Error('espeak-ng-data не найден. Переустановите Piper в настройках голоса.')
 
   const outWav = path.join(voiceDir(), `piper-out-${Date.now()}.wav`)
   try {
     await new Promise<void>((resolve, reject) => {
+      // Text is passed as a CLI argument (Node spawn uses UTF-16 via CreateProcessW
+      // on Windows, so Cyrillic is fine). Guard against text that looks like a flag.
+      const safeText = text.startsWith('-') ? `. ${text}` : text
       const child = spawn(
-        piperExe(),
-        ['--model', modelPath, '--output_file', outWav],
-        { windowsHide: true, stdio: ['pipe', 'ignore', 'pipe'] },
+        exe,
+        [
+          '--vits-model',
+          modelPath,
+          '--vits-tokens',
+          tokensPath,
+          '--vits-data-dir',
+          espeakDir,
+          '--output-filename',
+          outWav,
+          '--num-threads',
+          '2',
+          safeText,
+        ],
+        { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] },
       )
       let stderr = ''
       child.stderr?.on('data', (c: Buffer) => (stderr += c.toString('utf8')))
@@ -296,10 +421,6 @@ export async function piperSynthesize(
         if (code === 0) resolve()
         else reject(new Error(`piper exited with code ${code}: ${stderr.slice(0, 300)}`))
       })
-      child.stdin?.on('error', () => {
-        /* stdin may close early on broken pipes */
-      })
-      child.stdin?.end(text)
     })
     const data = fs.readFileSync(outWav)
     return { mime: 'audio/wav', data }

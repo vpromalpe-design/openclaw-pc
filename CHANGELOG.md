@@ -2,6 +2,12 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.9.14] - 2026-08-26
+
+### Fixed
+
+- **Piper падал на Windows 11 (0xC0000409), голоса Дмитрий/Денис не скачивались**: движок заменён с piper 2023.11.14-2 (несовместим с Win11 Build 26200 — баг ucrtbase.dll, issue OHF-Voice/piper1-gpl #260) на **sherpa-onnx** (k2-fsa) — `sherpa-onnx-offline-tts.exe`, совместим с новыми сборками Windows. Установка теперь скачивает и распаковывает движок + **все три русских голоса** (Ирина/Дмитрий/Денис, vits-piper medium int8) + общий espeak-ng-data (распаковка tar.bz2 встроена в приложение). Текст в синтез передаётся аргументом командной строки (UTF-16, кириллица корректна).
+
 ## [0.9.13] - 2026-08-26
 
 ### Fixed
