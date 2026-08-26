@@ -73,6 +73,15 @@ function createDefaultGatewayConfig(): GatewayWizardConfig {
   }
 }
 
+// ─── Model test (footer button) ──────────────────────────────────────────────
+
+export type ModelTestStatus = 'idle' | 'testing' | 'success' | 'error'
+
+export interface ModelTestState {
+  status: ModelTestStatus
+  message: string
+}
+
 // ─── Store Types ─────────────────────────────────────────────────────────────
 
 export type DeployPhase = 'idle' | 'writing' | 'starting' | 'success' | 'error'
@@ -100,6 +109,9 @@ interface WizardActions {
   reset: () => void
   /** Set deploy state */
   setDeployState: (phase: DeployPhase, message: string) => void
+  /** Model connection test state (button lives in the wizard footer) */
+  testState: ModelTestState
+  setTestState: (state: ModelTestState) => void
   /** Trigger deploy (write config, start gateway, wait, redirect) */
   triggerDeploy: (t: TFunction) => Promise<void>
 }
@@ -109,6 +121,8 @@ interface WizardInternalState extends WizardState {
   completedSteps: boolean[]
   deployPhase: DeployPhase
   deployMessage: string
+  /** Model connection test state (button lives in the wizard footer) */
+  testState: ModelTestState
 }
 
 export type WizardStore = WizardInternalState & WizardActions
@@ -125,6 +139,7 @@ function createInitialState(): WizardInternalState {
     gatewayConfig: createDefaultGatewayConfig(),
     deployPhase: 'idle',
     deployMessage: '',
+    testState: { status: 'idle', message: '' },
   }
 }
 
@@ -163,6 +178,8 @@ export const useWizardStore = create<WizardStore>((set, get) => ({
   setModelConfig: (config) =>
     set((state) => ({
       modelConfig: { ...state.modelConfig, ...config },
+      // Any config change invalidates the previous test result.
+      testState: { status: 'idle', message: '' },
     })),
 
   setChannelConfig: (config) =>
@@ -250,6 +267,8 @@ export const useWizardStore = create<WizardStore>((set, get) => ({
   reset: () => set(createInitialState()),
 
   setDeployState: (phase, message) => set({ deployPhase: phase, deployMessage: message }),
+
+  setTestState: (testState) => set({ testState }),
 
   triggerDeploy: async (t) => {
     const state = get()

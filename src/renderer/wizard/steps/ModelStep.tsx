@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useWizardStore } from '@/stores/wizard-store'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -13,50 +12,21 @@ import {
 import { getProviderAuthMode, requiresApiKey } from '@/utils/provider-auth'
 import { ProviderLogo } from '@/components/ProviderLogo'
 import { LocalModelPicker } from '../LocalModelPicker'
-import {
-  Eye,
-  EyeOff,
-  CheckCircle2,
-  XCircle,
-  Loader2,
-  Zap,
-} from 'lucide-react'
+import { XCircle, Eye, EyeOff } from 'lucide-react'
+import { TESTABLE_PROVIDERS, canTestModel } from '@/utils/model-test'
 import type { ModelProvider, ReasoningLevel } from '../../../shared/types'
 import { PROVIDER_OPTIONS, MODELS_BY_PROVIDER } from '@/constants/provider-presets'
 
 const CUSTOM_MODEL_OPTION = '__custom__'
-const TESTABLE_PROVIDERS = new Set<ModelProvider>([
-  'deepseek',
-  'anthropic',
-  'openai',
-  'google',
-  'moonshot',
-  'moonshot-cn',
-  'openrouter',
-  'kuae',
-  'custom',
-  'local',
-])
-
-// ─── Test result types ───────────────────────────────────────────────────────
-
-type TestStatus = 'idle' | 'testing' | 'success' | 'error'
-
-interface TestState {
-  status: TestStatus
-  message: string
-}
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function ModelStep() {
   const { t } = useTranslation()
   const { modelConfig, setModelConfig } = useWizardStore()
+  const testState = useWizardStore((s) => s.testState)
+  const setTestState = useWizardStore((s) => s.setTestState)
   const [showApiKey, setShowApiKey] = useState(false)
-  const [testState, setTestState] = useState<TestState>({
-    status: 'idle',
-    message: '',
-  })
   const [useCustomModel, setUseCustomModel] = useState(() => {
     const presets = MODELS_BY_PROVIDER[modelConfig.provider]
     if (!presets) return true
@@ -106,6 +76,7 @@ export function ModelStep() {
       modelConfig.moonshotRegion,
       modelConfig.openrouterBaseUrl,
       setModelConfig,
+      setTestState,
     ],
   )
 
@@ -118,41 +89,9 @@ export function ModelStep() {
         setUseCustomModel(false)
         setModelConfig({ modelId: value })
       }
-      setTestState({ status: 'idle', message: '' })
     },
     [setModelConfig],
   )
-
-  const handleTestConnection = useCallback(async () => {
-    setTestState({ status: 'testing', message: '' })
-    try {
-      const result = await window.electronAPI.wizardTestModel(modelConfig)
-      if (result.ok) {
-        setTestState({ status: 'success', message: t('wizard.model.connectionSuccess') })
-      } else {
-        setTestState({
-          status: 'error',
-          message: result.message ?? t('wizard.model.connectionFailed'),
-        })
-      }
-    } catch {
-      setTestState({
-        status: 'error',
-        message: t('wizard.model.networkError'),
-      })
-    }
-  }, [modelConfig, t])
-
-  const canTest =
-    modelConfig.provider &&
-    modelConfig.modelId.trim() &&
-    TESTABLE_PROVIDERS.has(modelConfig.provider) &&
-    (modelConfig.provider !== 'custom' ||
-      (modelConfig.apiKey.trim() &&
-        modelConfig.customProviderId?.trim() &&
-        modelConfig.customBaseUrl?.trim())) &&
-    (modelConfig.provider !== 'openrouter' || Boolean((modelConfig.openrouterBaseUrl ?? '').trim())) &&
-    (!requiresApiKey(modelConfig.provider) || modelConfig.apiKey.trim())
 
   const getProviderOptionLabel = useCallback(
     (p: (typeof PROVIDER_OPTIONS)[number]) => {
@@ -507,49 +446,24 @@ export function ModelStep() {
         </fieldset>
       )}
 
-      {/* Test Connection */}
+      {/* Test Connection hint — the button itself lives in the footer next to «Далее» */}
       <div className="space-y-3">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void handleTestConnection()}
-            disabled={!canTest || testState.status === 'testing'}
-            className={[
-              testState.status === 'success' && 'btn-success',
-            ].join(' ')}
-          >
-            {testState.status === 'testing' ? (
-              <Loader2 className="animate-spin" />
-            ) : testState.status === 'success' ? (
-              <CheckCircle2 />
-            ) : (
-              <Zap />
-            )}
-            {testState.status === 'testing'
-              ? t('wizard.model.testing')
-              : testState.status === 'success'
-                ? t('wizard.model.connected')
-                : t('wizard.model.testConnection')}
-          </Button>
+        {testState.status === 'error' && (
+          <p className="inline-flex items-center gap-1.5 text-sm text-destructive">
+            <XCircle className="w-4 h-4 shrink-0" />
+            {testState.message}
+          </p>
+        )}
 
-          {testState.status === 'error' && (
-            <span className="inline-flex items-center gap-1.5 text-sm text-destructive">
-              <XCircle className="w-4 h-4" />
-              {testState.message}
-            </span>
-          )}
-        </div>
-
-        {testState.status === 'idle' && canTest && (
+        {testState.status === 'idle' && canTestModel(modelConfig) && (
           <p className="text-xs text-muted-foreground">
-          {t('wizard.model.testHint')}
+            {t('wizard.model.testHint')}
           </p>
         )}
 
         {testState.status === 'idle' && !TESTABLE_PROVIDERS.has(modelConfig.provider) && (
           <p className="text-xs text-muted-foreground">
-          {t('wizard.model.noTestHint')}
+            {t('wizard.model.noTestHint')}
           </p>
         )}
       </div>
