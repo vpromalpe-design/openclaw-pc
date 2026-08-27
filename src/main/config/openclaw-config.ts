@@ -1,0 +1,670 @@
+/**
+ * OpenClaw main config read/write.
+ * Path: %USERPROFILE%\.openclaw\openclaw.json (JSON5).
+ * Aligned with upstream OpenClaw config/io load flow.
+ */
+
+import fs from 'node:fs'
+import path from 'node:path'
+import { app } from 'electron'
+import JSON5 from 'json5'
+import type { OpenClawConfig } from '../../shared/types.js'
+import { getBundledOpenClawDir, getUserDataDir } from '../utils/paths.js'
+import { OPENCLAW_CONFIG_FILE, DEFAULT_GATEWAY_PORT } from '../../shared/constants.js'
+import { normalizeAuthOrderEntry } from '../providers/provider-config.js'
+import { saveAuthProfile } from '../providers/auth-profile-store.js'
+
+function getOpenClawConfigPath(): string {
+  return path.join(getUserDataDir(), OPENCLAW_CONFIG_FILE)
+}
+
+function buildDefaultProviderModel(modelId: string): Record<string, unknown> & { id: string; name: string } {
+  return {
+    id: modelId,
+    name: modelId,
+    reasoning: false,
+    input: ['text'],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: 128000,
+    maxTokens: 8192,
+  }
+}
+
+function getPrimaryModelRef(config: OpenClawConfig): string | undefined {
+  const model = config?.agents?.defaults?.model
+  if (typeof model === 'string') return model
+  if (model && typeof model === 'object') {
+    const primary = (model as { primary?: unknown }).primary
+    if (typeof primary === 'string') return primary
+  }
+  return undefined
+}
+
+function inferModelIdFromConfig(config: OpenClawConfig, providerId: string): string | undefined {
+  const primary = getPrimaryModelRef(config)
+  if (primary?.startsWith(`${providerId}/`)) {
+    const id = primary.slice(providerId.length + 1).trim()
+    if (id) return id
+  }
+
+  const aliases = config?.agents?.defaults?.models
+  if (aliases && typeof aliases === 'object') {
+    for (const modelRef of Object.keys(aliases)) {
+      if (!modelRef.startsWith(`${providerId}/`)) continue
+      const id = modelRef.slice(providerId.length + 1).trim()
+      if (id) return id
+    }
+  }
+
+  return undefined
+}
+
+function migrateLegacyProviderConfig(config: OpenClawConfig): { config: OpenClawConfig; changed: boolean } {
+  const providers = config?.models?.providers
+  if (!providers || typeof providers !== 'object') {
+    return { config, changed: false }
+  }
+
+  const next = JSON.parse(JSON.stringify(config)) as OpenClawConfig
+  const nextProviders = next.models?.providers
+  if (!nextProviders || typeof nextProviders !== 'object') {
+    return { config, changed: false }
+  }
+
+  let changed = false
+  for (const [providerId, rawProviderConfig] of Object.entries(nextProviders)) {
+    if (!rawProviderConfig || typeof rawProviderConfig !== 'object' || Array.isArray(rawProviderConfig)) {
+      continue
+    }
+
+    const providerConfig = rawProviderConfig as Record<string, unknown>
+    const compatibility = providerConfig.compatibility
+    if (compatibility === 'openai' || compatibility === 'anthropic') {
+      if (typeof providerConfig.api !== 'string' || providerConfig.api.trim().length === 0) {
+        providerConfig.api = compatibility === 'anthropic' ? 'anthropic-messages' : 'openai-completions'
+      }
+    }
+    if ('compatibility' in providerConfig) {
+      delete providerConfig.compatibility
+      changed = true
+    }
+
+    const models = providerConfig.models
+    if (!Array.isArray(models) || models.length === 0) {
+      const inferredModelId = inferModelIdFromConfig(next, providerId)
+      providerConfig.models = [buildDefaultProviderModel(inferredModelId ?? 'default')]
+      changed = true
+    }
+  }
+
+  if (!changed) {
+    return { config, changed: false }
+  }
+  return { config: next, changed: true }
+}
+
+/** Narrow type for reading `controlUi` / `bind` without a heavy import cycle. */
+type GatewayConfigLike = { controlUi?: unknown; mode?: string; bind?: string }
+
+function usesLoopbackOnlyGatewayBind(gw: unknown): boolean {
+  if (!gw || typeof gw !== 'object' || Array.isArray(gw)) return true
+  const bind = (gw as GatewayConfigLike).bind
+  return bind === undefined || bind === 'loopback'
+}
+
+/**
+ * Loopback-only Control UI origins the desktop shell actually uses:
+ * the embedded iframe (Origin injected as `http(s)://127.0.0.1:<port>` by
+ * ensureLoopbackGatewayOriginHeader) and a browser on the same machine.
+ * Never a wildcard — BUG-5: `allowedOrigins: ["*"]` lets any local page
+ * drive the gateway once it learns the token.
+ */
+function loopbackAllowedOrigins(port: number): string[] {
+  const p = String(port)
+  return [`http://127.0.0.1:${p}`, `http://localhost:${p}`, `http://[::1]:${p}`]
+}
+
+/** Seed `allowedOrigins` only when the key is absent, [] or exactly ["*"] — do not override a non-empty user allowlist. */
+function needsLoopbackAllowedOriginsSeed(ctrl: Record<string, unknown>, loopbackBind: boolean): boolean {
+  if (!loopbackBind) return false
+  const raw = ctrl.allowedOrigins
+  if (raw === undefined) return true
+  if (!Array.isArray(raw)) return false
+  if (raw.length === 0) return true
+  // Upgrade a previously-seeded wildcard (older desktop versions) to the concrete loopback list.
+  return raw.length === 1 && raw[0] === '*'
+}
+
+/**
+ * OpenClaw 2026.3+ hardens Control UI auth (device identity + loopback policy). The desktop embeds
+ * Control UI in an Electron iframe; upstream may return 500 or reject WS unless both
+ * `allowInsecureAuth` and `dangerouslyDisableDeviceAuth` are set for local gateways.
+ * Always normalize to the embedded-safe pair for non-remote mode (overrides user `false`).
+ *
+ * Configs created outside the desktop wizard (CLI, hand-edited) may omit `gateway` entirely while
+ * still using the bundled local gateway — those must get `gateway.controlUi` too or the child reads
+ * disk without the embedded-safe flags and Control UI returns HTTP 500.
+ *
+ * **WebSocket origin:** upstream `checkBrowserOrigin` rejects missing / `null` Origin before the
+ * loopback shortcut. Electron iframe upgrades may omit Origin; we also seed the concrete
+ * loopback origin list (not `["*"]`) when `gateway.bind` is loopback (or unset) and
+ * `allowedOrigins` is unset, `[]` or the legacy `["*"]` — scoped to local bind only.
+ *
+ * Used on read (migration) and on every {@link writeOpenClawConfig} so IPC/import paths cannot strip flags.
+ */
+function mergeEmbeddedControlUiFlagsIfNeeded(config: OpenClawConfig): {
+  config: OpenClawConfig
+  changed: boolean
+} {
+  const gw = config.gateway
+  if (gw && typeof gw === 'object' && !Array.isArray(gw) && gw.mode === 'remote') {
+    return { config, changed: false }
+  }
+  const ctrl =
+    gw && typeof gw === 'object' && !Array.isArray(gw) ? (gw as GatewayConfigLike).controlUi : undefined
+  const base =
+    ctrl && typeof ctrl === 'object' && !Array.isArray(ctrl)
+      ? (ctrl as Record<string, unknown>)
+      : {}
+  const loopbackBind = usesLoopbackOnlyGatewayBind(gw)
+  const needOriginsSeed = needsLoopbackAllowedOriginsSeed(base, loopbackBind)
+  const flagsOk = base.allowInsecureAuth === true && base.dangerouslyDisableDeviceAuth === true
+  if (flagsOk && !needOriginsSeed) {
+    return { config, changed: false }
+  }
+  const next = JSON.parse(JSON.stringify(config)) as OpenClawConfig
+  const existing =
+    next.gateway && typeof next.gateway === 'object' && !Array.isArray(next.gateway)
+      ? (next.gateway as Record<string, unknown>)
+      : {}
+  const existingCtrl = existing.controlUi
+  const ctrlBase =
+    existingCtrl && typeof existingCtrl === 'object' && !Array.isArray(existingCtrl)
+      ? (existingCtrl as Record<string, unknown>)
+      : {}
+  const mergedCtrl: Record<string, unknown> = {
+    ...ctrlBase,
+    allowInsecureAuth: true,
+    dangerouslyDisableDeviceAuth: true,
+  }
+  if (needOriginsSeed) {
+    const gwPort =
+      next.gateway && typeof next.gateway === 'object' && !Array.isArray(next.gateway)
+        ? Number((next.gateway as { port?: unknown }).port) || DEFAULT_GATEWAY_PORT
+        : DEFAULT_GATEWAY_PORT
+    mergedCtrl.allowedOrigins = loopbackAllowedOrigins(gwPort)
+  }
+  next.gateway = {
+    ...existing,
+    controlUi: mergedCtrl,
+  } as OpenClawConfig['gateway']
+  return { config: next, changed: true }
+}
+
+function migrateDesktopControlUiAllowInsecureAuth(
+  config: OpenClawConfig,
+): { config: OpenClawConfig; changed: boolean } {
+  return mergeEmbeddedControlUiFlagsIfNeeded(config)
+}
+
+/**
+ * Working MiniMax configs use `auth.order.minimax: ["global"]` (shorthand). Normalize to that
+ * when every entry resolves to the same profile as `minimax:global`.
+ */
+function migrateMinimaxAuthOrderEntries(entries: string[]): string[] {
+  const normalized = entries.map((e) => normalizeAuthOrderEntry('minimax', String(e)))
+  const uniq = [...new Set(normalized)]
+  if (uniq.length === 1 && uniq[0] === 'minimax:global') {
+    return ['global']
+  }
+  return normalized
+}
+
+/**
+ * OpenClaw resolves credentials by auth.order profile ids (e.g. openai:default).
+ * Legacy configs may list shorthand entries (default) or mismatch auth-profiles keys — normalize on load.
+ */
+function migrateAuthOrderFullProfileIds(
+  config: OpenClawConfig,
+): { config: OpenClawConfig; changed: boolean } {
+  const order = config.auth?.order
+  if (!order || typeof order !== 'object' || Array.isArray(order)) {
+    return { config, changed: false }
+  }
+  let changed = false
+  const nextOrder: Record<string, string[]> = {}
+  for (const [providerId, entries] of Object.entries(order)) {
+    if (!Array.isArray(entries)) {
+      nextOrder[providerId] = entries as unknown as string[]
+      continue
+    }
+    if (providerId === 'minimax') {
+      const nextMin = migrateMinimaxAuthOrderEntries(entries)
+      if (JSON.stringify(entries) !== JSON.stringify(nextMin)) {
+        changed = true
+      }
+      nextOrder[providerId] = nextMin
+      continue
+    }
+    const normalized = entries.map((e) => normalizeAuthOrderEntry(providerId, String(e)))
+    if (normalized.length !== entries.length) {
+      changed = true
+    } else {
+      for (let i = 0; i < entries.length; i++) {
+        if (String(entries[i]) !== normalized[i]) {
+          changed = true
+          break
+        }
+      }
+    }
+    nextOrder[providerId] = normalized
+  }
+  if (!changed) return { config, changed: false }
+  const next = JSON.parse(JSON.stringify(config)) as OpenClawConfig
+  next.auth = { ...(next.auth ?? {}), order: nextOrder }
+  return { config: next, changed: true }
+}
+
+/** MiniMax Anthropic-compatible hosts use the same credential transport as Anthropic (`x-api-key`), per platform docs (ANTHROPIC_API_KEY + Anthropic SDK). Bearer (`authHeader: true`) yields HTTP 401 invalid api key. */
+function isMinimaxAnthropicProvider(providerId: string, baseUrl: string): boolean {
+  if (providerId === 'minimax') return true
+  const u = baseUrl.toLowerCase()
+  return u.includes('api.minimax.io') || u.includes('minimaxi.com')
+}
+
+/**
+ * Third-party Anthropic-compatible APIs that are not Anthropic official often need `authHeader: true`
+ * (Bearer) — e.g. OpenCode Zen, Kimi Coding, Synthetic (see upstream issue #29169).
+ * MiniMax is excluded: it expects Anthropic-style `x-api-key`, not Bearer.
+ */
+function migrateAnthropicThirdPartyAuthHeader(
+  config: OpenClawConfig,
+): { config: OpenClawConfig; changed: boolean } {
+  const providers = config.models?.providers
+  if (!providers || typeof providers !== 'object') {
+    return { config, changed: false }
+  }
+  let changed = false
+  const next = JSON.parse(JSON.stringify(config)) as OpenClawConfig
+  const nextProviders = next.models?.providers
+  if (!nextProviders || typeof nextProviders !== 'object') {
+    return { config, changed: false }
+  }
+
+  for (const [providerId, raw] of Object.entries(nextProviders)) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue
+    const p = raw as Record<string, unknown>
+    if (p.authHeader !== undefined) continue
+    const api = typeof p.api === 'string' ? p.api : ''
+    if (api !== 'anthropic-messages') continue
+    const baseUrl = typeof p.baseUrl === 'string' ? p.baseUrl : ''
+    if (!baseUrl.trim()) continue
+    if (baseUrl.includes('api.anthropic.com')) continue
+    if (isMinimaxAnthropicProvider(providerId, baseUrl)) continue
+    p.authHeader = true
+    changed = true
+  }
+
+  if (!changed) return { config, changed: false }
+  return { config: next, changed: true }
+}
+
+/**
+ * MiniMax Anthropic-compatible API expects **`x-api-key`**, not Bearer. Earlier seeds/migrations may set
+ * `authHeader: true`, and the gateway may rewrite the file without this field — persist **`false` explicitly**
+ * whenever it is not already `false` so the bundled gateway reads the correct transport on startup.
+ */
+function migrateMinimaxAuthHeaderToXApiKey(
+  config: OpenClawConfig,
+): { config: OpenClawConfig; changed: boolean } {
+  const providers = config.models?.providers
+  if (!providers || typeof providers !== 'object') {
+    return { config, changed: false }
+  }
+  let changed = false
+  const next = JSON.parse(JSON.stringify(config)) as OpenClawConfig
+  const nextProviders = next.models?.providers
+  if (!nextProviders || typeof nextProviders !== 'object') {
+    return { config, changed: false }
+  }
+
+  for (const [providerId, raw] of Object.entries(nextProviders)) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue
+    const p = raw as Record<string, unknown>
+    const api = typeof p.api === 'string' ? p.api : ''
+    if (api !== 'anthropic-messages') continue
+    const baseUrl = typeof p.baseUrl === 'string' ? p.baseUrl : ''
+    if (!isMinimaxAnthropicProvider(providerId, baseUrl)) continue
+    if (p.authHeader === false) continue
+    p.authHeader = false
+    changed = true
+  }
+
+  if (!changed) return { config, changed: false }
+  return { config: next, changed: true }
+}
+
+/**
+ * Gateway resolves upstream model auth as: auth-profiles.json → env → models.providers.*.apiKey.
+ * If the user edits only openclaw.json, auth-profiles can still hold an older minimax:global key and wins → HTTP 401.
+ * When models.providers.minimax.apiKey is set, sync it to minimax:global; keep the inline key in openclaw.json (onboard-style).
+ */
+function migrateMinimaxInlineApiKeyToAuthProfile(
+  config: OpenClawConfig,
+): { config: OpenClawConfig; changed: boolean } {
+  const providers = config.models?.providers
+  if (!providers || typeof providers !== 'object') {
+    return { config, changed: false }
+  }
+  const minimax = providers.minimax
+  if (!minimax || typeof minimax !== 'object' || Array.isArray(minimax)) {
+    return { config, changed: false }
+  }
+  const rawKey = (minimax as Record<string, unknown>).apiKey
+  if (typeof rawKey !== 'string' || !rawKey.trim()) {
+    return { config, changed: false }
+  }
+  const key = rawKey.trim()
+  try {
+    saveAuthProfile('minimax:global', 'minimax', key)
+  } catch (err) {
+    console.warn(
+      '[config] Could not sync models.providers.minimax.apiKey to auth-profiles (minimax:global):',
+      err instanceof Error ? err.message : String(err),
+    )
+    return { config, changed: false }
+  }
+
+  const next = JSON.parse(JSON.stringify(config)) as OpenClawConfig
+  // Keep models.providers.minimax.apiKey on disk (matches working onboard-style openclaw.json); auth-profiles
+  // still holds the authoritative copy for the gateway.
+
+  next.auth = next.auth ?? {}
+  next.auth.profiles = next.auth.profiles ?? {}
+  const profiles = next.auth.profiles as Record<string, unknown>
+  if (!profiles['minimax:global']) {
+    profiles['minimax:global'] = {
+      provider: 'minimax',
+      mode: 'api_key',
+    }
+  }
+  next.auth.order = next.auth.order ?? {}
+  const orderMap = next.auth.order as Record<string, string[]>
+  const miniOrder = orderMap.minimax
+  if (
+    !Array.isArray(miniOrder) ||
+    !miniOrder.some((e) => normalizeAuthOrderEntry('minimax', e) === 'minimax:global')
+  ) {
+    orderMap.minimax = ['global', ...(Array.isArray(miniOrder) ? miniOrder : [])]
+  }
+
+  const mutated = JSON.stringify(next) !== JSON.stringify(config)
+  return { config: next, changed: mutated }
+}
+
+/**
+ * OpenClaw 2026.1.29+: gateway auth mode `none` removed — gateway must use token or password.
+ * Migrate legacy `mode: "none"` using whichever credential field is present.
+ */
+function migrateGatewayAuthModeNoneRemoved(
+  config: OpenClawConfig,
+): { config: OpenClawConfig; changed: boolean } {
+  const gw = config.gateway
+  const auth = gw && typeof gw === 'object' ? gw.auth : undefined
+  if (!auth || typeof auth !== 'object') {
+    return { config, changed: false }
+  }
+  const mode = (auth as Record<string, unknown>).mode
+  if (mode !== 'none') {
+    return { config, changed: false }
+  }
+
+  const next = JSON.parse(JSON.stringify(config)) as OpenClawConfig
+  const na = next.gateway?.auth
+  if (!na || typeof na !== 'object') {
+    return { config, changed: false }
+  }
+  const token = typeof na.token === 'string' ? na.token.trim() : ''
+  const rawPw = (na as Record<string, unknown>).password
+  const password = typeof rawPw === 'string' ? rawPw.trim() : ''
+  if (token) {
+    na.mode = 'token'
+  } else if (password) {
+    na.mode = 'password'
+  } else {
+    delete na.mode
+  }
+  return { config: next, changed: true }
+}
+
+function isUsableControlUiBundleDir(dir: string): boolean {
+  const indexPath = path.join(dir, 'index.html')
+  if (!fs.existsSync(indexPath)) return false
+  const assetsDir = path.join(dir, 'assets')
+  try {
+    if (!fs.existsSync(assetsDir) || !fs.statSync(assetsDir).isDirectory()) return false
+    return fs.readdirSync(assetsDir).some((f) => f.endsWith('.js'))
+  } catch {
+    return false
+  }
+}
+
+function normalizeAbsPathForCompare(p: string): string {
+  return path.resolve(p).replace(/[\\/]+$/, '').toLowerCase()
+}
+
+function isPathEqualOrNested(baseDir: string, candidate: string): boolean {
+  const base = normalizeAbsPathForCompare(baseDir)
+  const target = normalizeAbsPathForCompare(candidate)
+  if (base === target) return true
+  return target.startsWith(`${base}${path.sep}`.toLowerCase())
+}
+
+/**
+ * Remove gateway.controlUi.root when it does not point at a built Control UI (broken embed + black browser tab).
+ * Packaged local installs: always drop `controlUi.root` so the gateway serves Control UI from bundled OpenClaw cwd only
+ * (avoids stale absolute paths and index.html vs assets mismatch after reinstall or mixed artifacts).
+ */
+function migrateInvalidGatewayControlUiRoot(config: OpenClawConfig): { config: OpenClawConfig; changed: boolean } {
+  const gw = config.gateway
+  if (!gw || typeof gw !== 'object') return { config, changed: false }
+  const ctrl = gw.controlUi
+  if (!ctrl || typeof ctrl !== 'object' || Array.isArray(ctrl)) return { config, changed: false }
+  const rootRaw = (ctrl as Record<string, unknown>).root
+  if (typeof rootRaw !== 'string' || !rootRaw.trim()) return { config, changed: false }
+
+  if (app.isPackaged && gw.mode !== 'remote') {
+    const next = JSON.parse(JSON.stringify(config)) as OpenClawConfig
+    const ng = next.gateway?.controlUi as Record<string, unknown> | undefined
+    if (ng && typeof ng === 'object' && !Array.isArray(ng)) {
+      delete ng.root
+    }
+    return { config: next, changed: true }
+  }
+
+  let dir: string
+  try {
+    const abs = path.resolve(rootRaw.trim())
+    const st = fs.statSync(abs)
+    dir = st.isFile() && abs.toLowerCase().endsWith('.html') ? path.dirname(abs) : abs
+  } catch {
+    dir = ''
+  }
+
+  if (dir && isUsableControlUiBundleDir(dir)) {
+    // Desktop local mode should serve the bundled Control UI; stale custom roots from older installs
+    // can be "valid" files but incompatible with current gateway/auth behavior and render as a black page.
+    if (gw.mode !== 'remote') {
+      const bundledControlUiDir = path.join(getBundledOpenClawDir(), 'dist', 'control-ui')
+      if (!isPathEqualOrNested(bundledControlUiDir, dir)) {
+        const next = JSON.parse(JSON.stringify(config)) as OpenClawConfig
+        const ng = next.gateway?.controlUi as Record<string, unknown> | undefined
+        if (ng && typeof ng === 'object' && !Array.isArray(ng)) {
+          delete ng.root
+        }
+        return { config: next, changed: true }
+      }
+    }
+    return { config, changed: false }
+  }
+
+  const next = JSON.parse(JSON.stringify(config)) as OpenClawConfig
+  const ng = next.gateway?.controlUi as Record<string, unknown> | undefined
+  if (ng && typeof ng === 'object' && !Array.isArray(ng)) {
+    delete ng.root
+  }
+  return { config: next, changed: true }
+}
+
+/**
+ * Read OpenClaw main config.
+ * - Missing file → {}
+ * - Parse error → {} + warning
+ */
+export function readOpenClawConfig(): OpenClawConfig {
+  const configPath = getOpenClawConfigPath()
+  try {
+    if (!fs.existsSync(configPath)) {
+      return {}
+    }
+    const raw = fs.readFileSync(configPath, 'utf-8')
+    const parsed = JSON5.parse(raw)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      let cfg = parsed as OpenClawConfig
+      const migratedProviders = migrateLegacyProviderConfig(cfg)
+      cfg = migratedProviders.config
+      const migratedControlUiRoot = migrateInvalidGatewayControlUiRoot(cfg)
+      cfg = migratedControlUiRoot.config
+      const migratedControlUi = migrateDesktopControlUiAllowInsecureAuth(cfg)
+      cfg = migratedControlUi.config
+      const migratedAuthNone = migrateGatewayAuthModeNoneRemoved(cfg)
+      cfg = migratedAuthNone.config
+      const migratedAuthOrder = migrateAuthOrderFullProfileIds(cfg)
+      cfg = migratedAuthOrder.config
+      const migratedAuthHeader = migrateAnthropicThirdPartyAuthHeader(cfg)
+      cfg = migratedAuthHeader.config
+      const migratedMinimaxAuthHeader = migrateMinimaxAuthHeaderToXApiKey(cfg)
+      cfg = migratedMinimaxAuthHeader.config
+      const migratedMinimaxSync = migrateMinimaxInlineApiKeyToAuthProfile(cfg)
+      cfg = migratedMinimaxSync.config
+      if (
+        migratedProviders.changed ||
+        migratedControlUiRoot.changed ||
+        migratedControlUi.changed ||
+        migratedAuthNone.changed ||
+        migratedAuthOrder.changed ||
+        migratedAuthHeader.changed ||
+        migratedMinimaxAuthHeader.changed ||
+        migratedMinimaxSync.changed
+      ) {
+        try {
+          writeOpenClawConfig(cfg)
+          if (migratedProviders.changed) {
+            console.info('[config] Migrated legacy provider fields in openclaw.json')
+          }
+          if (migratedControlUiRoot.changed) {
+            console.info(
+              '[config] Adjusted gateway.controlUi.root so Control UI loads from the bundled OpenClaw tree (avoids stale paths / black screen).',
+            )
+          }
+          if (migratedControlUi.changed) {
+            console.info(
+              '[config] Normalized gateway.controlUi for embedded Control UI (OpenClaw 2026.3+): allowInsecureAuth, dangerouslyDisableDeviceAuth, and on loopback bind allowedOrigins=["*"] when allowedOrigins was unset or [] (Electron iframe / WebSocket Origin).',
+            )
+          }
+          if (migratedAuthNone.changed) {
+            console.info('[config] Migrated gateway.auth.mode from "none" (removed upstream) in openclaw.json')
+          }
+          if (migratedAuthOrder.changed) {
+            console.info('[config] Normalized auth.order profile ids to full form (provider:name) in openclaw.json')
+          }
+          if (migratedAuthHeader.changed) {
+            console.info(
+              '[config] Set models.providers.*.authHeader=true for third-party anthropic-messages hosts (excluding MiniMax) in openclaw.json',
+            )
+          }
+          if (migratedMinimaxAuthHeader.changed) {
+            console.info(
+              '[config] Set models.providers.minimax.authHeader=false (Anthropic x-api-key) for MiniMax in openclaw.json',
+            )
+          }
+          if (migratedMinimaxSync.changed) {
+            console.info(
+              '[config] Synced models.providers.minimax.apiKey → auth-profiles (minimax:global) and removed duplicate from openclaw.json',
+            )
+          }
+        } catch (err) {
+          console.warn(
+            '[config] Failed to persist migrated openclaw config:',
+            err instanceof Error ? err.message : String(err),
+          )
+        }
+      }
+      return cfg
+    }
+    return {}
+  } catch (err) {
+    console.warn(
+      `[config] OpenClaw config parse failed, using defaults: ${configPath}`,
+      err instanceof Error ? err.message : String(err)
+    )
+    // v0.8.25: never let a parse failure be followed by a silent wipe — the
+    // next write (migration, IPC save, wizard) would overwrite the unparseable
+    // file with defaults, destroying the user's config incl. gateway.auth.token.
+    // Keep a .bad copy so the data stays recoverable.
+    try {
+      if (fs.existsSync(configPath)) {
+        fs.copyFileSync(configPath, `${configPath}.bad-${Date.now()}`)
+        console.warn(`[config] Saved unparseable config copy to ${configPath}.bad-*`)
+      }
+    } catch {
+      /* ignore */
+    }
+    return {}
+  }
+}
+
+/**
+ * Write OpenClaw main config as standard JSON (tool-friendly).
+ * Always merges embedded-shell Control UI flags for non-remote gateways so no code path can persist
+ * a file that would make the bundled gateway return HTTP 500 in the main window iframe.
+ */
+export function writeOpenClawConfig(config: OpenClawConfig): void {
+  const { config: toWrite } = mergeEmbeddedControlUiFlagsIfNeeded(config)
+  const configPath = getOpenClawConfigPath()
+  const dir = path.dirname(configPath)
+  fs.mkdirSync(dir, { recursive: true })
+  const data = JSON.stringify(toWrite, null, 2) + '\n'
+  const tmpPath = `${configPath}.tmp`
+  const maxAttempts = 3
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      fs.writeFileSync(tmpPath, data, 'utf-8')
+      try {
+        fs.renameSync(tmpPath, configPath)
+      } catch {
+        fs.unlinkSync(configPath)
+        fs.renameSync(tmpPath, configPath)
+      }
+      return
+    } catch (err) {
+      try {
+        if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath)
+      } catch {
+        /* ignore */
+      }
+      if (attempt === maxAttempts - 1) {
+        throw err
+      }
+      const deadline = Date.now() + 60
+      while (Date.now() < deadline) {
+        /* sync backoff for Windows AV / indexer locks */
+      }
+    }
+  }
+}
+
+/** Whether the OpenClaw config file exists */
+export function openclawConfigExists(): boolean {
+  return fs.existsSync(getOpenClawConfigPath())
+}
