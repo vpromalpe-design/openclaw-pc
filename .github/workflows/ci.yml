@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Match release.yml: pin-only checks, no npm `openclaw@latest` drift warnings in CI logs
+  OPENCLAW_SKIP_NPM_LATEST_CHECK: '1'
+  # setup-node `cache: pnpm` keys off the lockfile and restores the pnpm store only (not app source).
+  # The checkout step is always the source tree for this commit; `pnpm install --frozen-lockfile` materializes node_modules.
+
+jobs:
+  verify:
+    name: Lint, type-check, build
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      npm_config_registry: https://registry.npmmirror.com
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Print build identity (SHA + HEAD)
+        run: |
+          echo "GITHUB_REF=$GITHUB_REF"
+          echo "GITHUB_SHA=$GITHUB_SHA"
+          git rev-parse HEAD
+          git log -1 --oneline
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.16.0
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Type check
+        run: pnpm run type-check
+
+      - name: Build
+        run: pnpm run build
+
+      # Same Control UI pipeline as release (Linux Vite); catches broken upstream UI before tag builds.
+      - name: Build OpenClaw Control UI (release parity)
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
+        run: pnpm exec tsx scripts/ci-build-openclaw-control-ui.ts

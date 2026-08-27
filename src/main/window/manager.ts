@@ -1,0 +1,520 @@
+import { app, BrowserWindow, shell, nativeImage, nativeTheme, webFrameMain } from 'electron'
+import path from 'node:path'
+import fs from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import type { ShellConfig } from '../../shared/types.js'
+import { getLocalizedShellWindowTitle, normalizeToShellLocale } from '../../shared/shell-locale.js'
+import { logError, logInfo, logWarn } from '../utils/logger.js'
+import {
+  getShellIndexPageUrl,
+  getShellRendererIndexPath,
+  isShellCustomProtocolUrl,
+  listShellRendererIndexCandidates,
+} from '../shell-protocol.js'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+/** Packaged preload path */
+function getPreloadCandidates(): string[] {
+  const unpackedBase = path.join(process.resourcesPath, 'app.asar.unpacked', 'out', 'preload')
+  const asarBase = path.join(app.getAppPath(), 'out', 'preload')
+  return [
+    path.join(unpackedBase, 'index.cjs'),
+    path.join(unpackedBase, 'index.mjs'),
+    path.join(unpackedBase, 'index.js'),
+    path.join(asarBase, 'index.cjs'),
+    path.join(asarBase, 'index.mjs'),
+    path.join(asarBase, 'index.js'),
+  ]
+}
+
+function getWindowIconPath(): string | null {
+  const baseDir = app.isPackaged ? path.dirname(app.getPath('exe')) : process.cwd()
+  const candidates = [
+    path.join(baseDir, 'apple-touch-icon.png'),
+    path.join(baseDir, 'resources', 'apple-touch-icon.png'),
+    path.join(baseDir, 'resources', 'icon.ico'),
+    path.join(baseDir, 'resources', 'tray-icon.png'),
+    path.join(baseDir, 'build', 'tray-icon.png'),
+    path.join(baseDir, 'build', 'icon.ico'),
+  ]
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate
+  }
+  return null
+}
+
+function getPreloadPath(): string {
+  if (app.isPackaged) {
+    for (const candidate of getPreloadCandidates()) {
+      if (fs.existsSync(candidate)) {
+        return candidate
+      }
+    }
+  }
+  return path.join(__dirname, '../preload/index.cjs')
+}
+
+export interface WindowManagerOptions {
+  defaultGatewayPort: number
+  readShellConfig: () => ShellConfig
+  writeShellConfig: (config: ShellConfig) => void
+  isQuitting: () => boolean
+}
+
+export function createControlUIUrl(port: number): string {
+  return `http://127.0.0.1:${port}/`
+}
+
+function getDevRendererOrigin(): string | null {
+  const raw = process.env.ELECTRON_RENDERER_URL
+  if (!raw) return null
+  try {
+    const parsed = new URL(raw)
+    return parsed.origin
+  } catch {
+    return null
+  }
+}
+
+export function isControlUIUrl(url: string, port: number): boolean {
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'http:' && parsed.hostname === '127.0.0.1' && parsed.port === String(port)
+  } catch {
+    return false
+  }
+}
+
+function isAllowedNavigation(url: string, port: number): boolean {
+  if (url === 'about:blank') return true
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return false
+  }
+
+  if (parsed.protocol === 'file:' || parsed.protocol === 'data:') {
+    return true
+  }
+
+  if (isShellCustomProtocolUrl(url)) {
+    return true
+  }
+
+  if (isControlUIUrl(url, port)) {
+    return true
+  }
+
+  const devOrigin = getDevRendererOrigin()
+  if (devOrigin && parsed.origin === devOrigin) {
+    return true
+  }
+
+  return false
+}
+
+export class WindowManager {
+  private mainWindow: BrowserWindow | null = null
+  private readonly defaultGatewayPort: number
+  private readonly readShellConfig: () => ShellConfig
+  private readonly writeShellConfig: (config: ShellConfig) => void
+  private readonly isQuitting: () => boolean
+
+  constructor(options: WindowManagerOptions) {
+    this.defaultGatewayPort = options.defaultGatewayPort
+    this.readShellConfig = options.readShellConfig
+    this.writeShellConfig = options.writeShellConfig
+    this.isQuitting = options.isQuitting
+  }
+
+  createMainWindow(): BrowserWindow {
+    const shellConfig = this.readShellConfig()
+    // Force the native theme so prefers-color-scheme matches our signature glass style
+    // shell: the embedded Control UI (theme mode: system) follows it. The
+    // default theme is Light; only an explicit «dark» choice makes it dark.
+    nativeTheme.themeSource = shellConfig.theme === 'dark' ? 'dark' : 'light'
+    const port = shellConfig.lastGatewayPort || this.defaultGatewayPort
+    const windowBounds = shellConfig.windowBounds
+    const preloadPath = getPreloadPath()
+    const preloadExists = fs.existsSync(preloadPath)
+    logInfo(`[OpenClaw] createMainWindow: port=${port} preload=${preloadPath} exists=${String(preloadExists)}`)
+    if (app.isPackaged && !preloadExists) {
+      logWarn(`[OpenClaw] Preload not found, window without preload: ${preloadPath}`)
+    }
+    const iconPath = getWindowIconPath()
+    const shouldCenter = windowBounds.x < 0 || windowBounds.y < 0
+    const initialLocale = shellConfig.locale ?? normalizeToShellLocale(app.getLocale())
+    const initialTitle = getLocalizedShellWindowTitle(initialLocale)
+    const window = new BrowserWindow({
+      ...(shouldCenter ? {} : { x: windowBounds.x, y: windowBounds.y }),
+      width: Math.max(windowBounds.width, 800),
+      height: Math.max(windowBounds.height, 600),
+      minWidth: 800,
+      minHeight: 600,
+      // signature glass style is dark by default; keep the native theme dark so the
+      // embedded Control UI (theme mode: system) renders dark too, and avoid a
+      // white chrome flash while Gateway/iframe loads.
+      backgroundColor: shellConfig.theme === 'dark' ? '#0B1020' : '#f5f5f7',
+      show: false,
+      center: shouldCenter,
+      title: initialTitle,
+      icon: iconPath ? nativeImage.createFromPath(iconPath) : undefined,
+      webPreferences: {
+        ...(preloadExists ? { preload: preloadPath } : {}),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+      },
+    })
+
+    this.mainWindow = window
+    this.attachNavigationGuards(window, port)
+    this.attachBoundsPersistence(window)
+    this.attachCloseBehavior(window)
+
+    window.on('closed', () => {
+      if (this.mainWindow === window) {
+        this.mainWindow = null
+      }
+    })
+
+    const showWhenReady = () => {
+      if (!window.isDestroyed() && !window.isVisible()) {
+        window.show()
+        if (windowBounds.maximized) window.maximize()
+      }
+    }
+    if (!app.isPackaged) {
+      window.once('ready-to-show', showWhenReady)
+    }
+    // When packaged: show only after shell URL has finished loading (see loadURL().then).
+
+    let loadErrorShown = false
+    const showLoadError = (title: string, detail: string) => {
+      if (loadErrorShown) return
+      loadErrorShown = true
+      const html = buildErrorHtml(title, detail, initialTitle)
+      window.setBackgroundColor('#1a1a1a')
+      const showNow = () => {
+        if (!window.isDestroyed()) showWhenReady()
+      }
+      window
+        .loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))
+        .then(showNow)
+        .catch(showNow)
+    }
+
+    const openDevToolsIfRequested = () => {
+      if (process.env.OPENCLAW_DEVTOOLS === '1') {
+        window.webContents.openDevTools({ mode: 'detach' })
+      }
+    }
+
+    if (process.env.ELECTRON_RENDERER_URL) {
+      void window.loadURL(process.env.ELECTRON_RENDERER_URL).then(openDevToolsIfRequested)
+    } else {
+      const rendererPath = getShellRendererIndexPath()
+      const shellUrl = getShellIndexPageUrl()
+      if (app.isPackaged) {
+        const candidates = listShellRendererIndexCandidates()
+        logInfo(
+          `[OpenClaw] Packaged: shellUrl=${shellUrl} resolvedIndex=${rendererPath} candidates=${JSON.stringify(candidates)} exists=${JSON.stringify(candidates.map((p) => fs.existsSync(p)))}`,
+        )
+      }
+      void window
+        .loadURL(shellUrl)
+        .then(() => {
+          openDevToolsIfRequested()
+          if (!window.isDestroyed()) showWhenReady()
+        })
+        .catch((err) => {
+          logError(
+            `[OpenClaw] Failed to load shell URL: ${shellUrl} ${err instanceof Error ? err.message : String(err)}`,
+          )
+          showLoadError(
+            'Renderer load failed',
+            `URL: ${shellUrl}\nPath: ${rendererPath}\n\nError: ${err instanceof Error ? err.message : String(err)}\n\n` +
+              `Check that out\\renderer (or app.asar.unpacked\\out\\renderer) contains index.html and assets.`,
+          )
+          if (!window.isDestroyed()) showWhenReady()
+        })
+    }
+
+    if (app.isPackaged) {
+      window.webContents.on('did-start-loading', () => {
+        logInfo(`[OpenClaw] did-start-loading ${window.webContents.getURL()}`)
+      })
+      window.webContents.on('did-finish-load', () => {
+        logInfo(`[OpenClaw] did-finish-load ${window.webContents.getURL()}`)
+      })
+    }
+
+    // Control UI light theme: override its warm background (#faf9f7) with the
+    // signature glass style white → blue → violet diagonal gradient, matching the shell.
+    // Applied via webFrameMain.executeJavaScript so it works across the iframe boundary.
+    const CONTROL_UI_THEME_OVERRIDE = `
+:root[data-theme-mode="light"] {
+  --bg: linear-gradient(135deg, #ffffff 0%, #eef2ff 45%, #ece9fb 100%) !important;
+  --bg-accent: #f5f7ff !important;
+  --bg-elevated: #ffffff !important;
+  --bg-muted: #eef1fb !important;
+  --bg-hover: #e9edf9 !important;
+  --bg-content: #ffffff !important;
+  --panel: #ffffff !important;
+  --panel-strong: #f5f7ff !important;
+  --panel-hover: #e9edf9 !important;
+  --chrome: rgba(255, 255, 255, 0.92) !important;
+  --chrome-strong: rgba(255, 255, 255, 0.96) !important;
+  --border: #e3e8f5 !important;
+  --border-strong: #cdd6ea !important;
+  --border-hover: #b9c5e0 !important;
+  --input: #e3e8f5 !important;
+}
+:root[data-theme-mode="light"] body {
+  background: var(--bg) !important;
+  background-attachment: fixed !important;
+}
+/* v0.9.10: we no longer load Control UI with ?onboarding=1 (it hid the
+   topbar/chat actions). Without it Control UI shows its own left nav
+   (.shell-nav) — hide it, our shell sidebar replaces it. Desktop only;
+   the mobile drawer would need its own handling, but this app is
+   desktop-window only. */
+.shell-nav {
+  display: none !important;
+}
+`
+    window.webContents.on(
+      'did-frame-navigate',
+      (_event, url, _code, _status, isMainFrame, processId, routingId) => {
+        if (isMainFrame) return
+        if (!url.includes('127.0.0.1') && !url.includes('localhost')) return
+        const frame = webFrameMain.fromId(processId, routingId)
+        if (!frame) return
+        frame
+          .executeJavaScript(
+            `(() => {
+              const css = ${JSON.stringify(CONTROL_UI_THEME_OVERRIDE)};
+              const inject = () => {
+                const root = document.head || document.documentElement;
+                if (!root) return false;
+                if (document.getElementById('openclaw-pc-theme-override')) return true;
+                const s = document.createElement('style');
+                s.id = 'openclaw-pc-theme-override';
+                s.textContent = css;
+                root.appendChild(s);
+                return true;
+              };
+              if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => inject(), { once: true });
+              } else if (!inject()) {
+                let tries = 0;
+                const iv = setInterval(() => { tries++; if (inject() || tries > 30) clearInterval(iv); }, 100);
+              }
+              return 'ok';
+            })()`,
+          )
+          .catch((err: unknown) => {
+            logWarn(`[OpenClaw] Control UI theme override failed: ${String(err)}`)
+          })
+      },
+    )
+    window.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      if (!isMainFrame) return
+      const url = validatedURL ?? '(empty)'
+      const isControlUi = validatedURL ? isControlUIUrl(validatedURL, port) : false
+      logError(`[OpenClaw] Page failed to load: code=${errorCode} desc=${errorDescription} url=${url}`)
+
+      if (isControlUi) {
+        showLoadError(
+          'Gateway not ready',
+          `Control UI could not load. Gateway may not have started or failed.\n\n` +
+            `url: ${url}\n` +
+            `code: ${errorCode}\n` +
+            `description: ${errorDescription}\n\n` +
+            `Check %USERPROFILE%\\.openclaw\\logs or restart Gateway from the tray menu.`,
+        )
+        return
+      }
+
+      if (
+        validatedURL &&
+        (validatedURL.startsWith('file:') ||
+          validatedURL.startsWith('data:') ||
+          isShellCustomProtocolUrl(validatedURL))
+      ) {
+        const title = 'Page load failed (did-fail-load)'
+        const detail = `code: ${errorCode}\ndescription: ${errorDescription}\nurl: ${url}`
+        showLoadError(title, detail)
+      }
+    })
+
+    return window
+  }
+
+  getMainWindow(): BrowserWindow | null {
+    return this.mainWindow
+  }
+
+  showMainWindow(): void {
+    const window = this.mainWindow
+    if (!window || window.isDestroyed()) {
+      return
+    }
+    if (window.isMinimized()) {
+      window.restore()
+    }
+    if (!window.isVisible()) {
+      window.show()
+    }
+    window.focus()
+  }
+
+  /**
+   * Load the shell renderer with a hash route (e.g. #settings, #about).
+   * When the shell is already loaded, only updates `location.hash` to avoid a full reload / white flash.
+   */
+  showShellRoute(hash: string): void {
+    const window = this.mainWindow
+    if (!window || window.isDestroyed()) return
+    const safeHash = hash.startsWith('#') ? hash : `#${hash}`
+    const currentUrl = window.webContents.getURL()
+    const canPatchHash =
+      (currentUrl.startsWith('file:') && !currentUrl.startsWith('data:')) ||
+      isShellCustomProtocolUrl(currentUrl) ||
+      (!!process.env.ELECTRON_RENDERER_URL && currentUrl.startsWith('http'))
+
+    if (canPatchHash) {
+      void window.webContents
+        .executeJavaScript(`window.location.hash = ${JSON.stringify(safeHash)}`)
+        .catch(() => {
+          this.loadShellUrlWithHash(window, safeHash)
+        })
+      this.showMainWindow()
+      return
+    }
+
+    this.loadShellUrlWithHash(window, safeHash)
+    this.showMainWindow()
+  }
+
+  private loadShellUrlWithHash(window: BrowserWindow, safeHash: string): void {
+    if (process.env.ELECTRON_RENDERER_URL) {
+      const base = process.env.ELECTRON_RENDERER_URL.replace(/#.*$/, '')
+      void window.loadURL(`${base}${safeHash}`)
+      return
+    }
+    void window.loadURL(getShellIndexPageUrl(safeHash))
+  }
+
+  showErrorPage(title: string, detail: string): void {
+    const window = this.mainWindow
+    if (!window || window.isDestroyed()) return
+    const shellConfig = this.readShellConfig()
+    const loc = shellConfig.locale ?? normalizeToShellLocale(app.getLocale())
+    const appTitle = getLocalizedShellWindowTitle(loc)
+    const html = buildErrorHtml(title, detail, appTitle)
+    window.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html)).catch(() => {})
+  }
+
+  reloadMainWindow(): void {
+    const window = this.mainWindow
+    if (!window || window.isDestroyed()) {
+      return
+    }
+    logInfo('[OpenClaw] Reloading main window on second-instance.')
+    window.webContents.reload()
+  }
+
+  persistWindowBounds(): void {
+    const window = this.mainWindow
+    if (!window || window.isDestroyed()) {
+      return
+    }
+
+    const shellConfig = this.readShellConfig()
+    shellConfig.windowBounds = {
+      ...window.getBounds(),
+      maximized: window.isMaximized(),
+    }
+    this.writeShellConfig(shellConfig)
+  }
+
+  private attachBoundsPersistence(window: BrowserWindow): void {
+    // v0.8.25: debounce — persistWindowBounds used to run on EVERY 'resize'
+    // and 'move' event (i.e. every mouse drag), writing shell-config.json to
+    // disk on each frame. Now it writes at most once per 500ms of quiet.
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
+    const persist = () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer)
+      }
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null
+        this.persistWindowBounds()
+      }, 500)
+    }
+
+    window.on('resize', persist)
+    window.on('move', persist)
+  }
+
+  private attachCloseBehavior(window: BrowserWindow): void {
+    window.on('close', (event) => {
+      const shellConfig = this.readShellConfig()
+      const shouldCloseToTray = shellConfig.closeToTray && !this.isQuitting()
+      if (shouldCloseToTray) {
+        event.preventDefault()
+        window.hide()
+        return
+      }
+
+      this.persistWindowBounds()
+    })
+  }
+
+  private attachNavigationGuards(window: BrowserWindow, port: number): void {
+    window.webContents.setWindowOpenHandler(({ url }) => {
+      if (!isAllowedNavigation(url, port)) {
+        void shell.openExternal(url)
+      }
+      return { action: 'deny' }
+    })
+
+    window.webContents.on('will-navigate', (event, url) => {
+      if (isAllowedNavigation(url, port)) {
+        return
+      }
+      event.preventDefault()
+      try {
+        const parsed = new URL(url)
+        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+          void shell.openExternal(url)
+        }
+      } catch {
+        // ignore invalid URLs
+      }
+    })
+  }
+
+  /** Sync native window title (e.g. after renderer i18n / route change). */
+  setMainWindowTitle(title: string): void {
+    const window = this.mainWindow
+    if (!window || window.isDestroyed()) return
+    const trimmed = title.trim()
+    if (!trimmed) return
+    window.setTitle(trimmed)
+  }
+}
+
+function escapeHtml(raw: string): string {
+  return raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+function buildErrorHtml(title: string, detail: string, appTitle: string): string {
+  const escapedTitle = escapeHtml(title)
+  const escaped = escapeHtml(detail).replace(/\n/g, '<br>')
+  const docTitle = escapeHtml(appTitle)
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${docTitle}</title><style>body{font-family:system-ui;padding:2rem;max-width:640px;margin:0 auto;background:#1a1a1a;color:#eee;}h1{color:#ff6b6b;} .detail{background:#333;padding:1rem;overflow:auto;font-size:12px;white-space:pre-wrap;} .tip{margin-top:1.5rem;color:#888;font-size:14px;}</style></head><body><h1>${escapedTitle}</h1><div class="detail">${escaped}</div><p class="tip">Debug: Set OPENCLAW_DEVTOOLS=1 and restart the exe to open DevTools.</p></body></html>`
+}

@@ -1,0 +1,188 @@
+/**
+ * Auth profile writer.
+ * Path: %USERPROFILE%\.openclaw\agents\main\agent\auth-profiles.json
+ * Matches upstream auth-profiles paths (resolveOpenClawAgentDir + AUTH_PROFILE_FILENAME).
+ * Same shape as `openclaw onboard` output.
+ */
+
+import fs from 'node:fs'
+import path from 'node:path'
+import { getUserDataDir } from '../utils/paths.js'
+
+const AUTH_STORE_VERSION = 1
+const AUTH_PROFILE_FILENAME = 'auth-profiles.json'
+/** Same as upstream resolveOpenClawAgentDir: {stateDir}/agents/main/agent */
+const AGENT_AUTH_DIR = ['agents', 'main', 'agent']
+
+interface ApiKeyCredential {
+  type: 'api_key'
+  provider: string
+  key: string
+  metadata?: Record<string, unknown>
+}
+
+interface TokenCredential {
+  type: 'token'
+  provider: string
+  token: string
+}
+
+type AuthProfileCredential = ApiKeyCredential | TokenCredential
+
+interface AuthProfileStore {
+  version: number
+  profiles: Record<string, AuthProfileCredential>
+}
+
+function resolveAgentAuthDir(): string {
+  return path.join(getUserDataDir(), ...AGENT_AUTH_DIR)
+}
+
+function resolveAuthStorePath(): string {
+  return path.join(resolveAgentAuthDir(), AUTH_PROFILE_FILENAME)
+}
+
+/** Legacy path (deprecated): credentials/auth-profiles.json from early resolveOAuthDir misuse */
+function resolveLegacyAuthStorePath(): string {
+  return path.join(getUserDataDir(), 'credentials', AUTH_PROFILE_FILENAME)
+}
+
+/** v0.8.25: atomic write (tmp + rename) — see auth-profile-store.saveStoreAtomic. */
+function saveStoreAtomic(storePath: string, store: AuthProfileStore): void {
+  const dir = path.dirname(storePath)
+  fs.mkdirSync(dir, { recursive: true })
+  const tmpPath = `${storePath}.tmp`
+  const data = JSON.stringify(store, null, 2) + '\n'
+  fs.writeFileSync(tmpPath, data, 'utf-8')
+  try {
+    fs.renameSync(tmpPath, storePath)
+  } catch {
+    fs.unlinkSync(storePath)
+    fs.renameSync(tmpPath, storePath)
+  }
+}
+
+/** v0.8.25: keep a recoverable copy of a corrupt store instead of wiping it. */
+function backupCorruptStore(storePath: string): void {
+  try {
+    if (fs.existsSync(storePath)) {
+      fs.copyFileSync(storePath, `${storePath}.bad-${Date.now()}`)
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+function loadExistingStore(): AuthProfileStore {
+  const storePath = resolveAuthStorePath()
+  try {
+    if (!fs.existsSync(storePath)) {
+      const legacyPath = resolveLegacyAuthStorePath()
+      if (fs.existsSync(legacyPath)) {
+        const raw = fs.readFileSync(legacyPath, 'utf-8')
+        const parsed = JSON.parse(raw)
+        if (
+          parsed &&
+          typeof parsed === 'object' &&
+          parsed.profiles &&
+          typeof parsed.profiles === 'object'
+        ) {
+          const store = {
+            version: parsed.version ?? AUTH_STORE_VERSION,
+            profiles: parsed.profiles,
+          }
+          const agentAuthDir = resolveAgentAuthDir()
+          fs.mkdirSync(agentAuthDir, { recursive: true })
+          saveStoreAtomic(storePath, store)
+          return store as AuthProfileStore
+        }
+      }
+      return { version: AUTH_STORE_VERSION, profiles: {} }
+    }
+    const raw = fs.readFileSync(storePath, 'utf-8')
+    const parsed = JSON.parse(raw)
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      typeof parsed.version === 'number' &&
+      parsed.profiles &&
+      typeof parsed.profiles === 'object'
+    ) {
+      return parsed as AuthProfileStore
+    }
+    return { version: AUTH_STORE_VERSION, profiles: {} }
+  } catch {
+    // v0.8.25: never treat a corrupt store as empty silently — back it up so
+    // the next write cannot erase every provider's credential.
+    backupCorruptStore(storePath)
+    return { version: AUTH_STORE_VERSION, profiles: {} }
+  }
+}
+
+/**
+ * Migrate auth-profiles from legacy path (credentials/) to canonical path
+ * (agents/main/agent/). Call at app startup so Gateway finds credentials.
+ */
+export function migrateAuthProfilesIfNeeded(): void {
+  const canonicalPath = resolveAuthStorePath()
+  if (fs.existsSync(canonicalPath)) return
+  const legacyPath = resolveLegacyAuthStorePath()
+  if (!fs.existsSync(legacyPath)) return
+  try {
+    const raw = fs.readFileSync(legacyPath, 'utf-8')
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed === 'object' && parsed.profiles && typeof parsed.profiles === 'object') {
+      const store = { version: parsed.version ?? AUTH_STORE_VERSION, profiles: parsed.profiles }
+      const agentAuthDir = resolveAgentAuthDir()
+      fs.mkdirSync(agentAuthDir, { recursive: true })
+      saveStoreAtomic(canonicalPath, store)
+    }
+  } catch {
+    // migration failed, leave as-is
+  }
+}
+
+/**
+ * Write an API key credential to auth-profiles.json.
+ * Merges with existing profiles (preserving other providers).
+ * ProfileId format: `{provider}:default` (matches OpenClaw CLI convention).
+ */
+export function writeAuthProfile(
+  provider: string,
+  apiKey: string,
+  options?: { profileName?: string; metadata?: Record<string, unknown> },
+): void {
+  const store = loadExistingStore()
+  const profileName = options?.profileName?.trim() || 'default'
+  const profileId = `${provider}:${profileName}`
+
+  store.profiles[profileId] = {
+    type: 'api_key',
+    provider,
+    key: apiKey.trim(),
+    ...(options?.metadata ? { metadata: options.metadata } : {}),
+  }
+
+  const agentAuthDir = resolveAgentAuthDir()
+  fs.mkdirSync(agentAuthDir, { recursive: true })
+
+  const storePath = resolveAuthStorePath()
+  saveStoreAtomic(storePath, store)
+}
+
+/**
+ * Write a token credential (e.g. copilot-proxy:local) to auth-profiles.json.
+ * Used for plugin providers that use token: "n/a" instead of API key.
+ */
+export function writeAuthProfileToken(profileId: string, provider: string, token: string): void {
+  const store = loadExistingStore()
+  store.profiles[profileId] = {
+    type: 'token',
+    provider,
+    token,
+  }
+  const agentAuthDir = resolveAgentAuthDir()
+  fs.mkdirSync(agentAuthDir, { recursive: true })
+  const storePath = resolveAuthStorePath()
+  saveStoreAtomic(storePath, store)
+}

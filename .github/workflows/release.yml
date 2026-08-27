@@ -1,0 +1,425 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'cuda-runtime*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Git-тег для релиза (должен существовать и совпадать с version из package.json с префиксом v, например v0.9.0+openclaw.2026.7.1). Обязательное поле: workflow чекаутит этот тег и собирает из него. Не оставлять пустым — иначе сборка пойдёт из текущей ветки, версии в установщике разъедутся / Control UI будет чёрным.'
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref_name || github.run_id }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION_CI: '22.23.2'
+  # check-openclaw-versions: validate pin vs bundle-manifest only (no npm registry query / latest warn).
+  OPENCLAW_SKIP_NPM_LATEST_CHECK: '1'
+  # workflow_dispatch: must checkout the release tag, not the branch that triggered the run (avoids shell/OpenClaw pin vs artifact mismatch → Control UI black screen).
+  CHECKOUT_REF: >-
+    ${{
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.tag != '' &&
+      (startsWith(github.event.inputs.tag, 'refs/') && github.event.inputs.tag || format('refs/tags/{0}', github.event.inputs.tag)) ||
+      github.ref
+    }}
+  # Caching: setup-node `cache: pnpm` restores the pnpm store (keyed by lockfile); it does not substitute repo source.
+  # `pnpm install --frozen-lockfile` links node_modules for the checked-out tree. package_win `Cache Electron` only caches
+  # Electron/electron-builder download dirs (not app code).
+  # NOTE: no actions/upload-artifact anywhere in this workflow — GitHub artifact storage quota hit in 0.8.22/0.8.23
+  # ("Artifact storage quota has been hit", recalculated every 6-12 h). Intermediate bundles (Control UI) are
+  # published as release assets of the PUBLIC repo vpromalpe-design/openclaw-pc-builds (anonymous download works,
+  # unlike this private repo), and the installer is published straight from the Windows job.
+
+jobs:
+  release_gate:
+    name: Release context check
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - name: Validate manual dispatch
+        shell: bash
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [ -z "${{ github.event.inputs.tag }}" ]; then
+            echo "::error::При ручном запуске нужно указать tag в поле ввода (совпадает с git-тегом, например v0.9.0+openclaw.2026.7.1). Иначе сборка пойдёт из текущей ветки — версии в установщике разъедутся с тегом релиза."
+            exit 1
+          fi
+
+  verify:
+    name: Verify (lint, type-check, build)
+    needs: release_gate
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref_name, 'v')
+    runs-on: [self-hosted, linux, x64]
+    permissions:
+      contents: read
+    env:
+      npm_config_registry: https://registry.npmmirror.com
+      ELECTRON_CACHE: ~/.cache/electron
+      ELECTRON_BUILDER_CACHE: ~/.cache/electron-builder
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
+          fetch-depth: 0
+          fetch-tags: true
+          submodules: false
+
+      - name: Print build identity (ref + SHA)
+        run: |
+          echo "CHECKOUT_REF=${{ env.CHECKOUT_REF }}"
+          echo "GITHUB_REF=$GITHUB_REF"
+          echo "GITHUB_SHA=$GITHUB_SHA"
+          git rev-parse HEAD
+          git log -1 --oneline
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION_CI }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Type check
+        run: pnpm run type-check
+
+      - name: Build
+        run: pnpm run build
+
+      # Validates package.json pin vs bundle-manifest; pin need not equal npm openclaw@latest.
+      - name: Check OpenClaw version consistency (pin vs bundle-manifest)
+        run: pnpm run check-openclaw-versions
+
+  # Vite 8 + Rolldown native bindings often fail on GitHub windows-latest, and Git-for-Windows tar cannot
+  # create symlinks (speech-core/node_modules/.bin/openclaw) → UI is built on Linux and published as a public
+  # release asset (openclaw-pc-builds) that package_win downloads anonymously.
+  build_control_ui:
+    name: Build OpenClaw Control UI (Linux)
+    needs: verify
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref_name, 'v')
+    runs-on: [self-hosted, linux, x64]
+    permissions:
+      contents: write
+    outputs:
+      ui_tag: ${{ steps.ui-tag.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
+          fetch-depth: 0
+          fetch-tags: true
+          submodules: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION_CI }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve Control UI tag (openclaw core version)
+        id: ui-tag
+        shell: bash
+        run: |
+          V=$(node -p "require('./package.json').openclawBundleVersion")
+          echo "tag=control-ui-$V" >> "$GITHUB_OUTPUT"
+
+      - name: Build OpenClaw Control UI
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
+        run: pnpm exec tsx scripts/ci-build-openclaw-control-ui.ts
+
+      - name: Package Control UI bundle
+        shell: bash
+        run: |
+          cd build/_ci_openclaw_control_ui_root
+          zip -qr ../control-ui.zip dist/control-ui
+          sha256sum ../control-ui.zip > ../control-ui.zip.sha256
+          ls -la ..
+
+      - name: Publish Control UI bundle (same repo — GITHUB_TOKEN has no cross-repo rights)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ui-tag.outputs.tag }}
+          name: ${{ steps.ui-tag.outputs.tag }}
+          body: "OpenClaw Control UI dist bundle built on Linux for OpenClaw PC release packaging."
+          files: |
+            build/control-ui.zip
+            build/control-ui.zip.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  package_win:
+    name: Package Windows Installer + Publish Release
+    needs:
+      - verify
+      - build_control_ui
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref_name, 'v')
+    runs-on: [self-hosted, windows, x64]
+    permissions:
+      contents: write
+    # Режим SignPath: при vars.USE_SIGNPATH=true собирается неподписанный пакет; иначе подпись через CSC_LINK
+    env:
+      npm_config_registry: https://registry.npmmirror.com
+      CSC_LINK: ${{ vars.USE_SIGNPATH == 'true' && '' || secrets.CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ vars.USE_SIGNPATH == 'true' && '' || secrets.CSC_KEY_PASSWORD }}
+      ELECTRON_CACHE: ~\AppData\Local\electron\Cache
+      ELECTRON_BUILDER_CACHE: ~\AppData\Local\electron-builder\Cache
+      # download-openclaw strips dist/control-ui (we serve our own build from openclaw-pc-builds).
+      OPENCLAW_SKIP_CONTROL_UI_BUILD: '1'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
+          fetch-depth: 0
+          fetch-tags: true
+          submodules: false
+
+      - name: Print build identity (ref + SHA)
+        shell: pwsh
+        run: |
+          Write-Host "CHECKOUT_REF=${{ env.CHECKOUT_REF }}"
+          Write-Host "GITHUB_REF=$env:GITHUB_REF"
+          Write-Host "GITHUB_SHA=$env:GITHUB_SHA"
+          git rev-parse HEAD
+          git log -1 --oneline
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION_CI }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Cache Electron
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.ELECTRON_CACHE }}
+            ${{ env.ELECTRON_BUILDER_CACHE }}
+          # Lockfile + builder config: invalidates when Electron or tooling versions / extra downloads change (not app TS/CSS alone).
+          key: ${{ runner.os }}-electron-${{ hashFiles('pnpm-lock.yaml', 'electron-builder.config.cjs', 'electron-builder.yml') }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Electron app
+        run: pnpm run build
+
+      - name: Download OpenClaw Control UI bundle (gh CLI, explicit GITHUB_TOKEN — auto env is empty in this job)
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $v = node -p "require('./package.json').openclawBundleVersion"
+          Write-Host "GITHUB_TOKEN len: $($env:GITHUB_TOKEN.Length)"
+          gh release download "control-ui-$v" --repo vpromalpe-design/openclaw-pc --pattern "control-ui.zip" --pattern "control-ui.zip.sha256" --clobber
+          if (-not (Test-Path control-ui.zip)) { Write-Error "control-ui.zip not downloaded"; exit 1 }
+          $actual = (Get-FileHash control-ui.zip -Algorithm SHA256).Hash.ToLower()
+          $expected = $null
+          try { $expected = (Get-Content control-ui.zip.sha256 -ErrorAction Stop | ForEach-Object { ($_ -split '\s+')[0] }) } catch {}
+          if ($expected -and $expected -ne $actual) {
+            Write-Error "Control UI sha256 mismatch: got $actual expected $expected"
+            exit 1
+          }
+          Write-Host "Control UI zip OK ($((Get-Item control-ui.zip).Length) bytes)"
+          Expand-Archive control-ui.zip -DestinationPath build/_ci_openclaw_control_ui_root -Force
+
+      - name: Prepare apple-touch-icon for generate-resources
+        run: |
+          if (Test-Path resources/apple-touch-icon.png) {
+            Copy-Item resources/apple-touch-icon.png apple-touch-icon.png -Force
+          }
+
+      # OpenClaw: version from package.json `openclawBundleVersion` (override: OPENCLAW_DESKTOP_BUNDLE_VERSION).
+      - name: Download Node.js and OpenClaw (skip Vite on Windows)
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+          npm_config_fetch_retries: "5"
+          npm_config_fetch_retry_mintimeout: "20000"
+        run: |
+          pnpm run download-node
+          pnpm run download-openclaw
+
+      - name: Assert OpenClaw npm bundle matches desktop pin
+        run: pnpm exec tsx scripts/assert-openclaw-pin-aligns.ts
+
+      # download-openclaw strips dist/control-ui when SKIP_CONTROL_UI_BUILD=1; merge our own build over it.
+      - name: Merge built Control UI into bundle
+        shell: pwsh
+        run: |
+          $src = Join-Path "build/_ci_openclaw_control_ui_root/dist" "control-ui"
+          $dst = Join-Path "build/openclaw/dist" "control-ui"
+          if (-not (Test-Path -LiteralPath (Join-Path $src "index.html"))) {
+            Write-Error "Control UI build missing $src/index.html"
+            exit 1
+          }
+          if (Test-Path -LiteralPath $dst) {
+            Remove-Item -LiteralPath $dst -Recurse -Force -ErrorAction Stop
+          }
+          Copy-Item -LiteralPath $src -Destination $dst -Recurse -Force
+
+      - name: Assert merged Control UI layout
+        shell: pwsh
+        run: |
+          $idx = Join-Path "build/openclaw/dist/control-ui" "index.html"
+          if (-not (Test-Path -LiteralPath $idx)) {
+            Write-Error "Control UI merge failed: missing $idx"
+            exit 1
+          }
+
+      # Same checks as verify-bundle / verify-packaged-win (esbuild parse) — catch HTML-as-JS or broken merge before prepare-bundle.
+      - name: Verify merged Control UI bundle
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+        run: pnpm exec tsx scripts/verify-merged-control-ui.ts build/openclaw/dist/control-ui
+
+      - name: Prepare bundle
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+        run: pnpm run prepare-bundle
+
+      # Validates on-disk bundles vs package.json `openclawBundleVersion` + bundle-manifest (not npm latest).
+      - name: Verify resource versions (Node, OpenClaw, project pin)
+        run: pnpm run verify-resource-versions
+
+      - name: Package Windows installer
+        run: pnpm run package:win
+
+      - name: Copy bundle manifest to dist
+        run: Copy-Item resources/bundle-manifest.json dist/ -Force
+
+      - name: Generate SHA-256 checksums
+        shell: bash
+        run: |
+          cd dist
+          for file in OpenClaw-PC-Setup-*.exe; do
+            [ -f "$file" ] || continue
+            sha256sum "$file" > "$file.sha256"
+          done
+
+      - name: Generate latest.yml for electron-updater
+        id: gen-yml
+        shell: bash
+        run: |
+          TAG="${{ inputs.tag || github.ref_name }}"
+          VERSION="${TAG#v}"
+          if [[ "$VERSION" == *"-beta"* ]] || [[ "$VERSION" == *"-alpha"* ]] || [[ "$VERSION" == *"-rc"* ]]; then
+            CHANNEL=beta
+          else
+            CHANNEL=stable
+          fi
+          EXE=$(find dist -name "OpenClaw-PC-Setup-*.exe" -type f | head -1)
+          if [ -z "$EXE" ]; then
+            echo "error: no OpenClaw-PC-Setup-*.exe found in dist"
+            exit 1
+          fi
+          MANIFEST_ARG=""
+          if [ -f dist/bundle-manifest.json ]; then
+            MANIFEST_ARG="--manifest dist/bundle-manifest.json"
+          fi
+          node scripts/generate-latest-yml.mjs --exe "$EXE" --version "$VERSION" --channel "$CHANNEL" --output dist $MANIFEST_ARG
+          if [ "$CHANNEL" = "beta" ]; then
+            echo "yml_file=dist/latest-beta.yml" >> $GITHUB_OUTPUT
+          else
+            echo "yml_file=dist/latest.yml" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate release body from CHANGELOG
+        id: gen-body
+        shell: bash
+        run: |
+          TAG="${{ inputs.tag || github.ref_name }}"
+          VERSION="${TAG#v}"
+          VERSION="${VERSION%%+*}"
+          node scripts/generate-release-body.mjs --version "$VERSION" --changelog CHANGELOG.md --out dist/release-body.md
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: ${{ inputs.tag || github.ref_name }}
+          body_path: dist/release-body.md
+          files: |
+            dist/OpenClaw-PC-Setup-*.exe
+            dist/OpenClaw-PC-Setup-*.exe.sha256
+            ${{ steps.gen-yml.outputs.yml_file }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Publishes the CUDA 12.x runtime DLLs used by the local GGUF engine.
+  # Triggered by the dedicated tag `cuda-runtime-v1` on THIS repo; the asset is
+  # uploaded to the PUBLIC repo `vpromalpe-design/llama-runtime` so any machine
+  # can download it without auth (this repo is private → anonymous downloads 404).
+  cuda_runtime_publish:
+    name: Publish CUDA 12 runtime DLLs
+    if: github.ref_name == 'cuda-runtime-v1'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download CUDA runtime packages (conda)
+        run: |
+          set -euxo pipefail
+          mkdir -p runtime
+          curl -fsSL -o cudart.conda "https://conda.anaconda.org/nvidia/win-64/cuda-cudart-12.6.77-0.conda"
+          curl -fsSL -o libcublas.tar.bz2 "https://conda.anaconda.org/nvidia/win-64/libcublas-12.6.1.4-0.tar.bz2"
+          sudo apt-get update -qq && sudo apt-get install -y -qq zstd >/dev/null
+          unzip -q cudart.conda
+          tar --zstd -xf pkg-cuda-cudart-12.6.77-0.tar.zst
+          cp Library/bin/cudart64_12.dll runtime/
+          tar -xjf libcublas.tar.bz2
+          cp Library/bin/cublas64_12.dll Library/bin/cublasLt64_12.dll runtime/
+          ls -la runtime/
+
+      - name: Package zip
+        run: |
+          cd runtime
+          zip -q -r ../llama-runtime-cuda12-win-x64.zip cudart64_12.dll cublas64_12.dll cublasLt64_12.dll
+          sha256sum ../llama-runtime-cuda12-win-x64.zip | tee ../llama-runtime-cuda12-win-x64.zip.sha256
+
+      - name: Publish release asset (public repo)
+        uses: softprops/action-gh-release@v2
+        with:
+          repo: vpromalpe-design/llama-runtime
+          tag_name: cuda-runtime-v1
+          name: cuda-runtime-v1
+          body: "CUDA 12.x runtime DLLs (cudart64_12, cublas64_12, cublasLt64_12) for the local GGUF engine."
+          files: |
+            llama-runtime-cuda12-win-x64.zip
+            llama-runtime-cuda12-win-x64.zip.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
