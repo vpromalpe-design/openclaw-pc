@@ -19,6 +19,12 @@ const STEP_ICONS: Record<string, React.ReactNode> = {
   complete: <Rocket className="w-4 h-4" />,
 }
 
+/**
+ * Vertical step list for the installer-style sidebar (v0.9.14).
+ * Same semantics as the old horizontal stepper: current step is
+ * highlighted, completed steps are check-marked, clicks navigate
+ * only to reachable steps (via onStepClick → store.goToStep).
+ */
 export function StepIndicator({
   steps,
   currentStep,
@@ -28,77 +34,63 @@ export function StepIndicator({
   const { t } = useTranslation()
 
   return (
-    <nav aria-label="Wizard steps" className="w-full">
-      <ol className="flex items-start relative">
-        {steps.map((step, index) => {
-          const isCompleted = completedSteps[index]
-          const isCurrent = index === currentStep
-          const isClickable = index <= currentStep || isCompleted
-          const isLast = index === steps.length - 1
-          const stepLabel = t(`wizard.steps.${step.id}`)
+    <nav aria-label="Wizard steps" className="mt-6 flex flex-1 flex-col gap-1.5 px-4 pb-4">
+      {steps.map((step, index) => {
+        const isCompleted = completedSteps[index]
+        const isCurrent = index === currentStep
+        const isClickable = index <= currentStep || isCompleted
+        const stepLabel = t(`wizard.steps.${step.id}`)
 
-          return (
-            <li
-              key={step.id}
-              className="flex items-start"
-              style={{ flex: isLast ? '0 0 auto' : '1 1 0' }}
-            >
-              <div className="flex flex-col items-center">
-                <button
-                  type="button"
-                  onClick={() => isClickable && onStepClick(index)}
-                  disabled={!isClickable}
-                  className={cn(
-                    'w-10 h-10 rounded-xl flex items-center justify-center text-xs font-semibold transition-colors shrink-0 border-2 relative',
-                    isCurrent &&
-                      'border-primary bg-primary text-primary-foreground shadow-sm',
-                    isCompleted &&
-                      !isCurrent &&
-                      'border-primary bg-primary text-primary-foreground',
-                    !isCurrent &&
-                      !isCompleted &&
-                      'border-border bg-background text-muted-foreground',
-                    isClickable && !isCurrent && 'cursor-pointer',
-                    !isClickable && 'opacity-50 cursor-not-allowed',
-                  )}
-                  aria-current={isCurrent ? 'step' : undefined}
-                  aria-label={`Step ${index + 1}: ${stepLabel}${isCompleted ? ' (completed)' : isCurrent ? ' (current)' : ''}`}
-                >
-                  {isCompleted && !isCurrent ? (
-                    <Check className="w-4 h-4" />
-                  ) : (
-                    STEP_ICONS[step.id] ?? index + 1
-                  )}
-                </button>
-
-                {/* Label directly under the bar */}
-                <span
-                  className={cn(
-                    'text-[11px] mt-1.5 select-none text-center whitespace-nowrap transition-colors',
-                    isCurrent && 'text-foreground font-semibold',
-                    isCompleted && !isCurrent && 'text-foreground/70 font-medium',
-                    !isCurrent && !isCompleted && 'text-muted-foreground',
-                  )}
-                >
-                  {stepLabel}
-                </span>
-              </div>
-
-              {/* Connector line, vertically centered on the bar */}
-              {!isLast && (
-                <div className="flex-1 h-0.5 mt-[19px] mx-2 overflow-hidden rounded-full">
-                  <div
-                    className={cn(
-                      'h-full rounded-full transition-colors duration-300',
-                      completedSteps[index] ? 'bg-primary' : 'bg-border',
-                    )}
-                  />
-                </div>
+        return (
+          <button
+            key={step.id}
+            type="button"
+            onClick={() => isClickable && onStepClick(index)}
+            disabled={!isClickable}
+            aria-current={isCurrent ? 'step' : undefined}
+            aria-label={`Step ${index + 1}: ${stepLabel}${isCompleted ? ' (completed)' : isCurrent ? ' (current)' : ''}`}
+            className={cn(
+              'flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13.5px] font-semibold transition-colors',
+              isCurrent &&
+                'border border-[rgba(10,132,255,0.5)] bg-gradient-to-b from-[rgba(10,132,255,0.28)] to-[rgba(10,132,255,0.14)] text-[#F2F4F8] shadow-[0_4px_16px_rgba(10,132,255,0.18)]',
+              isCompleted && !isCurrent && 'text-[rgba(242,244,248,0.92)]',
+              !isCurrent &&
+                !isCompleted &&
+                (isClickable
+                  ? 'text-[rgba(242,244,248,0.88)] hover:bg-white/5'
+                  : 'cursor-not-allowed text-[rgba(242,244,248,0.5)] opacity-70'),
+            )}
+          >
+            <span
+              className={cn(
+                'flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] border',
+                isCurrent
+                  ? 'border-[#0A84FF] bg-[#0A84FF] text-white shadow-[0_0_14px_rgba(10,132,255,0.55)]'
+                  : isCompleted
+                    ? 'border-[rgba(10,132,255,0.45)] bg-[rgba(10,132,255,0.22)] text-[#5AC8FA]'
+                    : 'border-white/10 bg-white/[0.06]',
               )}
-            </li>
-          )
-        })}
-      </ol>
+            >
+              {isCompleted && !isCurrent ? <Check className="w-4 h-4" /> : STEP_ICONS[step.id]}
+            </span>
+
+            <span className="min-w-0 flex-1 truncate">{stepLabel}</span>
+
+            <span
+              className={cn(
+                'text-[11px] font-bold',
+                isCurrent
+                  ? 'text-white/60'
+                  : isCompleted
+                    ? 'text-[rgba(242,244,248,0.5)]'
+                    : 'text-[rgba(242,244,248,0.4)]',
+              )}
+            >
+              {index + 1}/{steps.length}
+            </span>
+          </button>
+        )
+      })}
     </nav>
   )
 }
