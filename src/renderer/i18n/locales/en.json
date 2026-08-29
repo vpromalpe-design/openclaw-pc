@@ -5,6 +5,7 @@
   "wizard": {
     "appName": "OpenClaw PC",
     "setupWizard": "Setup Wizard",
+    "stepOf": "Step {{current}} of {{total}}",
     "steps": {
       "welcome": "Welcome",
       "model": "Model",
@@ -17,7 +18,8 @@
       "previous": "Previous",
       "skip": "Skip",
       "startSetup": "Start Setup",
-      "next": "Next"
+      "next": "Next",
+      "cancel": "Cancel"
     },
     "welcome": {
       "title": "Welcome to OpenClaw PC",

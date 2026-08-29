@@ -22,7 +22,7 @@ import { VoiceStep } from './steps/VoiceStep'
 import { GatewayStep } from './steps/GatewayStep'
 import { CompleteStep } from './steps/CompleteStep'
 import { ModelTestButton } from './ModelTestButton'
-import { ChevronLeft, ChevronRight, SkipForward, Rocket } from 'lucide-react'
+import { ChevronLeft, ChevronRight, SkipForward, Rocket, X } from 'lucide-react'
 import openclawLogo from '@/assets/openclaw-logo.png'
 import {
   setAppLocale,
@@ -47,6 +47,12 @@ function initialLocaleFromI18n(): ShellLocale {
     : 'en'
 }
 
+/**
+ * Setup wizard shell — installer-style layout (v0.9.14, Вариант 1):
+ * left sidebar like the NSIS installer (dark gradient, blobs, logo,
+ * vertical step list), content on the right, footer with nav buttons.
+ * Only the layout changed; steps, validation and deploy logic are untouched.
+ */
 export function WizardLayout() {
   const { t } = useTranslation()
   const store = useWizardStore()
@@ -71,104 +77,127 @@ export function WizardLayout() {
   const StepContent = STEP_COMPONENTS[currentStep]
 
   return (
-    <div className="h-screen relative flex flex-col select-none overflow-hidden bg-[rgba(11,16,32,0.72)]">
+    <div className="h-screen relative flex select-none overflow-hidden bg-[rgba(11,16,32,0.72)]">
       <div className="app-bg" aria-hidden />
-      <header className="relative shrink-0 border-b border-white/10 bg-white/[0.04] backdrop-blur-xl">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-3">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-4">
-            <div className="flex items-center gap-3 min-w-0 flex-1">
-              <img
-                src={openclawLogo}
-                alt="OpenClaw"
-                className="w-8 h-8 shrink-0 rounded-lg object-contain"
-              />
-              <h1 className="text-2xl sm:text-3xl font-semibold leading-tight tracking-tight">
-                {t('wizard.setupWizard')}
-              </h1>
-            </div>
-            <Select
-              value={uiLocale}
-              onValueChange={(v) => {
-                const next = v as ShellLocale
-                setUiLocale(next)
-                void setAppLocale(next)
-              }}
-            >
-              <SelectTrigger className="w-full sm:w-[200px] shrink-0" aria-label={t('shell.settings.language')}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SHELL_SUPPORTED_LOCALES.map((loc) => (
-                  <SelectItem key={loc} value={loc}>
-                    {SHELL_LOCALE_LABELS[loc]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
 
-          <StepIndicator
-            steps={WIZARD_STEPS}
-            currentStep={currentStep}
-            completedSteps={completedSteps}
-            onStepClick={store.goToStep}
+      {/* ── Left sidebar (installer-style) ── */}
+      <aside
+        className="relative z-10 flex w-[272px] shrink-0 flex-col overflow-hidden border-r border-white/10"
+        style={{
+          background:
+            'radial-gradient(120px 110px at -10px -20px, rgba(10,132,255,.55), transparent 70%),' +
+            'radial-gradient(150px 150px at 110px 300px, rgba(191,90,242,.30), transparent 70%),' +
+            'linear-gradient(180deg, #0B1020, #121A34)',
+        }}
+      >
+        <div className="flex flex-col items-center gap-3 px-5 pt-7 pb-2">
+          <img
+            src={openclawLogo}
+            alt="OpenClaw"
+            className="h-[86px] w-[86px] rounded-[20px] object-contain"
           />
-        </div>
-      </header>
-
-      <main className="relative z-10 flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
-          <StepContent />
-        </div>
-      </main>
-
-      <footer className="relative shrink-0 border-t border-white/10 bg-white/[0.04] backdrop-blur-xl">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
-          <div>
-            {!isFirstStep && (
-              <Button variant="outline" size="lg" onClick={store.prevStep}>
-                <ChevronLeft className="w-5 h-5" />
-                {t('wizard.nav.previous')}
-              </Button>
-            )}
+          <div className="text-[19px] font-bold tracking-[0.2px] text-[#F2F4F8]">
+            {t('wizard.appName')}
           </div>
-          <div className="flex items-center gap-3">
-            {currentStep === 1 && <ModelTestButton />}
-            {stepDef.skippable && !isLastStep && (
-              <Button variant="ghost" size="lg" onClick={store.nextStep}>
-                {t('wizard.nav.skip')}
-                <SkipForward className="w-5 h-5" />
+          <div className="h-px w-[120px] bg-white/25" />
+        </div>
+
+        <StepIndicator
+          steps={WIZARD_STEPS}
+          currentStep={currentStep}
+          completedSteps={completedSteps}
+          onStepClick={store.goToStep}
+        />
+      </aside>
+
+      {/* ── Right: content + footer ── */}
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
+        <main className="flex-1 overflow-y-auto">
+          <div className="max-w-4xl mx-auto px-8 py-7">
+            <div className="text-xs font-bold uppercase tracking-[0.4px] text-[#5AC8FA]">
+              {t('wizard.stepOf', { current: currentStep + 1, total: WIZARD_STEP_COUNT })}
+              {' · '}
+              {t(`wizard.steps.${stepDef.id}`)}
+            </div>
+            <StepContent />
+          </div>
+        </main>
+
+        <footer className="relative shrink-0 border-t border-white/10 bg-white/[0.04] backdrop-blur-xl">
+          <div className="max-w-4xl mx-auto px-8 py-3.5 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="lg" onClick={() => window.close()}>
+                <X className="w-5 h-5" />
+                {t('wizard.nav.cancel')}
               </Button>
-            )}
-            {isLastStep ? (
-              deployPhase === 'idle' || deployPhase === 'error' ? (
+              <Select
+                value={uiLocale}
+                onValueChange={(v) => {
+                  const next = v as ShellLocale
+                  setUiLocale(next)
+                  void setAppLocale(next)
+                }}
+              >
+                <SelectTrigger
+                  className="w-[160px] shrink-0"
+                  aria-label={t('shell.settings.language')}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SHELL_SUPPORTED_LOCALES.map((loc) => (
+                    <SelectItem key={loc} value={loc}>
+                      {SHELL_LOCALE_LABELS[loc]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {currentStep === 1 && <ModelTestButton />}
+              {stepDef.skippable && !isLastStep && (
+                <Button variant="ghost" size="lg" onClick={store.nextStep}>
+                  {t('wizard.nav.skip')}
+                  <SkipForward className="w-5 h-5" />
+                </Button>
+              )}
+              {!isFirstStep && (
+                <Button variant="outline" size="lg" onClick={store.prevStep}>
+                  <ChevronLeft className="w-5 h-5" />
+                  {t('wizard.nav.previous')}
+                </Button>
+              )}
+              {isLastStep ? (
+                deployPhase === 'idle' || deployPhase === 'error' ? (
+                  <Button
+                    size="lg"
+                    onClick={() => void store.triggerDeploy(t)}
+                    disabled={isDeploying}
+                  >
+                    <Rocket className="w-5 h-5" />
+                    {deployPhase === 'error' ? t('wizard.complete.retry') : t('wizard.complete.confirmStart')}
+                  </Button>
+                ) : isDeploying ? (
+                  <Button size="lg" disabled>
+                    <Rocket className="w-5 h-5" />
+                    {t('shell.status.starting')}
+                  </Button>
+                ) : null
+              ) : !isFirstStep ? (
                 <Button
                   size="lg"
-                  onClick={() => void store.triggerDeploy(t)}
-                  disabled={isDeploying}
+                  onClick={store.nextStep}
+                  disabled={!canAdvance}
                 >
-                  <Rocket className="w-5 h-5" />
-                  {deployPhase === 'error' ? t('wizard.complete.retry') : t('wizard.complete.confirmStart')}
+                  {t('wizard.nav.next')}
+                  <ChevronRight className="w-5 h-5" />
                 </Button>
-              ) : isDeploying ? (
-                <Button size="lg" disabled>
-                  <Rocket className="w-5 h-5" />
-                  {t('shell.status.starting')}
-                </Button>
-              ) : null
-            ) : !isFirstStep ? (
-              <Button
-                size="lg"
-                onClick={store.nextStep}
-                disabled={!canAdvance}
-              >
-                {t('wizard.nav.next')}
-                <ChevronRight className="w-5 h-5" />
-              </Button>
-            ) : null}
+              ) : null}
+            </div>
           </div>
-        </div>
-      </footer>
+        </footer>
+      </div>
     </div>
   )
 }

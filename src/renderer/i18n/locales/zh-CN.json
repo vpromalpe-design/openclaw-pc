@@ -5,6 +5,7 @@
   "wizard": {
     "appName": "OpenClaw 桌面版",
     "setupWizard": "设置向导",
+    "stepOf": "第 {{current}} 步，共 {{total}} 步",
     "steps": {
       "welcome": "欢迎",
       "model": "模型",
@@ -17,7 +18,8 @@
       "previous": "上一步",
       "skip": "跳过",
       "startSetup": "开始设置",
-      "next": "下一步"
+      "next": "下一步",
+      "cancel": "取消"
     },
     "welcome": {
       "title": "欢迎使用 OpenClaw 桌面版",

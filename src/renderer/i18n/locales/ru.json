@@ -5,6 +5,7 @@
   "wizard": {
     "appName": "OpenClaw PC",
     "setupWizard": "Мастер настройки",
+    "stepOf": "Шаг {{current}} из {{total}}",
     "steps": {
       "welcome": "Добро пожаловать",
       "model": "Модель",
@@ -17,7 +18,8 @@
       "previous": "Назад",
       "skip": "Пропустить",
       "startSetup": "Начать настройку",
-      "next": "Далее"
+      "next": "Далее",
+      "cancel": "Отмена"
     },
     "welcome": {
       "title": "Добро пожаловать в OpenClaw PC",
