@@ -540,6 +540,7 @@
       "llmApi": "LLM API",
       "llmApiDesc": "提供商与认证配置",
       "skills": "技能",
+      "tasks": "任务",
       "skillsDesc": "技能与扩展",
       "updates": "更新",
       "updatesDesc": "检查更新",

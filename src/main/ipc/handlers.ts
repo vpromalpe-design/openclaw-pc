@@ -60,6 +60,14 @@ import {
   IPC_SHELL_SET_WINDOW_TITLE,
   IPC_DIAGNOSTICS_EXPORT,
   IPC_SESSIONS_LIST,
+  IPC_TASKS_LIST,
+  IPC_TASKS_GET,
+  IPC_TASKS_CANCEL,
+  IPC_TASKS_DISPATCH,
+  IPC_CRON_LIST,
+  IPC_CRON_ADD,
+  IPC_CRON_RUN,
+  IPC_CRON_REMOVE,
   IPC_PROVIDERS_LIST,
   IPC_PROVIDERS_SAVE_PROFILE,
   IPC_PROVIDERS_DELETE_PROFILE,
@@ -722,6 +730,122 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
       } finally {
         client.close()
       }
+    }),
+  )
+
+  // ─── Tasks board (v0.9.16) ──────────────────────────────────────────────────
+  // Real gateway data: task_runs (tasks.* RPC) + cron jobs (cron.* RPC).
+  async function withGatewayRpc<T>(
+    method: string,
+    params: Record<string, unknown>,
+  ): Promise<T> {
+    const { createGatewayRpcClientFromConfig } = await import('../gateway/rpc-client.js')
+    const client = await createGatewayRpcClientFromConfig()
+    try {
+      return (await client.request(method, params)) as T
+    } finally {
+      client.close()
+    }
+  }
+
+  ipcMain.handle(
+    IPC_TASKS_LIST,
+    wrapHandler('TASKS_LIST', async (opts: unknown): Promise<{ tasks: unknown[]; nextCursor?: string }> => {
+      const { status, limit, agentId } = (opts ?? {}) as { status?: string[]; limit?: number; agentId?: string }
+      const res = (await withGatewayRpc<{ tasks?: unknown[]; nextCursor?: string }>('tasks.list', {
+        ...(Array.isArray(status) && status.length ? { status } : {}),
+        ...(typeof limit === 'number' ? { limit } : { limit: 200 }),
+        ...(typeof agentId === 'string' && agentId ? { agentId } : {}),
+      })) as { tasks?: unknown[]; nextCursor?: string }
+      return { tasks: res?.tasks ?? [], ...(res?.nextCursor ? { nextCursor: res.nextCursor } : {}) }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_TASKS_GET,
+    wrapHandler('TASKS_GET', async (opts: unknown): Promise<{ task: unknown }> => {
+      const { taskId } = (opts ?? {}) as { taskId?: string }
+      if (!taskId) throw new Error('taskId is required')
+      const res = (await withGatewayRpc<{ task?: unknown }>('tasks.get', { taskId })) as { task?: unknown }
+      if (!res?.task) throw new Error(`task not found: ${taskId}`)
+      return { task: res.task }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_TASKS_CANCEL,
+    wrapHandler('TASKS_CANCEL', async (opts: unknown): Promise<{ ok: boolean }> => {
+      const { taskId } = (opts ?? {}) as { taskId?: string }
+      if (!taskId) throw new Error('taskId is required')
+      const res = (await withGatewayRpc<{ ok?: boolean }>('tasks.cancel', { taskId })) as { ok?: boolean }
+      return { ok: res?.ok !== false }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_TASKS_DISPATCH,
+    wrapHandler('TASKS_DISPATCH', async (opts: unknown): Promise<{ ok: boolean; runId?: string; status?: string; error?: string }> => {
+      const { text, agentId } = (opts ?? {}) as { text?: string; agentId?: string }
+      if (!text || !text.trim()) throw new Error('text is required')
+      const targetAgent = typeof agentId === 'string' && agentId.trim() ? agentId.trim() : 'main'
+      try {
+        const res = (await withGatewayRpc<{ runId?: string; status?: string }>('chat.send', {
+          sessionKey: `agent:${targetAgent}:main`,
+          message: text.trim(),
+          deliver: false,
+        })) as { runId?: string; status?: string }
+        return { ok: true, runId: res?.runId, status: res?.status }
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        }
+      }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_CRON_LIST,
+    wrapHandler('CRON_LIST', async (): Promise<{ jobs: unknown[] }> => {
+      const res = (await withGatewayRpc<{ jobs?: unknown[] }>('cron.list', {})) as { jobs?: unknown[] }
+      return { jobs: res?.jobs ?? [] }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_CRON_ADD,
+    wrapHandler('CRON_ADD', async (opts: unknown): Promise<{ ok: boolean; job?: unknown; error?: string }> => {
+      const params = (opts ?? {}) as Record<string, unknown>
+      if (!params || typeof params !== 'object') throw new Error('cron job params are required')
+      try {
+        const res = (await withGatewayRpc<{ job?: unknown; id?: string }>('cron.add', params)) as { job?: unknown; id?: string }
+        return { ok: true, job: res?.job ?? res }
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        }
+      }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_CRON_RUN,
+    wrapHandler('CRON_RUN', async (opts: unknown): Promise<{ ok: boolean }> => {
+      const { jobId } = (opts ?? {}) as { jobId?: string }
+      if (!jobId) throw new Error('jobId is required')
+      const res = (await withGatewayRpc<{ ok?: boolean }>('cron.run', { jobId })) as { ok?: boolean }
+      return { ok: res?.ok !== false }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_CRON_REMOVE,
+    wrapHandler('CRON_REMOVE', async (opts: unknown): Promise<{ ok: boolean }> => {
+      const { jobId } = (opts ?? {}) as { jobId?: string }
+      if (!jobId) throw new Error('jobId is required')
+      const res = (await withGatewayRpc<{ ok?: boolean }>('cron.remove', { jobId })) as { ok?: boolean }
+      return { ok: res?.ok !== false }
     }),
   )
 

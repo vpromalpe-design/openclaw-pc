@@ -39,6 +39,14 @@ import {
   IPC_SHELL_SET_WINDOW_TITLE,
   IPC_DIAGNOSTICS_EXPORT,
   IPC_SESSIONS_LIST,
+  IPC_TASKS_LIST,
+  IPC_TASKS_GET,
+  IPC_TASKS_CANCEL,
+  IPC_TASKS_DISPATCH,
+  IPC_CRON_LIST,
+  IPC_CRON_ADD,
+  IPC_CRON_RUN,
+  IPC_CRON_REMOVE,
   IPC_PROVIDERS_LIST,
   IPC_PROVIDERS_SAVE_PROFILE,
   IPC_PROVIDERS_DELETE_PROFILE,
@@ -182,6 +190,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
   shellSetWindowTitle: (title: string) => invoke(IPC_SHELL_SET_WINDOW_TITLE, title),
   diagnosticsExport: () => invoke<{ path: string; checksum: string }>(IPC_DIAGNOSTICS_EXPORT),
   sessionsList: () => invoke<unknown[]>(IPC_SESSIONS_LIST),
+
+  // v0.9.16: Задачи (Tasks board) — real gateway task runs + cron jobs
+  tasksList: (opts?: { status?: string[]; limit?: number; agentId?: string }) =>
+    invoke<{ tasks: Array<Record<string, unknown>>; nextCursor?: string }>(IPC_TASKS_LIST, opts ?? {}),
+  tasksGet: (opts: { taskId: string }) =>
+    invoke<{ task: Record<string, unknown> }>(IPC_TASKS_GET, opts),
+  tasksCancel: (opts: { taskId: string }) =>
+    invoke<{ ok: boolean }>(IPC_TASKS_CANCEL, opts),
+  tasksDispatch: (opts: { text: string; agentId?: string }) =>
+    invoke<{ ok: boolean; runId?: string; status?: string; error?: string }>(IPC_TASKS_DISPATCH, opts),
+  cronList: () => invoke<{ jobs: Array<Record<string, unknown>> }>(IPC_CRON_LIST),
+  cronAdd: (opts: {
+    name: string
+    schedule: { kind: string; at?: string; expr?: string; everyMs?: number }
+    sessionTarget?: string
+    payload: { kind: string; message?: string }
+    delivery?: { mode?: string }
+  }) => invoke<{ ok: boolean; job?: Record<string, unknown>; error?: string }>(IPC_CRON_ADD, opts),
+  cronRun: (opts: { jobId: string }) => invoke<{ ok: boolean }>(IPC_CRON_RUN, opts),
+  cronRemove: (opts: { jobId: string }) => invoke<{ ok: boolean }>(IPC_CRON_REMOVE, opts),
 
   agentsAdd: (payload: { name: string; model?: string }) =>
     invoke<{ ok: boolean; id?: string; error?: string }>(IPC_AGENTS_ADD, payload),
