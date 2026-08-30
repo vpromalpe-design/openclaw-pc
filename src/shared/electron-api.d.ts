@@ -183,6 +183,30 @@ export interface ElectronAPI {
   diagnosticsExport: () => Promise<{ path: string; checksum: string }>
   sessionsList: () => Promise<unknown[]>
 
+  // v0.9.16: Задачи (Tasks board)
+  tasksList: (opts?: { status?: string[]; limit?: number; agentId?: string }) => Promise<{
+    tasks: Array<Record<string, unknown>>
+    nextCursor?: string
+  }>
+  tasksGet: (opts: { taskId: string }) => Promise<{ task: Record<string, unknown> }>
+  tasksCancel: (opts: { taskId: string }) => Promise<{ ok: boolean }>
+  tasksDispatch: (opts: { text: string; agentId?: string }) => Promise<{
+    ok: boolean
+    runId?: string
+    status?: string
+    error?: string
+  }>
+  cronList: () => Promise<{ jobs: Array<Record<string, unknown>> }>
+  cronAdd: (opts: {
+    name: string
+    schedule: { kind: string; at?: string; expr?: string; everyMs?: number }
+    sessionTarget?: string
+    payload: { kind: string; message?: string }
+    delivery?: { mode?: string }
+  }) => Promise<{ ok: boolean; job?: Record<string, unknown>; error?: string }>
+  cronRun: (opts: { jobId: string }) => Promise<{ ok: boolean }>
+  cronRemove: (opts: { jobId: string }) => Promise<{ ok: boolean }>
+
   agentsAdd: (payload: { name: string; model?: string }) => Promise<AgentsAddResult>
   agentsSetModel: (payload: { agentId: string; model: string }) => Promise<AgentsSetModelResult>
   agentsRemove: (payload: { agentId: string }) => Promise<AgentsRemoveResult>

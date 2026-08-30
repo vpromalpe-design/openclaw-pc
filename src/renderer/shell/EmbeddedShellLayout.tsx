@@ -37,6 +37,7 @@ import { SkillsView } from './SkillsView'
 import { UpdateView } from './UpdateView'
 import { TextChatView, type ChatMessage } from './TextChatView'
 import { AgentSettingsView } from './AgentSettingsView'
+import { TasksView } from './TasksView'
 import { AgentMenuPortal } from './AgentMenu'
 import { Bot, Type, Send } from 'lucide-react'
 import type { GatewayStatus, GatewayStatusValue } from '../../shared/types'
@@ -75,6 +76,7 @@ export type EmbeddedPanel =
   | 'updates'
   | 'telegram'
   | 'agent-settings'
+  | 'tasks'
 
 export interface EmbeddedShellLayoutProps {
   activePanel: EmbeddedPanel
@@ -115,7 +117,6 @@ const MORE_SECTIONS: SectionItem[] = [
   { id: 'activity', icon: <Activity size={15} strokeWidth={1.8} />, label: 'Активность', route: '/activity' },
   { id: 'sessions', icon: <Monitor size={15} strokeWidth={1.8} />, label: 'Сеансы', route: '/sessions' },
   { id: 'cron', icon: <Clock size={15} strokeWidth={1.8} />, label: 'Задания Cron', route: '/cron' },
-  { id: 'tasks', icon: <ListChecks size={15} strokeWidth={1.8} />, label: 'Задачи', route: '/tasks' },
   { id: 'skills', icon: <Puzzle size={15} strokeWidth={1.8} />, label: 'Навыки', route: '/skills' },
 ]
 
@@ -240,6 +241,7 @@ const DESKTOP_NAV_ITEMS: { id: EmbeddedPanel; label: string; icon: React.ReactNo
   { id: 'models', label: 'Models', icon: <Cpu className="w-4 h-4" />, description: 'Providers, priority & local models' },
   { id: 'llm-api', label: 'LLM API', icon: <Key className="w-4 h-4" />, description: 'Providers & auth profiles' },
   { id: 'skills', label: 'Skills', icon: <Puzzle className="w-4 h-4" />, description: 'Skills & extensions' },
+  { id: 'tasks', label: 'Tasks', icon: <ListChecks className="w-4 h-4" />, description: 'Agent tasks & schedules' },
   { id: 'updates', label: 'Updates', icon: <RefreshCw className="w-4 h-4" />, description: 'Check for updates' },
   { id: 'voice', label: 'Voice', icon: <Mic className="w-4 h-4" />, description: 'Voice provider & API key' },
   { id: 'telegram', label: 'Telegram', icon: <Send className="w-4 h-4" />, description: 'Telegram bot settings' },
@@ -253,6 +255,7 @@ const NAV_I18N_KEY: Record<string, string> = {
   models: 'shell.nav.models',
   'llm-api': 'shell.nav.llmApi',
   skills: 'shell.nav.skills',
+  tasks: 'shell.nav.tasks',
   updates: 'shell.nav.updates',
   voice: 'shell.nav.voice',
   telegram: 'shell.nav.telegram',
@@ -310,6 +313,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
 
   // ── v0.9.5 shell frame data ────────────────────────────────────────────────
   const [agents, setAgents] = useState<AgentInfo[]>([{ id: 'main', name: 'main', isDefault: true }])
+  const [tasksActiveCount, setTasksActiveCount] = useState(0)
   const [activeAgent, setActiveAgent] = useState('main')
   const [sessions, setSessions] = useState<ShellSessionRow[]>([])
   const [activeSection, setActiveSection] = useState('chat')
@@ -502,6 +506,14 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
       )
     } catch {
       setSessions([])
+    }
+    try {
+      // v0.9.16: счётчик активных задач для акцентного пункта «Задачи»
+      const tasksRes = await window.electronAPI.tasksList({ limit: 100 })
+      const taskRows = (tasksRes?.tasks ?? []) as Array<{ status?: string }>
+      setTasksActiveCount(taskRows.filter((r) => r?.status === 'running' || r?.status === 'queued').length)
+    } catch {
+      // non-fatal
     }
     try {
       // v0.9.12 (E4): model picker options — all models of connected providers.
@@ -1129,6 +1141,8 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
         return <ModelsView onBack={() => handleNavigateToPanel('')} />
       case 'skills':
         return <SkillsView onBack={() => handleNavigateToPanel('')} />
+      case 'tasks':
+        return <TasksView onBack={() => handleNavigateToPanel('')} agents={agents} />
       case 'updates':
         return (
           <UpdateView
@@ -1473,6 +1487,19 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                 </div>
               ))}
             </div>
+
+            {/* v0.9.16: акцентный пункт «Задачи» — между агентами и разделами */}
+            <button
+              type="button"
+              className={cn('shell-nav-feature', activePanel === 'tasks' && 'active')}
+              onClick={() => handleNavigateToPanel('tasks')}
+              title="Задачи агентов и расписания"
+            >
+              <span className="ic"><ListChecks size={16} strokeWidth={2} /></span>
+              <span className="t">Задачи</span>
+              {tasksActiveCount > 0 && <span className="nf-count">{tasksActiveCount}</span>}
+              <span className="nf-badge">NEW</span>
+            </button>
 
             <div className="shell-side-group">
               <div className="shell-g-title">Разделы</div>

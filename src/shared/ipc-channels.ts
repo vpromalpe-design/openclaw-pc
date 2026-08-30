@@ -80,6 +80,30 @@ export const IPC_DIAGNOSTICS_EXPORT = 'diagnostics:export' as const
 /** Gateway sessions: recent list (sidebar «Сессии») */
 export const IPC_SESSIONS_LIST = 'sessions:list' as const
 
+/** Tasks board: list task runs (queued/running/succeeded/failed/cancelled) */
+export const IPC_TASKS_LIST = 'tasks:list' as const
+
+/** Tasks board: get one task run by id */
+export const IPC_TASKS_GET = 'tasks:get' as const
+
+/** Tasks board: cancel a task run */
+export const IPC_TASKS_CANCEL = 'tasks:cancel' as const
+
+/** Tasks board: dispatch a new task to an agent (chat.send) */
+export const IPC_TASKS_DISPATCH = 'tasks:dispatch' as const
+
+/** Tasks board: list cron jobs (scheduled tasks) */
+export const IPC_CRON_LIST = 'cron:list' as const
+
+/** Tasks board: add a cron job (schedule a task) */
+export const IPC_CRON_ADD = 'cron:add' as const
+
+/** Tasks board: run a cron job now */
+export const IPC_CRON_RUN = 'cron:run' as const
+
+/** Tasks board: remove a cron job */
+export const IPC_CRON_REMOVE = 'cron:remove' as const
+
 /** Providers: list profiles */
 export const IPC_PROVIDERS_LIST = 'providers:list' as const
 
@@ -394,6 +418,14 @@ export const IPC_INVOKE_CHANNELS = [
   IPC_PLUGINS_INSTALL,
   IPC_PLUGINS_UNINSTALL,
   IPC_LOGS_TAIL,
+  IPC_TASKS_LIST,
+  IPC_TASKS_GET,
+  IPC_TASKS_CANCEL,
+  IPC_TASKS_DISPATCH,
+  IPC_CRON_LIST,
+  IPC_CRON_ADD,
+  IPC_CRON_RUN,
+  IPC_CRON_REMOVE,
   IPC_BACKUP_CREATE,
   IPC_BACKUP_VERIFY,
 ] as const
