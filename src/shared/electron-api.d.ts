@@ -201,6 +201,7 @@ export interface ElectronAPI {
     name: string
     schedule: { kind: string; at?: string; expr?: string; everyMs?: number }
     sessionTarget?: string
+    wakeMode?: string
     payload: { kind: string; message?: string }
     delivery?: { mode?: string }
   }) => Promise<{ ok: boolean; job?: Record<string, unknown>; error?: string }>

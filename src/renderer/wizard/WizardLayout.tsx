@@ -107,8 +107,9 @@ export function WizardLayout() {
         />
 
         {/* v0.9.17: language picker moved from the footer into the sidebar */}
-        <div className="flex shrink-0 items-center justify-center gap-2 border-t border-white/10 px-4 py-3">
-          <Globe className="h-3.5 w-3.5 shrink-0 text-white/40" aria-hidden />
+        {/* v0.9.21: bottom row height aligned with the footer buttons (h-10 + py-3.5) */}
+        <div className="flex shrink-0 items-center justify-center gap-2 border-t border-white/10 px-4 py-3.5">
+          <Globe className="h-4 w-4 shrink-0 text-white/40" aria-hidden />
           <Select
             value={uiLocale}
             onValueChange={(v) => {
@@ -118,7 +119,7 @@ export function WizardLayout() {
             }}
           >
             <SelectTrigger
-              className="h-8 w-full shrink-0 bg-white/5 text-xs text-[#F2F4F8]"
+              className="h-10 w-full shrink-0 bg-white/5 text-xs text-[#F2F4F8]"
               aria-label={t('shell.settings.language')}
             >
               <SelectValue />

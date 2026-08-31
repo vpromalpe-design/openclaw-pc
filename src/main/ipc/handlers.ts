@@ -822,6 +822,9 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
           sessionKey: `agent:${targetAgent}:main`,
           message: text.trim(),
           deliver: false,
+          // chat.send schema requires idempotencyKey (2026.7.1) — without it the
+          // gateway rejects the call: "must have required property 'idempotencyKey'"
+          idempotencyKey: `shell-task-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
         })) as { runId?: string; status?: string }
         return { ok: true, runId: res?.runId, status: res?.status }
       } catch (err) {

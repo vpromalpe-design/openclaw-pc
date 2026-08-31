@@ -39,7 +39,8 @@ import { UpdateView } from './UpdateView'
 import { TextChatView, type ChatMessage } from './TextChatView'
 import { AgentSettingsView } from './AgentSettingsView'
 import { GatewaySettingsView } from './GatewaySettingsView'
-import { TasksView } from './TasksView'
+import { TasksView, TasksDetailPanel, useTasksData } from './TasksView'
+import type { TasksSelection, TasksDetailTab } from './TasksView'
 import { AgentMenuPortal } from './AgentMenu'
 import { Bot, Type, Send } from 'lucide-react'
 import type { GatewayStatus, GatewayStatusValue } from '../../shared/types'
@@ -317,7 +318,11 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
 
   // ── v0.9.5 shell frame data ────────────────────────────────────────────────
   const [agents, setAgents] = useState<AgentInfo[]>([{ id: 'main', name: 'main', isDefault: true }])
-  const [tasksActiveCount, setTasksActiveCount] = useState(0)
+  // v0.9.21: live task data (ledger + cron, 10s poll) drives the sidebar badge,
+  // the tasks list and the right-hand detail panel (replaces the Status bento).
+  const tasksData = useTasksData(true)
+  const [tasksSelected, setTasksSelected] = useState<TasksSelection>(null)
+  const [tasksDetailTab, setTasksDetailTab] = useState<TasksDetailTab>('output')
   const [activeAgent, setActiveAgent] = useState('main')
   const [sessions, setSessions] = useState<ShellSessionRow[]>([])
   const [activeSection, setActiveSection] = useState('chat')
@@ -513,9 +518,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     }
     try {
       // v0.9.16: счётчик активных задач для акцентного пункта «Задачи»
-      const tasksRes = await window.electronAPI.tasksList({ limit: 100 })
-      const taskRows = (tasksRes?.tasks ?? []) as Array<{ status?: string }>
-      setTasksActiveCount(taskRows.filter((r) => r?.status === 'running' || r?.status === 'queued').length)
+      // v0.9.21: replaced by useTasksData() live poll (activeCount badge)
     } catch {
       // non-fatal
     }
@@ -860,6 +863,25 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     void window.electronAPI.systemOpenLogDir()
   }
 
+  /** Open a task's session in the Agent chat (right side of the shell). */
+  const openTaskSession = useCallback(
+    (sessionKey?: string) => {
+      setActiveAgent(sessionKey?.startsWith('agent:') ? sessionKey.split(':')[1] : activeAgent)
+      setActiveSection('chat')
+      onPanelChange('')
+      setOpenMenu(null)
+      setControlSession(sessionKey ?? `agent:${activeAgent}:main`)
+      setControlRoute('/chat')
+    },
+    [activeAgent, onPanelChange],
+  )
+
+  /** Selecting a new task resets the detail panel tab to «Вывод». */
+  const handleTasksSelect = useCallback((sel: TasksSelection) => {
+    setTasksSelected(sel)
+    setTasksDetailTab('output')
+  }, [])
+
   const handleNavigateToPanel = (panel: EmbeddedPanel) => {
     onPanelChange(panel)
     if (panel === '') {
@@ -1148,7 +1170,16 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
       case 'skills':
         return <SkillsView onBack={() => handleNavigateToPanel('')} />
       case 'tasks':
-        return <TasksView onBack={() => handleNavigateToPanel('')} agents={agents} />
+        return (
+          <TasksView
+            onBack={() => handleNavigateToPanel('')}
+            agents={agents}
+            data={tasksData}
+            selected={tasksSelected}
+            onSelect={handleTasksSelect}
+            onOpenSession={openTaskSession}
+          />
+        )
       case 'updates':
         return (
           <UpdateView
@@ -1506,7 +1537,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
             >
               <span className="ic"><ListChecks size={16} strokeWidth={2} /></span>
               <span className="t">Задачи</span>
-              {tasksActiveCount > 0 && <span className="nf-count">{tasksActiveCount}</span>}
+              {tasksData.activeCount > 0 && <span className="nf-count">{tasksData.activeCount}</span>}
               <span className="nf-badge">NEW</span>
             </button>
 
@@ -1691,6 +1722,17 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
 
           {/* ── Right bento panel ── */}
           <aside className="shell-glass shell-status-panel">
+            {activePanel === 'tasks' ? (
+              <TasksDetailPanel
+                data={tasksData}
+                selected={tasksSelected}
+                tab={tasksDetailTab}
+                onTabChange={setTasksDetailTab}
+                onSelect={handleTasksSelect}
+                onOpenSession={openTaskSession}
+              />
+            ) : (
+              <>
             <div className="shell-sp-head">
               <span className="t">Состояние</span>
             </div>
@@ -1822,6 +1864,8 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
               <a onClick={() => handleNavigateToPanel('updates')}>Обновления</a>
               <a onClick={() => handleNavigateToPanel('about')}>О приложении</a>
             </div>
+              </>
+            )}
           </aside>
         </div>
 
