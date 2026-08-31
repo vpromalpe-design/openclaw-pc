@@ -32,6 +32,15 @@ import type { ModelsViewResult } from '../../shared/types.js'
 import { LOCAL_MODEL_PRESETS, modelsDir, testLocalEngineChat, LOCAL_ENGINE_PORT, type LocalEngineTestResult } from '../models/local-engine.js'
 import { DEFAULT_GATEWAY_PORT } from '../../shared/constants.js'
 import {
+  addLocalTask,
+  getLocalTask,
+  listLocalTasks,
+  removeLocalTask,
+  removeLocalTaskByCronJobId,
+  updateLocalTask,
+  type LocalTask,
+} from '../tasks/store.js'
+import {
   IPC_GATEWAY_START,
   IPC_GATEWAY_STOP,
   IPC_GATEWAY_RESTART,
@@ -64,6 +73,10 @@ import {
   IPC_TASKS_GET,
   IPC_TASKS_CANCEL,
   IPC_TASKS_DISPATCH,
+  IPC_TASKS_LOCAL_LIST,
+  IPC_TASKS_LOCAL_REMOVE,
+  IPC_TASKS_LOCAL_SET_STATUS,
+  IPC_TASKS_RESUME,
   IPC_CRON_LIST,
   IPC_CRON_ADD,
   IPC_CRON_RUN,
@@ -806,6 +819,20 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
     wrapHandler('TASKS_CANCEL', async (opts: unknown): Promise<{ ok: boolean }> => {
       const { taskId } = (opts ?? {}) as { taskId?: string }
       if (!taskId) throw new Error('taskId is required')
+      // Local shell task → abort its run in the task session, then mark cancelled.
+      if (taskId.startsWith('lt-')) {
+        const task = getLocalTask(taskId)
+        if (!task) return { ok: false }
+        if (task.runId) {
+          try {
+            await withGatewayRpc('chat.abort', { sessionKey: task.sessionKey, runId: task.runId })
+          } catch {
+            // run may already be finished — mark cancelled anyway
+          }
+        }
+        updateLocalTask(taskId, { status: 'cancelled', endedAt: Date.now() })
+        return { ok: true }
+      }
       const res = (await withGatewayRpc<{ ok?: boolean }>('tasks.cancel', { taskId })) as { ok?: boolean }
       return { ok: res?.ok !== false }
     }),
@@ -813,20 +840,146 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
 
   ipcMain.handle(
     IPC_TASKS_DISPATCH,
-    wrapHandler('TASKS_DISPATCH', async (opts: unknown): Promise<{ ok: boolean; runId?: string; status?: string; error?: string }> => {
-      const { text, agentId } = (opts ?? {}) as { text?: string; agentId?: string }
-      if (!text || !text.trim()) throw new Error('text is required')
-      const targetAgent = typeof agentId === 'string' && agentId.trim() ? agentId.trim() : 'main'
+    wrapHandler('TASKS_DISPATCH', async (opts: unknown): Promise<{ ok: boolean; localTaskId?: string; runId?: string; error?: string }> => {
+      const o = (opts ?? {}) as {
+        text?: string
+        agentId?: string
+        mode?: 'now' | 'schedule'
+        schedule?: { kind: string; at?: string; expr?: string; everyMs?: number }
+        freq?: string
+      }
+      const text = (o.text ?? '').trim()
+      if (!text) throw new Error('text is required')
+      const targetAgent = typeof o.agentId === 'string' && o.agentId.trim() ? o.agentId.trim() : 'main'
+      // Dedicated task session per agent — never collides with normal chat.
+      const sessionKey = `agent:${targetAgent}:tasks`
+      const mode = o.mode === 'schedule' ? 'schedule' : 'now'
+
+      if (mode === 'now') {
+        try {
+          const res = (await withGatewayRpc<{ runId?: string; status?: string }>('chat.send', {
+            sessionKey,
+            message: text,
+            deliver: false,
+            // chat.send schema requires idempotencyKey (2026.7.1) — without it the
+            // gateway rejects the call: "must have required property 'idempotencyKey'"
+            idempotencyKey: `shell-task-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+          })) as { runId?: string; status?: string }
+          const task = addLocalTask({
+            text,
+            agentId: targetAgent,
+            status: 'running',
+            sessionKey,
+            runId: res?.runId,
+            freq: o.freq,
+            startedAt: Date.now(),
+          })
+          return { ok: true, localTaskId: task.id, runId: res?.runId }
+        } catch (err) {
+          return {
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          }
+        }
+      }
+
+      // Scheduled: real cron job bound to the task session; local record keeps the link.
       try {
-        const res = (await withGatewayRpc<{ runId?: string; status?: string }>('chat.send', {
-          sessionKey: `agent:${targetAgent}:main`,
-          message: text.trim(),
+        const res = (await withGatewayRpc<{ job?: { id?: string } }>('cron.add', {
+          name: text.slice(0, 80),
+          schedule: o.schedule ?? { kind: 'at', at: new Date(Date.now() + 3_600_000).toISOString() },
+          sessionTarget: `session:${sessionKey}`,
+          wakeMode: 'now',
+          payload: { kind: 'agentTurn', message: text },
+          delivery: { mode: 'none' },
+        })) as { job?: { id?: string }; id?: string }
+        // cron.add answers with the job read view on the top level (2026.7.1).
+        const jobId = res?.job?.id ?? res?.id
+        const task = addLocalTask({
+          text,
+          agentId: targetAgent,
+          status: 'scheduled',
+          sessionKey,
+          cronJobId: jobId,
+          freq: o.freq,
+          scheduledAt: Date.now(),
+        })
+        return { ok: true, localTaskId: task.id }
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        }
+      }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_TASKS_LOCAL_LIST,
+    wrapHandler('TASKS_LOCAL_LIST', async (): Promise<{ tasks: LocalTask[] }> => ({
+      tasks: listLocalTasks(),
+    })),
+  )
+
+  ipcMain.handle(
+    IPC_TASKS_LOCAL_REMOVE,
+    wrapHandler('TASKS_LOCAL_REMOVE', async (opts: unknown): Promise<{ ok: boolean }> => {
+      const { taskId } = (opts ?? {}) as { taskId?: string }
+      if (!taskId) throw new Error('taskId is required')
+      return { ok: removeLocalTask(taskId) }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_TASKS_LOCAL_SET_STATUS,
+    wrapHandler('TASKS_LOCAL_SET_STATUS', async (opts: unknown): Promise<{ ok: boolean }> => {
+      const { taskId, status } = (opts ?? {}) as { taskId?: string; status?: string }
+      if (!taskId || !status) throw new Error('taskId and status are required')
+      const allowed = ['running', 'waiting', 'succeeded', 'failed', 'scheduled', 'cancelled']
+      if (!allowed.includes(status)) throw new Error(`invalid status: ${status}`)
+      const task = getLocalTask(taskId)
+      if (!task) return { ok: false }
+      const patch: Partial<LocalTask> = { status: status as LocalTask['status'] }
+      if (status === 'running') {
+        patch.startedAt = Date.now()
+        patch.question = undefined
+        patch.answer = undefined
+        patch.error = undefined
+        patch.endedAt = undefined
+      }
+      if (status === 'succeeded' || status === 'failed' || status === 'cancelled') {
+        patch.endedAt = Date.now()
+      }
+      updateLocalTask(taskId, patch)
+      return { ok: true }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_TASKS_RESUME,
+    wrapHandler('TASKS_RESUME', async (opts: unknown): Promise<{ ok: boolean; runId?: string; error?: string }> => {
+      const { taskId, reply } = (opts ?? {}) as { taskId?: string; reply?: string }
+      if (!taskId) throw new Error('taskId is required')
+      const task = getLocalTask(taskId)
+      if (!task) return { ok: false, error: 'task not found' }
+      const message = (reply ?? '').trim() || 'Продолжай'
+      try {
+        const res = (await withGatewayRpc<{ runId?: string }>('chat.send', {
+          sessionKey: task.sessionKey,
+          message,
           deliver: false,
-          // chat.send schema requires idempotencyKey (2026.7.1) — without it the
-          // gateway rejects the call: "must have required property 'idempotencyKey'"
           idempotencyKey: `shell-task-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
-        })) as { runId?: string; status?: string }
-        return { ok: true, runId: res?.runId, status: res?.status }
+        })) as { runId?: string }
+        updateLocalTask(taskId, {
+          status: 'running',
+          runId: res?.runId,
+          question: undefined,
+          answer: undefined,
+          error: undefined,
+          startedAt: Date.now(),
+          endedAt: undefined,
+        })
+        return { ok: true, runId: res?.runId }
       } catch (err) {
         return {
           ok: false,
@@ -867,7 +1020,13 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
       const { jobId } = (opts ?? {}) as { jobId?: string }
       if (!jobId) throw new Error('jobId is required')
       const res = (await withGatewayRpc<{ ok?: boolean }>('cron.run', { jobId })) as { ok?: boolean }
-      return { ok: res?.ok !== false }
+      const ok = res?.ok !== false
+      // A scheduled shell task linked to this cron job starts running right now.
+      if (ok) {
+        const local = listLocalTasks().find((t) => t.cronJobId === jobId && t.status === 'scheduled')
+        if (local) updateLocalTask(local.id, { status: 'running', startedAt: Date.now() })
+      }
+      return { ok }
     }),
   )
 
@@ -877,7 +1036,10 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
       const { jobId } = (opts ?? {}) as { jobId?: string }
       if (!jobId) throw new Error('jobId is required')
       const res = (await withGatewayRpc<{ ok?: boolean }>('cron.remove', { jobId })) as { ok?: boolean }
-      return { ok: res?.ok !== false }
+      const ok = res?.ok !== false
+      // A scheduled shell task linked to this cron job is cancelled with it.
+      if (ok) removeLocalTaskByCronJobId(jobId)
+      return { ok }
     }),
   )
 

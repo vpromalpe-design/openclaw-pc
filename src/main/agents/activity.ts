@@ -27,6 +27,7 @@ import { createGatewayRpcClientFromConfig, GatewayRpcClient } from '../gateway/r
 import { IPC_AGENTS_ACTIVITY } from '../../shared/ipc-channels.js'
 import { logInfo, logWarn } from '../utils/logger.js'
 import { speakAgentAnswer } from '../voice/voice.js'
+import { notifyFinalAssistantMessage } from '../tasks/monitor.js'
 
 let client: GatewayRpcClient | null = null
 let subscribed = false
@@ -72,6 +73,7 @@ function handleEvent(event: string, payload: unknown): void {
   if (event === 'session.message') {
     const p = payload as
       | {
+          sessionKey?: unknown
           message?: { role?: unknown; content?: unknown }
           messageId?: unknown
           sessionSnapshot?: { hasActiveRun?: boolean } | null
@@ -92,6 +94,9 @@ function handleEvent(event: string, payload: unknown): void {
       }
     }
     const text = extractAssistantText(msg.content)
+    // v0.9.22: finalize shell tasks awaiting an answer (only session agent:<id>:tasks).
+    const sessionKey = typeof p.sessionKey === 'string' ? p.sessionKey : null
+    if (sessionKey && text) notifyFinalAssistantMessage(sessionKey, text)
     if (text) speakAgentAnswer(text)
     return
   }

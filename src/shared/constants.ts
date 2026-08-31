@@ -17,3 +17,6 @@ export const OPENCLAW_CONFIG_FILE = 'openclaw.json'
 
 /** Shell config file relative to app.getPath('userData') */
 export const SHELL_CONFIG_FILE = 'config.json'
+
+/** Shell local task registry (v0.9.22) — tasks dispatched from the «Задачи» board */
+export const TASKS_STORE_FILE = 'tasks.json'
