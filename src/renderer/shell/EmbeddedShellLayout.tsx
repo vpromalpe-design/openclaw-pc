@@ -23,6 +23,7 @@ import {
   Archive,
   Wrench,
   HardDrive,
+  Globe,
 } from 'lucide-react'
 import { LoadingView } from './LoadingView'
 import { ErrorView, type ErrorType } from './ErrorView'
@@ -37,6 +38,7 @@ import { SkillsView } from './SkillsView'
 import { UpdateView } from './UpdateView'
 import { TextChatView, type ChatMessage } from './TextChatView'
 import { AgentSettingsView } from './AgentSettingsView'
+import { GatewaySettingsView } from './GatewaySettingsView'
 import { TasksView } from './TasksView'
 import { AgentMenuPortal } from './AgentMenu'
 import { Bot, Type, Send } from 'lucide-react'
@@ -77,6 +79,7 @@ export type EmbeddedPanel =
   | 'telegram'
   | 'agent-settings'
   | 'tasks'
+  | 'gateway'
 
 export interface EmbeddedShellLayoutProps {
   activePanel: EmbeddedPanel
@@ -261,6 +264,7 @@ const NAV_I18N_KEY: Record<string, string> = {
   telegram: 'shell.nav.telegram',
   settings: 'shell.nav.settings',
   about: 'shell.nav.about',
+  gateway: 'shell.nav.gateway',
 }
 
 interface AgentInfo {
@@ -1111,6 +1115,8 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
         return <VoiceSettingsView onBack={() => handleNavigateToPanel('')} />
       case 'telegram':
         return <TelegramSettingsView onBack={() => handleNavigateToPanel('')} />
+      case 'gateway':
+        return <GatewaySettingsView onBack={() => handleNavigateToPanel('')} />
       case 'agent-settings':
         return (
           <AgentSettingsView
@@ -1347,6 +1353,9 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
               </button>
               <button type="button" className="shell-menu-item" onClick={() => { setOpenMenu(null); handleNavigateToPanel('voice') }}>
                 <span className="ic"><Mic size={15} strokeWidth={1.8} /></span> Голос и микрофон
+              </button>
+              <button type="button" className="shell-menu-item" onClick={() => { setOpenMenu(null); handleNavigateToPanel('gateway') }}>
+                <span className="ic"><Globe size={15} strokeWidth={1.8} /></span> Шлюз (Gateway) <span className="hint">порт, доступ</span>
               </button>
               <div className="shell-menu-sep" />
               <button type="button" className="shell-menu-item" onClick={() => { setOpenMenu(null); handleNavigateToPanel('settings') }}>

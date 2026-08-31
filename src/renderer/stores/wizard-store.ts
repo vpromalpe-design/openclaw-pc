@@ -12,7 +12,7 @@ import type { TFunction } from 'i18next'
 
 // ─── Step Definitions ────────────────────────────────────────────────────────
 
-export const WIZARD_STEP_COUNT = 6
+export const WIZARD_STEP_COUNT = 5
 
 export interface WizardStepDef {
   id: string
@@ -22,10 +22,9 @@ export interface WizardStepDef {
 
 export const WIZARD_STEPS: readonly WizardStepDef[] = [
   { id: 'welcome', label: 'Welcome' },
-  { id: 'model', label: 'Model' },
+  { id: 'model', label: 'Model', skippable: true },
   { id: 'channel', label: 'Channels', skippable: true },
   { id: 'voice', label: 'Voice', skippable: true },
-  { id: 'gateway', label: 'Gateway' },
   { id: 'complete', label: 'Complete' },
 ] as const
 
@@ -246,12 +245,6 @@ export const useWizardStore = create<WizardStore>((set, get) => ({
         // provider/key or pressed «Пропустить»; never block the wizard.
         return true
       case 4:
-        return (
-          state.gatewayConfig.port > 0 &&
-          state.gatewayConfig.port <= 65535 &&
-          state.gatewayConfig.authToken.trim().length > 0
-        )
-      case 5:
         return true
       default:
         return false
