@@ -99,9 +99,18 @@ function App() {
       )
       if (!iframe || event.source !== iframe.contentWindow) return
       const respond = (payload: unknown) => {
+        // Target the iframe's exact origin instead of '*'; fall back to
+        // discarding the response when the origin cannot be derived.
+        let targetOrigin: string | null = null
+        try {
+          targetOrigin = new URL(iframe.src).origin
+        } catch {
+          targetOrigin = null
+        }
+        if (!targetOrigin) return
         iframe.contentWindow?.postMessage(
           { type: 'openclaw-pc:local-engine:state', ...(payload as object) },
-          '*',
+          targetOrigin,
         )
       }
       try {

@@ -259,8 +259,37 @@ function safelog(method: 'error' | 'warn' | 'info', ...args: unknown[]): void {
   try { console[method](...args) } catch { /* EPIPE — pipe closed, ignore */ }
 }
 
+/**
+ * Defence-in-depth: only accept IPC calls from the shell renderer itself.
+ * Allowed: packaged shell (openclaw-shell://renderer, file: fallback) and the
+ * dev-server origin. Anything else (e.g. the Control UI iframe at
+ * http://127.0.0.1:<port>, or a page we were navigated to) is rejected.
+ */
+function isTrustedIpcSender(event: Electron.IpcMainInvokeEvent): boolean {
+  const frameUrl = event.senderFrame?.url
+  if (!frameUrl) return false
+  try {
+    const parsed = new URL(frameUrl)
+    if (parsed.protocol === 'file:' || parsed.protocol === 'openclaw-shell:') {
+      return true
+    }
+    // Dev mode: renderer served by vite from ELECTRON_RENDERER_URL.
+    const devUrl = process.env.ELECTRON_RENDERER_URL
+    if (devUrl) {
+      return parsed.origin === new URL(devUrl).origin
+    }
+  } catch {
+    return false
+  }
+  return false
+}
+
 function wrapHandler(code: string, fn: (...args: unknown[]) => Promise<unknown> | unknown): AsyncHandler {
-  return async (_event: Electron.IpcMainInvokeEvent, ...args: unknown[]): Promise<IpcResult> => {
+  return async (event: Electron.IpcMainInvokeEvent, ...args: unknown[]): Promise<IpcResult> => {
+    if (!isTrustedIpcSender(event)) {
+      safelog('warn', `[ipc] ${code} rejected: untrusted sender frame`)
+      return fail(code, 'Untrusted sender')
+    }
     try {
       const result = await fn(...args)
       return ok(result)
