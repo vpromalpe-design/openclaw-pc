@@ -165,7 +165,7 @@ export class WindowManager {
         ...(preloadExists ? { preload: preloadPath } : {}),
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: false,
+        sandbox: true,
       },
     })
 

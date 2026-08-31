@@ -1,8 +1,11 @@
 export const LOOPBACK_GATEWAY_HOSTS = new Set(['127.0.0.1', 'localhost', '::1'])
 
-// Chromium rejects `http://[::1]:*` in CSP; localhost + 127.0.0.1 cover typical loopback.
+// Chromium rejects `http://[::1]:*` in CSP; only the shell (packaged custom
+// scheme, file: fallback) and the dev-server origin may embed the Control UI.
+// Deliberately NOT wildcarding all localhost:* — a random local web app should
+// not be able to frame the gateway. Dev origin is appended dynamically below.
 export const RELAXED_GATEWAY_FRAME_ANCESTORS =
-  "frame-ancestors 'self' file: openclaw-shell://renderer http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:*"
+  "frame-ancestors 'self' file: openclaw-shell://renderer"
 
 export type GatewayResponseHeadersInput = Record<string, string[] | string | undefined>
 export type GatewayResponseHeaders = Record<string, string[]>
@@ -36,16 +39,26 @@ export function isLoopbackGatewayResponseUrl(rawUrl: string): boolean {
 }
 
 export function relaxGatewayFrameAncestors(csp: string): string {
+  let frameAncestors = RELAXED_GATEWAY_FRAME_ANCESTORS
+  // Dev mode: the vite dev-server origin must be allowed to embed the Control UI.
+  const devUrl = process.env.ELECTRON_RENDERER_URL
+  if (devUrl) {
+    try {
+      frameAncestors = `${frameAncestors} ${new URL(devUrl).origin}`
+    } catch {
+      // ignore malformed ELECTRON_RENDERER_URL
+    }
+  }
   if (/frame-ancestors\s+[^;]+/i.test(csp)) {
-    return csp.replace(/frame-ancestors\s+[^;]+/i, RELAXED_GATEWAY_FRAME_ANCESTORS)
+    return csp.replace(/frame-ancestors\s+[^;]+/i, frameAncestors)
   }
 
   const trimmed = csp.trim()
   if (!trimmed) {
-    return RELAXED_GATEWAY_FRAME_ANCESTORS
+    return frameAncestors
   }
 
-  return `${trimmed}${trimmed.endsWith(';') ? '' : ';'} ${RELAXED_GATEWAY_FRAME_ANCESTORS}`
+  return `${trimmed}${trimmed.endsWith(';') ? '' : ';'} ${frameAncestors}`
 }
 
 /**
