@@ -20,7 +20,6 @@ import { ModelStep } from './steps/ModelStep'
 import { ChannelStep } from './steps/ChannelStep'
 import { VoiceStep } from './steps/VoiceStep'
 import { CompleteStep } from './steps/CompleteStep'
-import { ModelTestButton } from './ModelTestButton'
 import { ChevronLeft, ChevronRight, SkipForward, X, Globe } from 'lucide-react'
 import { tuk } from '@/lib/sounds'
 import openclawLogo from '@/assets/openclaw-logo.png'
@@ -158,7 +157,6 @@ export function WizardLayout() {
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-3">
-              {currentStep === 1 && <ModelTestButton />}
               {stepDef.skippable && !isLastStep && (
                 <Button variant="ghost" size="lg" onClick={() => { tuk(); store.nextStep() }}>
                   {t('wizard.nav.skip')}
