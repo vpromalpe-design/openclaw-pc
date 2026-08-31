@@ -12,7 +12,8 @@ import {
 import { getProviderAuthMode, requiresApiKey } from '@/utils/provider-auth'
 import { ProviderLogo } from '@/components/ProviderLogo'
 import { LocalModelPicker } from '../LocalModelPicker'
-import { XCircle, Eye, EyeOff } from 'lucide-react'
+import { ModelTestButton } from '../ModelTestButton'
+import { Eye, EyeOff } from 'lucide-react'
 import { TESTABLE_PROVIDERS, canTestModel } from '@/utils/model-test'
 import type { ModelProvider, ReasoningLevel } from '../../../shared/types'
 import { PROVIDER_OPTIONS, MODELS_BY_PROVIDER } from '@/constants/provider-presets'
@@ -222,6 +223,11 @@ export function ModelStep() {
             </div>
           )}
         </fieldset>
+
+        {/* v0.9.19: «Проверить подключение» — у поля модели, не в футере */}
+        <div className="flex flex-wrap items-center gap-3">
+          <ModelTestButton />
+        </div>
       </div>
 
       {modelConfig.provider === 'moonshot' && (
@@ -446,15 +452,8 @@ export function ModelStep() {
         </fieldset>
       )}
 
-      {/* Test Connection hint — the button itself lives in the footer next to «Далее» */}
+      {/* Test connection hints (the button itself sits next to the model field above) */}
       <div className="space-y-3">
-        {testState.status === 'error' && (
-          <p className="inline-flex items-center gap-1.5 text-sm text-destructive">
-            <XCircle className="w-4 h-4 shrink-0" />
-            {testState.message}
-          </p>
-        )}
-
         {testState.status === 'idle' && canTestModel(modelConfig) && (
           <p className="text-xs text-muted-foreground">
             {t('wizard.model.testHint')}
