@@ -15,6 +15,8 @@ import {
   Bot,
   Copy,
   MessageSquare,
+  Bell,
+  Send,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -27,7 +29,27 @@ export interface AgentInfo {
   isDefault?: boolean
 }
 
-/** Task row from the gateway task ledger (tasks.list). */
+/** Shell-local task (v0.9.22) — created when the user dispatches from the board. */
+export interface LocalTask {
+  id: string
+  text: string
+  agentId: string
+  status: 'running' | 'waiting' | 'succeeded' | 'failed' | 'scheduled' | 'cancelled'
+  sessionKey: string
+  runId?: string
+  cronJobId?: string
+  freq?: string
+  scheduledAt?: number
+  answer?: string
+  question?: string
+  error?: string
+  createdAt: number
+  startedAt?: number
+  endedAt?: number
+  updatedAt: number
+}
+
+/** Task row from the gateway task ledger (tasks.list) or the local registry. */
 export interface TaskItem {
   id: string
   kind?: string
@@ -50,6 +72,14 @@ export interface TaskItem {
   progressSummary?: string
   terminalSummary?: string
   error?: string
+  /** v0.9.22 local-registry fields */
+  isLocal?: boolean
+  localTaskId?: string
+  question?: string
+  answer?: string
+  cronJobId?: string
+  freq?: string
+  scheduledAt?: number
 }
 
 /** Cron job row (cron.list). */
@@ -62,6 +92,8 @@ export interface CronJob {
   agentId?: string
   sessionKey?: string
   schedule?: { kind?: string; expr?: string; at?: string; everyMs?: number; tz?: string }
+  /** Compact list view (cron.list) exposes scheduleKind instead of full schedule. */
+  scheduleKind?: string
   sessionTarget?: string
   wakeMode?: string
   payload?: { kind?: string; message?: string; text?: string; model?: string }
@@ -84,6 +116,12 @@ export interface TasksData {
   cancelTask: (task: TaskItem) => Promise<string | null>
   runCron: (job: CronJob) => Promise<string | null>
   removeCron: (job: CronJob) => Promise<string | null>
+  /** Resume a «Ждут вас» task (send approval/reply to the agent). */
+  resumeTask: (task: TaskItem, reply?: string) => Promise<string | null>
+  /** Delete a local task record (completed/cancelled/scheduled). */
+  localRemove: (task: TaskItem) => Promise<string | null>
+  /** Cancel a scheduled local task: remove cron + drop the record. */
+  cancelScheduled: (task: TaskItem) => Promise<string | null>
   /** Dispatch «now» or schedule; returns error message or null on success. */
   dispatchTask: (opts: {
     text: string
@@ -111,10 +149,12 @@ export interface TasksViewProps {
 
 const STATUS_META: Record<
   string,
-  { label: string; color: string; bg: string; icon: 'running' | 'queued' | 'done' | 'failed' | 'cancelled' }
+  { label: string; color: string; bg: string; icon: 'running' | 'queued' | 'done' | 'failed' | 'cancelled' | 'waiting' | 'scheduled' }
 > = {
   running: { label: 'выполняется', color: '#0A84FF', bg: 'rgba(10,132,255,.14)', icon: 'running' },
   queued: { label: 'в очереди', color: '#FFD60A', bg: 'rgba(255,214,10,.13)', icon: 'queued' },
+  waiting: { label: 'ждёт вас', color: '#FFD60A', bg: 'rgba(255,214,10,.14)', icon: 'waiting' },
+  scheduled: { label: 'отложена', color: '#BF5AF2', bg: 'rgba(191,90,242,.14)', icon: 'scheduled' },
   completed: { label: 'готово', color: '#30D158', bg: 'rgba(48,209,88,.13)', icon: 'done' },
   succeeded: { label: 'готово', color: '#30D158', bg: 'rgba(48,209,88,.13)', icon: 'done' },
   failed: { label: 'ошибка', color: '#FF453A', bg: 'rgba(255,69,58,.13)', icon: 'failed' },
@@ -173,6 +213,10 @@ function TaskStatusIcon({ status, className }: { status: string; className?: str
       return <Loader2 className={`${className} animate-spin`} aria-hidden />
     case 'queued':
       return <Clock className={className} aria-hidden />
+    case 'waiting':
+      return <Bell className={className} aria-hidden />
+    case 'scheduled':
+      return <CalendarClock className={className} aria-hidden />
     case 'done':
       return <CheckCircle2 className={className} aria-hidden />
     case 'failed':
@@ -184,16 +228,55 @@ function TaskStatusIcon({ status, className }: { status: string; className?: str
 
 function scheduleLabel(job: CronJob): string {
   const s = job.schedule
-  if (!s) return '—'
-  if (s.kind === 'every') return `каждые ${Math.round((s.everyMs ?? 0) / 60_000)} мин`
-  if (s.kind === 'cron') return s.expr ?? 'cron'
-  if (s.kind === 'at') return `в ${fmtWhen(new Date(s.at ?? Date.now()).getTime())}`
-  return s.kind ?? '—'
+  const kind = s?.kind ?? job.scheduleKind
+  if (!kind) return '—'
+  if (kind === 'every') return 'повторяющееся'
+  if (kind === 'cron') return s?.expr ?? 'cron'
+  if (kind === 'at') {
+    const at = s?.at ? new Date(s.at).getTime() : undefined
+    return at ? `в ${fmtWhen(at)}` : 'один раз'
+  }
+  return kind
 }
 
-/** Shared data hook: task ledger + cron jobs, 10s polling, actions. */
+const FREQ_LABEL: Record<string, string> = {
+  once: 'один раз',
+  hourly: 'раз в час',
+  daily: 'раз в день',
+  weekly: 'раз в неделю',
+  monthly: 'раз в месяц',
+}
+
+/** Map a shell-local task into the unified TaskItem shape. */
+function localToTaskItem(t: LocalTask): TaskItem {
+  return {
+    id: t.id,
+    taskId: t.id,
+    kind: 'task',
+    title: t.text,
+    agentId: t.agentId,
+    sessionKey: t.sessionKey,
+    status: t.status,
+    isLocal: true,
+    localTaskId: t.id,
+    question: t.question,
+    answer: t.answer,
+    error: t.error,
+    cronJobId: t.cronJobId,
+    freq: t.freq,
+    scheduledAt: t.scheduledAt,
+    runId: t.runId,
+    createdAt: t.createdAt,
+    updatedAt: t.updatedAt,
+    startedAt: t.startedAt,
+    endedAt: t.endedAt,
+  }
+}
+
+/** Shared data hook: local registry + gateway ledger + cron jobs, 10s polling. */
 export function useTasksData(enabled = true): TasksData {
-  const [tasks, setTasks] = useState<TaskItem[]>([])
+  const [localTasks, setLocalTasks] = useState<LocalTask[]>([])
+  const [gatewayTasks, setGatewayTasks] = useState<TaskItem[]>([])
   const [cronJobs, setCronJobs] = useState<CronJob[]>([])
   const [loading, setLoading] = useState(true)
   const [reloading, setReloading] = useState(false)
@@ -204,12 +287,29 @@ export function useTasksData(enabled = true): TasksData {
     if (!quiet) setLoading(true)
     setError(null)
     try {
-      const [tasksRes, cronRes] = await Promise.all([
+      const [localRes, tasksRes, cronRes] = await Promise.all([
+        window.electronAPI.tasksLocalList(),
         window.electronAPI.tasksList({ limit: 200 }),
         window.electronAPI.cronList(),
       ])
-      setTasks((tasksRes?.tasks as unknown as TaskItem[]) ?? [])
+      const locals = (localRes?.tasks as unknown as LocalTask[]) ?? []
+      setLocalTasks(locals)
+      setGatewayTasks((tasksRes?.tasks as unknown as TaskItem[]) ?? [])
       setCronJobs((cronRes?.jobs as unknown as CronJob[]) ?? [])
+
+      // Scheduled local tasks whose cron job has already fired → now running.
+      const jobs = (cronRes?.jobs as unknown as CronJob[]) ?? []
+      for (const lt of locals) {
+        if (lt.status !== 'scheduled' || !lt.cronJobId) continue
+        const job = jobs.find((j) => j.id === lt.cronJobId)
+        if (job && typeof job.lastRunAtMs === 'number' && job.lastRunAtMs > lt.updatedAt) {
+          try {
+            await window.electronAPI.tasksLocalSetStatus({ taskId: lt.id, status: 'running' })
+          } catch {
+            // ignore transient errors
+          }
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -221,11 +321,18 @@ export function useTasksData(enabled = true): TasksData {
   useEffect(() => {
     if (!enabled) return
     void load()
+    const unsubscribe = window.electronAPI.onTasksLocalChanged(() => void load(true))
     timerRef.current = setInterval(() => void load(true), 10_000)
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
+      unsubscribe()
     }
   }, [load, enabled])
+
+  const tasks = useMemo<TaskItem[]>(
+    () => [...localTasks.map(localToTaskItem), ...gatewayTasks],
+    [localTasks, gatewayTasks],
+  )
 
   const cancelTask = useCallback(
     async (task: TaskItem): Promise<string | null> => {
@@ -266,6 +373,52 @@ export function useTasksData(enabled = true): TasksData {
     [load],
   )
 
+  const resumeTask = useCallback(
+    async (task: TaskItem, reply?: string): Promise<string | null> => {
+      if (!task.localTaskId) return 'задача не является локальной'
+      try {
+        const res = await window.electronAPI.tasksResume({ taskId: task.localTaskId, reply })
+        if (!res.ok) return res.error ?? 'resume failed'
+        void load(true)
+        return null
+      } catch (err) {
+        return err instanceof Error ? err.message : String(err)
+      }
+    },
+    [load],
+  )
+
+  const localRemove = useCallback(
+    async (task: TaskItem): Promise<string | null> => {
+      if (!task.localTaskId) return 'задача не является локальной'
+      try {
+        await window.electronAPI.tasksLocalRemove({ taskId: task.localTaskId })
+        void load(true)
+        return null
+      } catch (err) {
+        return err instanceof Error ? err.message : String(err)
+      }
+    },
+    [load],
+  )
+
+  const cancelScheduled = useCallback(
+    async (task: TaskItem): Promise<string | null> => {
+      // Remove the cron job (main also drops the local record) or drop record only.
+      if (task.cronJobId) {
+        try {
+          await window.electronAPI.cronRemove({ jobId: task.cronJobId })
+          void load(true)
+          return null
+        } catch (err) {
+          return err instanceof Error ? err.message : String(err)
+        }
+      }
+      return localRemove(task)
+    },
+    [load, localRemove],
+  )
+
   const dispatchTask = useCallback(
     async (opts: {
       text: string
@@ -280,10 +433,10 @@ export function useTasksData(enabled = true): TasksData {
       const timeOpt = opts.timeOpt
       const pickVal = opts.pickVal || '19:30'
 
-      // Разово и сейчас → прямой запуск через агента (chat.send).
+      // Разово и сейчас → прямой запуск через агента (chat.send) + локальная запись.
       if (freq === 'once' && timeOpt === 'now') {
         try {
-          const res = await window.electronAPI.tasksDispatch({ text, agentId })
+          const res = await window.electronAPI.tasksDispatch({ text, agentId, mode: 'now', freq })
           if (!res.ok) return res.error ?? 'dispatch failed'
           void load(true)
           return null
@@ -325,15 +478,14 @@ export function useTasksData(enabled = true): TasksData {
       }
 
       try {
-        const res = await window.electronAPI.cronAdd({
-          name: text.slice(0, 80),
+        const res = await window.electronAPI.tasksDispatch({
+          text,
+          agentId,
+          mode: 'schedule',
           schedule,
-          sessionTarget: 'isolated',
-          wakeMode: 'now',
-          payload: { kind: 'agentTurn', message: text },
-          delivery: { mode: 'none' },
+          freq,
         })
-        if (!res.ok) return res.error ?? 'cron.add failed'
+        if (!res.ok) return res.error ?? 'schedule failed'
         void load(true)
         return null
       } catch (err) {
@@ -347,9 +499,10 @@ export function useTasksData(enabled = true): TasksData {
     const c: Record<string, number> = { all: 0, waiting: 0, running: 0, failed: 0, scheduled: cronJobs.length, done: 0 }
     for (const t of tasks) {
       c.all += 1
-      if (t.status === 'queued') c.waiting += 1
+      if (t.status === 'queued' || t.status === 'waiting') c.waiting += 1
       else if (t.status === 'running') c.running += 1
       else if (t.status === 'failed' || t.status === 'timed_out') c.failed += 1
+      else if (t.status === 'scheduled') c.scheduled += 1
       else if (t.status === 'completed' || t.status === 'cancelled' || t.status === 'canceled' || t.status === 'succeeded') c.done += 1
     }
     return c
@@ -367,6 +520,9 @@ export function useTasksData(enabled = true): TasksData {
     cancelTask,
     runCron,
     removeCron,
+    resumeTask,
+    localRemove,
+    cancelScheduled,
     dispatchTask,
     counts,
     activeCount,
@@ -384,7 +540,7 @@ const FILTERS: { id: string; label: string }[] = [
 ]
 
 const GROUPS: { key: string; label: string; color: string; test: (t: TaskItem) => boolean }[] = [
-  { key: 'waiting', label: '🔔 Ждут вас', color: '#FFD60A', test: (t) => t.status === 'queued' },
+  { key: 'waiting', label: '🔔 Ждут вас', color: '#FFD60A', test: (t) => t.status === 'queued' || t.status === 'waiting' },
   { key: 'running', label: '⚡ Выполняются', color: '#0A84FF', test: (t) => t.status === 'running' },
   { key: 'failed', label: '⚠️ Ошибки', color: '#FF453A', test: (t) => t.status === 'failed' || t.status === 'timed_out' },
   { key: 'completed', label: '✅ Завершено', color: '#8E8E93', test: (t) => t.status === 'completed' || t.status === 'cancelled' || t.status === 'canceled' || t.status === 'succeeded' },
@@ -412,12 +568,12 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
     (t: TaskItem): boolean => {
       if (filter !== 'all' && filter !== 'scheduled') {
         if (filter === 'running' && t.status !== 'running') return false
-        if (filter === 'waiting' && t.status !== 'queued') return false
+        if (filter === 'waiting' && !(t.status === 'queued' || t.status === 'waiting')) return false
         if (filter === 'failed' && !(t.status === 'failed' || t.status === 'timed_out')) return false
       }
       const q = searchQuery.trim().toLowerCase()
       if (q) {
-        const hay = `${t.title ?? ''} ${t.agentId ?? ''} ${t.terminalSummary ?? ''} ${t.progressSummary ?? ''}`.toLowerCase()
+        const hay = `${t.title ?? ''} ${t.agentId ?? ''} ${t.terminalSummary ?? ''} ${t.progressSummary ?? ''} ${t.question ?? ''} ${t.answer ?? ''}`.toLowerCase()
         if (!hay.includes(q)) return false
       }
       return true
@@ -466,22 +622,18 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
     }
   }, [dispatchText, dispatchAgent, dispatchTime, dispatchFreq, dispatchPick, data, showFeedback])
 
-  const taskActions = useCallback(
-    (task: TaskItem): string => {
-      if (task.status === 'running') return '✕'
-      if (task.status === 'queued') return '✕'
-      if (task.status === 'failed' || task.status === 'timed_out') return '↻'
-      return '💬'
-    },
-    [],
-  )
-
   const handleTaskAction = useCallback(
     async (task: TaskItem, act: string) => {
       if (act === 'cancel') {
         const err = await data.cancelTask(task)
         if (err) showFeedback(`⚠ ${err}`)
         else showFeedback('✕ Задача отменена')
+        return
+      }
+      if (act === 'resume') {
+        const err = await data.resumeTask(task)
+        if (err) showFeedback(`⚠ ${err}`)
+        else showFeedback('▶ Задача продолжена')
         return
       }
       if (act === 'retry') {
@@ -495,8 +647,20 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
         else showFeedback('↻ Повторный запуск')
         return
       }
+      if (act === 'unschedule') {
+        const err = await data.cancelScheduled(task)
+        if (err) showFeedback(`⚠ ${err}`)
+        else showFeedback('🗑 Отложенная задача удалена')
+        return
+      }
+      if (act === 'remove') {
+        const err = await data.localRemove(task)
+        if (err) showFeedback(`⚠ ${err}`)
+        else showFeedback('🗑 Задача удалена из списка')
+        return
+      }
       if (act === 'chat') {
-        onOpenSession?.(task.sessionKey ?? (task.agentId ? `agent:${task.agentId}:main` : undefined))
+        onOpenSession?.(task.sessionKey ?? (task.agentId ? `agent:${task.agentId}:tasks` : undefined))
       }
     },
     [data, showFeedback, onOpenSession],
@@ -524,7 +688,7 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
         </span>
       )
     const progress =
-      task.status === 'running' && task.progressSummary ? (
+      task.status === 'running' ? (
         <div className="mt-1.5 flex items-center gap-2">
           <div className="h-[3px] flex-1 overflow-hidden rounded-full bg-white/10">
             <i
@@ -532,16 +696,79 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
               style={{ width: '100%', background: 'linear-gradient(90deg,#0A84FF,#5E5CE6)', animation: 'tasks-shimmer 1.6s ease-in-out infinite' }}
             />
           </div>
-          <span className="shrink-0 text-[10.5px] text-sky-300/80">{task.progressSummary}</span>
+          <span className="shrink-0 text-[10.5px] text-sky-300/80">
+            {task.progressSummary ?? 'выполняется агентом…'}
+          </span>
+        </div>
+      ) : null
+    const questionLine =
+      task.status === 'waiting' && task.question ? (
+        <div className="mt-1.5 flex items-start gap-2 rounded-lg border border-amber-400/25 bg-amber-500/10 px-2.5 py-1.5">
+          <Bell className="mt-0.5 h-3 w-3 shrink-0 text-amber-300" aria-hidden />
+          <span className="line-clamp-2 min-w-0 flex-1 text-[11px] text-amber-100/90">{task.question}</span>
+        </div>
+      ) : null
+    const scheduledLine =
+      task.status === 'scheduled' ? (
+        <div className="mt-1 flex items-center gap-1.5 text-[10.5px] text-purple-300/90">
+          <CalendarClock className="h-3 w-3" aria-hidden />
+          {task.scheduledAt ? `запуск ${fmtWhen(task.scheduledAt)}` : 'запуск по расписанию'}
+          {task.freq && <span>· {FREQ_LABEL[task.freq] ?? task.freq}</span>}
         </div>
       ) : null
     const errLine = task.status === 'failed' || task.status === 'timed_out' ? (
       <div className="mt-1 line-clamp-1 text-[11px] text-red-400/90">{task.error ?? 'Ошибка выполнения'}</div>
     ) : null
     const actions = (() => {
-      const a = taskActions(task)
-      const act = a === '✕' ? 'cancel' : a === '↻' ? 'retry' : 'chat'
-      const title = a === '✕' ? 'Отменить' : a === '↻' ? 'Повторить' : 'Открыть чат'
+      if (task.status === 'scheduled') {
+        // Отложенная локальная задача: запустить сейчас / убрать расписание.
+        return (
+          <span className="mt-0.5 flex shrink-0 items-center gap-1.5">
+            <button
+              type="button"
+              title="Запустить сейчас"
+              onClick={(e) => {
+                e.stopPropagation()
+                void (async () => {
+                  if (task.cronJobId) {
+                    const job = data.cronJobs.find((j) => j.id === task.cronJobId)
+                    if (job) {
+                      const err = await data.runCron(job)
+                      if (err) showFeedback(`⚠ ${err}`)
+                      else showFeedback('▶ Запущено сейчас')
+                      return
+                    }
+                  }
+                  const err = await data.resumeTask(task)
+                  if (err) showFeedback(`⚠ ${err}`)
+                  else showFeedback('▶ Запущено сейчас')
+                })()
+              }}
+              className="flex h-6 w-6 items-center justify-center rounded-full border border-sky-400/30 bg-sky-500/10 text-[11px] text-sky-300 transition-all hover:bg-sky-500/25"
+            >
+              ▶
+            </button>
+            <button
+              type="button"
+              title="Убрать расписание"
+              onClick={(e) => {
+                e.stopPropagation()
+                void handleTaskAction(task, 'unschedule')
+              }}
+              className="flex h-6 w-6 items-center justify-center rounded-full border border-red-400/30 bg-red-500/10 text-[11px] text-red-300 transition-all hover:bg-red-500/25"
+            >
+              ✕
+            </button>
+          </span>
+        )
+      }
+      let a = '💬'
+      if (task.status === 'running') a = '✕'
+      else if (task.status === 'queued') a = '✕'
+      else if (task.status === 'waiting') a = '▶'
+      else if (task.status === 'failed' || task.status === 'timed_out') a = '↻'
+      const act = a === '✕' ? 'cancel' : a === '↻' ? 'retry' : a === '▶' ? 'resume' : 'chat'
+      const title = a === '✕' ? 'Отменить' : a === '↻' ? 'Повторить' : a === '▶' ? 'Продолжить' : 'Открыть чат'
       const danger = a === '✕'
       return (
         <button
@@ -556,7 +783,9 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
               ? 'border border-red-400/30 bg-red-500/10 text-red-300 hover:bg-red-500/25'
               : a === '↻'
                 ? 'border border-sky-400/30 bg-sky-500/10 text-sky-300 hover:bg-sky-500/25'
-                : 'border border-white/10 bg-white/5 text-white/50 hover:bg-white/20 hover:text-white'
+                : a === '▶'
+                  ? 'border border-amber-400/40 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25'
+                  : 'border border-white/10 bg-white/5 text-white/50 hover:bg-white/20 hover:text-white'
           }`}
         >
           {a}
@@ -597,6 +826,8 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
               <span style={{ marginLeft: 'auto' }}>id {task.id.slice(0, 6)}</span>
             </span>
             {progress}
+            {questionLine}
+            {scheduledLine}
             {errLine}
           </span>
           <span className="mt-0.5 shrink-0">{actions}</span>
@@ -613,18 +844,19 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
     const nextAt = job.nextRunAtMs ?? toMs(job.schedule?.kind === 'at' ? new Date(job.schedule.at ?? '').getTime() : undefined)
     const freq = (() => {
       const s = job.schedule
-      if (s?.kind === 'every') return 'раз в час'
-      if (s?.kind === 'cron') {
-        const parts = (s.expr ?? '').trim().split(/\s+/)
-        if (parts.length >= 5) {
+      const kind = s?.kind ?? job.scheduleKind
+      if (kind === 'every') return 'повторяющееся'
+      if (kind === 'cron') {
+        const parts = (s?.expr ?? '').trim().split(/\s+/)
+        if (s?.expr && parts.length >= 5) {
           const [m, h, dom, , dow] = parts
           if (dom === '*' && dow === '*') return `ежедневно ${h.padStart(2, '0')}:${m.padStart(2, '0')}`
           if (dom === '1' && dow === '*') return `ежемесячно 1-го числа ${h.padStart(2, '0')}:${m.padStart(2, '0')}`
           if (dom === '*' && dow === '1') return `еженедельно пн ${h.padStart(2, '0')}:${m.padStart(2, '0')}`
         }
-        return s.expr ?? 'cron'
+        return (s?.expr && s.expr) || 'cron'
       }
-      if (s?.kind === 'at') return 'один раз'
+      if (kind === 'at') return 'один раз'
       return '—'
     })()
     return (
@@ -706,7 +938,9 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
   }
 
   const groupItems = (key: string): TaskItem[] => {
-    if (key === 'scheduled') return []
+    if (key === 'scheduled') {
+      return data.tasks.filter((t) => t.status === 'scheduled' && visible(t))
+    }
     const g = GROUPS.find((x) => x.key === key)
     if (!g) return []
     return data.tasks.filter((t) => g.test(t) && visible(t))
@@ -792,8 +1026,8 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
           </div>
         )}
 
-        {/* Отложенные (cron) */}
-        {data.cronJobs.filter(visibleCron).length > 0 && (
+        {/* Отложенные (cron + local scheduled) */}
+        {(data.cronJobs.filter(visibleCron).length > 0 || groupItems('scheduled').length > 0) && (
           <div className="mb-3">
             <div
               className="mb-1.5 flex cursor-pointer items-center gap-2 px-1"
@@ -802,14 +1036,17 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
               <span className="h-2 w-2 rounded-full" style={{ background: '#BF5AF2', boxShadow: '0 0 8px #BF5AF2' }} />
               <span className="text-[11.5px] font-semibold uppercase tracking-wide text-white/70">⏰ Отложенные</span>
               <span className="rounded-full bg-white/10 px-1.5 text-[10px] text-white/60">
-                {data.cronJobs.filter(visibleCron).length}
+                {data.cronJobs.filter(visibleCron).length + groupItems('scheduled').length}
               </span>
               <span className="ml-auto text-[10px] text-white/40 transition-transform" style={{ transform: collapsedGroups.scheduled ? 'rotate(-90deg)' : 'none' }}>
                 ▾
               </span>
             </div>
             {!collapsedGroups.scheduled && (
-              <div className="space-y-1.5">{data.cronJobs.filter(visibleCron).map(renderCronCard)}</div>
+              <div className="space-y-1.5">
+                {groupItems('scheduled').map((t) => renderTaskCard(t))}
+                {data.cronJobs.filter(visibleCron).map(renderCronCard)}
+              </div>
             )}
           </div>
         )}
@@ -953,6 +1190,7 @@ export function TasksDetailPanel({ data, selected, tab = 'output', onTabChange, 
   const activeTab = onTabChange ? tab : localTab
   const setTab = (tb: TasksDetailTab) => (onTabChange ? onTabChange(tb) : setLocalTab(tb))
   const [feedback, setFeedback] = useState<string | null>(null)
+  const [replyText, setReplyText] = useState('')
 
   const showFeedback = useCallback((msg: string) => {
     setFeedback(msg)
@@ -1005,13 +1243,30 @@ export function TasksDetailPanel({ data, selected, tab = 'output', onTabChange, 
       const meta = STATUS_META[task.status]
       return (
         <div className="space-y-2.5">
-          {task.status === 'running' && task.progressSummary && (
+          {task.status === 'running' && (
             <div className="rounded-[15px] border border-sky-400/25 bg-sky-500/10 px-3 py-2.5">
               <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold text-sky-300">
                 <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
                 Выполняется
               </div>
-              <p className="text-[11px] leading-relaxed text-white/85">{task.progressSummary}</p>
+              <p className="text-[11px] leading-relaxed text-white/85">
+                {task.progressSummary ?? 'Агент выполняет задачу — ответ появится здесь.'}
+              </p>
+            </div>
+          )}
+          {task.status === 'waiting' && task.question && (
+            <div className="rounded-[15px] border border-amber-400/25 bg-amber-500/10 px-3 py-2.5">
+              <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold text-amber-300">
+                <Bell className="h-3 w-3" aria-hidden />
+                Агент ждёт вашего решения
+              </div>
+              <p className="whitespace-pre-wrap text-[11px] leading-relaxed text-white/90">{task.question}</p>
+            </div>
+          )}
+          {task.answer && (
+            <div className="rounded-[15px] border border-white/[0.08] bg-white/[0.04] px-3 py-2.5">
+              <div className="mb-1 text-[10px] font-semibold text-white/40">Ответ агента</div>
+              <p className="whitespace-pre-wrap text-[11px] leading-relaxed text-white/85">{task.answer}</p>
             </div>
           )}
           {task.terminalSummary && (
@@ -1029,7 +1284,7 @@ export function TasksDetailPanel({ data, selected, tab = 'output', onTabChange, 
               <p className="whitespace-pre-wrap font-mono text-[10.5px] leading-relaxed text-red-200/90">{task.error}</p>
             </div>
           )}
-          {!task.progressSummary && !task.terminalSummary && !task.error && (
+          {!task.progressSummary && !task.terminalSummary && !task.error && !task.answer && !task.question && (
             <div className="pt-6 text-center text-[11px] text-white/35">
               {task.status === 'queued' ? 'Задача в очереди — ждёт запуска' : 'Нет вывода'}
             </div>
@@ -1101,6 +1356,7 @@ export function TasksDetailPanel({ data, selected, tab = 'output', onTabChange, 
           {dbRow('Создана', fmtTime(toMs(task.createdAt)))}
           {dbRow('Запущена', fmtTime(toMs(task.startedAt)))}
           {dbRow('Завершена', fmtTime(toMs(task.endedAt)))}
+          {dbRow('Длительность', fmtDuration(toMs(task.startedAt), toMs(task.endedAt)))}
           {dbRow('Run ID', task.runId ?? '—')}
           {dbRow('Flow ID', task.flowId ?? '—')}
           {dbRow('Родитель', task.parentTaskId ?? '—')}
@@ -1150,6 +1406,44 @@ export function TasksDetailPanel({ data, selected, tab = 'output', onTabChange, 
     const acts: React.ReactNode[] = []
     const btnBase = 'flex w-full items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-[11.5px] font-medium transition-all'
     if (task) {
+      // «Ждут вас» — ответ агенту и продолжение.
+      if (task.status === 'waiting') {
+        acts.push(
+          <div key="approve" className="space-y-2">
+            <div className="rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2.5">
+              <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold text-amber-300">
+                <Bell className="h-3 w-3" aria-hidden />
+                Агент ждёт вашего решения
+              </div>
+              <p className="whitespace-pre-wrap text-[11px] leading-relaxed text-white/85">{task.question}</p>
+            </div>
+            <Textarea
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              placeholder="Ответ агенту (пусто — «Продолжай»)…"
+              rows={2}
+              className="min-h-[52px] w-full resize-none rounded-xl border-white/10 bg-white/[0.05] text-[11.5px] text-white/90 placeholder:text-white/30"
+            />
+            <button
+              type="button"
+              className={`${btnBase} border-amber-400/45 bg-amber-500/20 text-amber-100 hover:bg-amber-500/30`}
+              onClick={() =>
+                void (async () => {
+                  const err = await data.resumeTask(task, replyText.trim() || undefined)
+                  if (err) showFeedback(`⚠ ${err}`)
+                  else {
+                    showFeedback('▶ Задача продолжена')
+                    setReplyText('')
+                  }
+                })()
+              }
+            >
+              <Send className="h-3.5 w-3.5" aria-hidden />
+              Продолжить (разрешить)
+            </button>
+          </div>,
+        )
+      }
       if (task.status === 'running' || task.status === 'queued') {
         acts.push(
           <button
@@ -1191,6 +1485,78 @@ export function TasksDetailPanel({ data, selected, tab = 'output', onTabChange, 
             ↻ Повторить
           </button>,
         )
+      }
+      if (task.status === 'scheduled') {
+        acts.push(
+          <button
+            key="run"
+            type="button"
+            className={`${btnBase} border-sky-400/40 bg-sky-500/15 text-sky-200 hover:bg-sky-500/25`}
+            onClick={() =>
+              void (async () => {
+                if (task.cronJobId) {
+                  const job = data.cronJobs.find((j) => j.id === task.cronJobId)
+                  if (job) {
+                    const err = await data.runCron(job)
+                    if (err) showFeedback(`⚠ ${err}`)
+                    else showFeedback('▶ Запущено сейчас')
+                    return
+                  }
+                }
+                const err = await data.resumeTask(task)
+                if (err) showFeedback(`⚠ ${err}`)
+                else showFeedback('▶ Запущено сейчас')
+              })()
+            }
+          >
+            <Play className="h-3.5 w-3.5" aria-hidden />
+            Запустить сейчас
+          </button>,
+        )
+        acts.push(
+          <button
+            key="unschedule"
+            type="button"
+            className={`${btnBase} border-red-400/30 bg-red-500/10 text-red-300 hover:bg-red-500/20`}
+            onClick={() =>
+              void (async () => {
+                const err = await data.cancelScheduled(task)
+                if (err) showFeedback(`⚠ ${err}`)
+                else {
+                  showFeedback('🗑 Отложенная задача удалена')
+                  onSelect?.(null)
+                }
+              })()
+            }
+          >
+            <Trash2 className="h-3.5 w-3.5" aria-hidden />
+            Убрать расписание
+          </button>,
+        )
+      }
+      if (task.status === 'succeeded' || task.status === 'completed' || task.status === 'cancelled' || task.status === 'canceled') {
+        if (task.isLocal) {
+          acts.push(
+            <button
+              key="remove"
+              type="button"
+              className={`${btnBase} border-red-400/30 bg-red-500/10 text-red-300 hover:bg-red-500/20`}
+              onClick={() =>
+                void (async () => {
+                  const err = await data.localRemove(task)
+                  if (err) showFeedback(`⚠ ${err}`)
+                  else {
+                    showFeedback('🗑 Задача удалена из списка')
+                    onSelect?.(null)
+                  }
+                })()
+              }
+            >
+              <Trash2 className="h-3.5 w-3.5" aria-hidden />
+              Удалить из списка
+            </button>,
+          )
+        }
       }
       if (task.sessionKey) {
         acts.push(

@@ -92,6 +92,21 @@ export const IPC_TASKS_CANCEL = 'tasks:cancel' as const
 /** Tasks board: dispatch a new task to an agent (chat.send) */
 export const IPC_TASKS_DISPATCH = 'tasks:dispatch' as const
 
+/** Tasks board (local registry): list shell-created tasks (user tasks) */
+export const IPC_TASKS_LOCAL_LIST = 'tasks:localList' as const
+
+/** Tasks board (local registry): remove a shell-created task */
+export const IPC_TASKS_LOCAL_REMOVE = 'tasks:localRemove' as const
+
+/** Tasks board (local registry): force-set a local task status (scheduled → running) */
+export const IPC_TASKS_LOCAL_SET_STATUS = 'tasks:localSetStatus' as const
+
+/** Tasks board (local registry): resume a task awaiting user approval (send reply) */
+export const IPC_TASKS_RESUME = 'tasks:resume' as const
+
+/** Tasks board (local registry): pushed to renderer when the local store changes */
+export const IPC_TASKS_LOCAL_CHANGED = 'tasks:localChanged' as const
+
 /** Tasks board: list cron jobs (scheduled tasks) */
 export const IPC_CRON_LIST = 'cron:list' as const
 

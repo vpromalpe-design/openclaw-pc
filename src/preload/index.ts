@@ -43,6 +43,11 @@ import {
   IPC_TASKS_GET,
   IPC_TASKS_CANCEL,
   IPC_TASKS_DISPATCH,
+  IPC_TASKS_LOCAL_LIST,
+  IPC_TASKS_LOCAL_REMOVE,
+  IPC_TASKS_LOCAL_SET_STATUS,
+  IPC_TASKS_RESUME,
+  IPC_TASKS_LOCAL_CHANGED,
   IPC_CRON_LIST,
   IPC_CRON_ADD,
   IPC_CRON_RUN,
@@ -198,8 +203,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
     invoke<{ task: Record<string, unknown> }>(IPC_TASKS_GET, opts),
   tasksCancel: (opts: { taskId: string }) =>
     invoke<{ ok: boolean }>(IPC_TASKS_CANCEL, opts),
-  tasksDispatch: (opts: { text: string; agentId?: string }) =>
-    invoke<{ ok: boolean; runId?: string; status?: string; error?: string }>(IPC_TASKS_DISPATCH, opts),
+  tasksDispatch: (opts: {
+    text: string
+    agentId?: string
+    mode?: 'now' | 'schedule'
+    schedule?: { kind: string; at?: string; expr?: string; everyMs?: number }
+    freq?: string
+  }) =>
+    invoke<{ ok: boolean; localTaskId?: string; runId?: string; error?: string }>(IPC_TASKS_DISPATCH, opts),
+  // v0.9.22: local task registry (shell-created tasks)
+  tasksLocalList: () =>
+    invoke<{ tasks: Array<Record<string, unknown>> }>(IPC_TASKS_LOCAL_LIST),
+  tasksLocalRemove: (opts: { taskId: string }) =>
+    invoke<{ ok: boolean }>(IPC_TASKS_LOCAL_REMOVE, opts),
+  tasksLocalSetStatus: (opts: { taskId: string; status: string }) =>
+    invoke<{ ok: boolean }>(IPC_TASKS_LOCAL_SET_STATUS, opts),
+  tasksResume: (opts: { taskId: string; reply?: string }) =>
+    invoke<{ ok: boolean; runId?: string; error?: string }>(IPC_TASKS_RESUME, opts),
+  onTasksLocalChanged: (callback: () => void) => on(IPC_TASKS_LOCAL_CHANGED, callback),
   cronList: () => invoke<{ jobs: Array<Record<string, unknown>> }>(IPC_CRON_LIST),
   cronAdd: (opts: {
     name: string

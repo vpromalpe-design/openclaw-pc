@@ -190,12 +190,28 @@ export interface ElectronAPI {
   }>
   tasksGet: (opts: { taskId: string }) => Promise<{ task: Record<string, unknown> }>
   tasksCancel: (opts: { taskId: string }) => Promise<{ ok: boolean }>
-  tasksDispatch: (opts: { text: string; agentId?: string }) => Promise<{
+  tasksDispatch: (opts: {
+    text: string
+    agentId?: string
+    mode?: 'now' | 'schedule'
+    schedule?: { kind: string; at?: string; expr?: string; everyMs?: number }
+    freq?: string
+  }) => Promise<{
     ok: boolean
+    localTaskId?: string
     runId?: string
-    status?: string
     error?: string
   }>
+  /** v0.9.22: local task registry (shell-created tasks) */
+  tasksLocalList: () => Promise<{ tasks: Array<Record<string, unknown>> }>
+  tasksLocalRemove: (opts: { taskId: string }) => Promise<{ ok: boolean }>
+  tasksLocalSetStatus: (opts: { taskId: string; status: string }) => Promise<{ ok: boolean }>
+  tasksResume: (opts: { taskId: string; reply?: string }) => Promise<{
+    ok: boolean
+    runId?: string
+    error?: string
+  }>
+  onTasksLocalChanged: (callback: () => void) => () => void
   cronList: () => Promise<{ jobs: Array<Record<string, unknown>> }>
   cronAdd: (opts: {
     name: string
