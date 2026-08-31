@@ -249,7 +249,11 @@
       "authToken": "Auth Token",
       "regenerate": "Regenerate",
       "tokenHint": "Used for Gateway API authentication. Recommend keeping the auto-generated value.",
-      "free": "Free"
+      "free": "Free",
+      "settingsSubtitle": "This step used to live in the setup wizard. Now the gateway is managed from here — anytime.",
+      "save": "Save",
+      "saved": "Gateway settings saved. Gateway restarted.",
+      "tokenRequired": "Auth token cannot be empty."
     },
     "complete": {
       "title": "Confirm Configuration",
@@ -276,7 +280,10 @@
       "errorConfig": "Configuration write failed. Check disk space and permissions, then retry.",
       "errorAuth": "Credentials write failed. Check disk permissions, then retry.",
       "errorGateway": "Gateway failed to start. Check if port is in use or view logs.",
-      "errorGeneral": "Operation failed"
+      "errorGeneral": "Operation failed",
+      "doneTitle": "Setup complete!",
+      "doneText": "All set. OpenClaw PC is configured — press Launch to start talking with your assistant.",
+      "launch": "Launch OpenClaw PC"
     }
   },
   "shell": {
@@ -609,7 +616,8 @@
       "aboutDesc": "Version info",
       "desktopManager": "Desktop Manager",
       "desktopManagerDesc": "Shell-specific features & settings",
-      "backToControlUI": "Control UI"
+      "backToControlUI": "Control UI",
+      "gateway": "Gateway"
     },
     "status": {
       "starting": "Starting…",
@@ -774,6 +782,11 @@
         "badge": "Paid",
         "desc": "Industrial realtime voice from OpenAI. Billed per minute of conversation.",
         "keyHint": "(platform.openai.com/api-keys)"
+      },
+      "local": {
+        "name": "Local",
+        "badge": "offline",
+        "desc": "Speech recognition on your PC via whisper.cpp — no internet or API keys required."
       }
     },
     "apiKeyLabel": "API key",

@@ -206,7 +206,11 @@
       "authToken": "认证令牌",
       "regenerate": "重新生成",
       "tokenHint": "用于网关 API 认证。建议保留自动生成的值。",
-      "free": "空闲"
+      "free": "空闲",
+      "settingsSubtitle": "此步骤原位于设置向导中。现在您可以随时在此管理网关。",
+      "save": "保存",
+      "saved": "网关设置已保存。网关已重启。",
+      "tokenRequired": "身份验证令牌不能为空。"
     },
     "complete": {
       "title": "确认配置",
@@ -233,7 +237,10 @@
       "errorConfig": "配置写入失败。请检查磁盘空间和权限，然后重试。",
       "errorAuth": "凭据写入失败。请检查磁盘权限，然后重试。",
       "errorGateway": "网关启动失败。请检查端口是否被占用或查看日志。",
-      "errorGeneral": "操作失败"
+      "errorGeneral": "操作失败",
+      "doneTitle": "设置完成！",
+      "doneText": "一切就绪。OpenClaw PC 已配置完成——点击「启动」开始与助手对话。",
+      "launch": "启动 OpenClaw PC"
     }
   },
   "shell": {
@@ -552,7 +559,8 @@
       "aboutDesc": "版本信息",
       "desktopManager": "桌面管理器",
       "desktopManagerDesc": "桌面版专属功能与设置",
-      "backToControlUI": "Control UI"
+      "backToControlUI": "Control UI",
+      "gateway": "网关"
     },
     "status": {
       "starting": "启动中…",
@@ -583,6 +591,11 @@
         "badge": "Paid",
         "desc": "Industrial realtime voice from OpenAI. Billed per minute of conversation.",
         "keyHint": "(platform.openai.com/api-keys)"
+      },
+      "local": {
+        "name": "本地",
+        "badge": "离线",
+        "desc": "通过 whisper.cpp 在您的电脑上进行语音识别——无需互联网或 API 密钥。"
       }
     },
     "apiKeyLabel": "API key",
