@@ -635,11 +635,28 @@ async function removeBundledUiSources(openclawDir: string): Promise<void> {
   const packagesDest = join(openclawDir, 'packages')
   const scriptDest = join(openclawDir, 'scripts', 'ui.js')
   const scriptDestDir = join(openclawDir, 'scripts')
+  // Runtime requires workspace templates (src/agents/templates/HEARTBEAT.md);
+  // preserve them across the src/ removal below and restore afterwards.
+  const templatesSrc = join(sharedDest, 'agents', 'templates')
+  const templatesBak = join(openclawDir, `.templates-bak-${process.pid}`)
+  let hadTemplates = false
+  try {
+    await access(templatesSrc)
+    await cp(templatesSrc, templatesBak, { recursive: true })
+    hadTemplates = true
+  } catch {
+    // no templates dir — nothing to preserve
+  }
   await rm(uiDest, { recursive: true, force: true })
   await rm(sharedDest, { recursive: true, force: true })
   await rm(appsDest, { recursive: true, force: true })
   await rm(packagesDest, { recursive: true, force: true })
   await rm(scriptDest, { force: true })
+  if (hadTemplates) {
+    await mkdir(join(sharedDest, 'agents'), { recursive: true })
+    await cp(templatesBak, templatesSrc, { recursive: true })
+    await rm(templatesBak, { recursive: true, force: true })
+  }
   try {
     const rest = await readdir(scriptDestDir)
     if (rest.length === 0) {
