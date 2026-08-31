@@ -167,10 +167,12 @@ export function removeLocalTaskByCronJobId(cronJobId: string): boolean {
   return true
 }
 
-/** Tasks awaiting a final assistant answer for a session (FIFO by creation). */
+/** Running task awaiting its final assistant answer for a session (FIFO by creation).
+ *  `waiting` tasks are excluded on purpose: their run already finished and they
+ *  are blocked on the user — a stray final message must not clobber their question. */
 export function findAwaitingTaskForSession(sessionKey: string): LocalTask | null {
   const candidates = load()
-    .filter((t) => t.sessionKey === sessionKey && (t.status === 'running' || t.status === 'waiting'))
+    .filter((t) => t.sessionKey === sessionKey && t.status === 'running')
     .sort((a, b) => a.createdAt - b.createdAt)
   return candidates[0] ?? null
 }
