@@ -17,6 +17,9 @@ import {
   MessageSquare,
   Bell,
   Send,
+  Folder,
+  FileText,
+  ExternalLink,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -1208,6 +1211,128 @@ export interface TasksDetailPanelProps {
   onOpenSession?: (sessionKey?: string) => void
 }
 
+// ── v0.9.26: «Созданные файлы» — локальные файлы, упомянутые агентом в выводах ──
+
+export interface FileRef {
+  path: string
+  label?: string
+}
+
+interface FileTreeNode {
+  name: string
+  path: string
+  isFile: boolean
+  label?: string
+  children: FileTreeNode[]
+}
+
+const FILE_EXT_RE = /\.(?:[A-Za-z0-9]{1,8})$/i
+const POSIX_ROOT_RE = /^\/(?:home|tmp|workspace|root|app|mnt|data|var|opt|srv|media|Users|users)\//i
+
+function looksLikeLocalTarget(target: string): boolean {
+  const t = target.trim()
+  if (!t) return false
+  if (/^https?:\/\//i.test(t) || t.startsWith('www.') || t.startsWith('//')) return false
+  if (/^[A-Za-z]:[\\/]/.test(t)) return true // Windows C:\…
+  if (t.startsWith('\\\\')) return true // UNC \\server\…
+  if (t.startsWith('/')) return FILE_EXT_RE.test(t) || POSIX_ROOT_RE.test(t) // POSIX
+  return false
+}
+
+function decodeFileTarget(t: string): string | null {
+  let s = t.trim()
+  if (s.startsWith('file://')) {
+    s = s.replace(/^file:\/\/\/?/, '')
+    try {
+      s = decodeURIComponent(s)
+    } catch {
+      /* keep raw */
+    }
+  }
+  // отрезать хвостовые знаки препинания/закрывающие скобки
+  s = s.replace(/[)\],;:>»"'`]+$/, '').trim()
+  return s || null
+}
+
+/** Извлечь локальные файлы из текстов: markdown-ссылки, бэктик-спаны, file://, Windows-пути. */
+export function extractFileRefs(texts: Array<string | null | undefined>): FileRef[] {
+  const out = new Map<string, string | undefined>()
+  for (const raw of texts) {
+    if (!raw) continue
+    // 1) markdown-ссылки [label](target) — target может содержать пробелы
+    const mdRe = /\[([^\]]+)\]\(([^)\s]+(?:\s+[^)\s]+)*)\)/g
+    let m: RegExpExecArray | null
+    while ((m = mdRe.exec(raw)) !== null) {
+      const target = m[2].trim()
+      if (looksLikeLocalTarget(target)) {
+        const p = decodeFileTarget(target)
+        if (p) out.set(p, m[1].trim())
+      }
+    }
+    // 2) бэктик-спаны — агенты часто оборачивают пути в `код`
+    const codeRe = /`([^`]+)`/g
+    while ((m = codeRe.exec(raw)) !== null) {
+      const t = m[1].trim()
+      if (looksLikeLocalTarget(t)) {
+        const p = decodeFileTarget(t)
+        if (p) out.set(p, undefined)
+      }
+    }
+    // 3) file:// URLs
+    const fileRe = /file:\/\/\/?([^\s"'<>()]+)/gi
+    while ((m = fileRe.exec(raw)) !== null) {
+      const p = decodeFileTarget(decodeURIComponent(m[1]))
+      if (p) out.set(p, undefined)
+    }
+    // 4) Windows-пути в свободном тексте — только с расширением файла (меньше ложных срабатываний)
+    const winRe = /(?<![A-Za-z0-9])([A-Za-z]:[\\/][^\s"'<>()|*?]+)/g
+    while ((m = winRe.exec(raw)) !== null) {
+      const p = decodeFileTarget(m[1])
+      if (p && FILE_EXT_RE.test(p) && looksLikeLocalTarget(p)) out.set(p, undefined)
+    }
+    // 5) POSIX-пути в свободном тексте — с расширением файла или из известных корней
+    const posixRe = /(?<![A-Za-z0-9:/])(\/[^\s"'<>()]+)/g
+    while ((m = posixRe.exec(raw)) !== null) {
+      const p = decodeFileTarget(m[1])
+      if (p && looksLikeLocalTarget(p)) out.set(p, undefined)
+    }
+  }
+  return [...out.entries()].map(([path, label]) => ({ path, label }))
+}
+
+/** Построить дерево директорий из путей. */
+export function buildFileTree(refs: FileRef[]): FileTreeNode[] {
+  const root: FileTreeNode = { name: '', path: '', isFile: false, children: [] }
+  for (const ref of refs) {
+    const sep = ref.path.includes('\\') ? '\\' : '/'
+    const parts = ref.path.split(/[\\/]+/).filter((p) => p.length > 0)
+    if (parts.length === 0) continue
+    let node = root
+    let acc = ''
+    parts.forEach((part, i) => {
+      acc = i === 0 ? part : acc + sep + part
+      const isLast = i === parts.length - 1
+      // трейлинг-слэш (C:\dir\ / /dir/) = явный маркер папки, а не файла
+      const isFile = isLast && !ref.path.endsWith(sep)
+      let child = node.children.find((c) => c.name === part)
+      if (!child) {
+        child = { name: part, path: acc, isFile, children: [] }
+        node.children.push(child)
+      }
+      if (isLast && isFile) child.label = ref.label
+      node = child
+    })
+  }
+  return root.children
+}
+
+/** Папки раньше файлов, внутри — по алфавиту. */
+export function sortFileTree(nodes: FileTreeNode[]): FileTreeNode[] {
+  return [...nodes]
+    .sort((a, b) => (a.isFile === b.isFile ? a.name.localeCompare(b.name, 'ru') : a.isFile ? 1 : -1))
+    .map((n) => (n.isFile ? n : { ...n, children: sortFileTree(n.children) }))
+}
+
 export function TasksDetailPanel({ data, selected, tab = 'output', onTabChange, onSelect, onOpenSession }: TasksDetailPanelProps) {
   const [localTab, setLocalTab] = useState<TasksDetailTab>(tab)
   const activeTab = onTabChange ? tab : localTab
@@ -1222,6 +1347,49 @@ export function TasksDetailPanel({ data, selected, tab = 'output', onTabChange, 
 
   const task = selected?.kind === 'task' ? data.tasks.find((x) => x.id === selected.id) ?? null : null
   const cron = selected?.kind === 'cron' ? data.cronJobs.find((x) => x.id === selected.id) ?? null : null
+
+  // v0.9.26: «Созданные файлы» — файлы, упомянутые агентом в выводах задачи.
+  const fileRefs = useMemo(() => {
+    if (!task) return []
+    return extractFileRefs([task.answer, task.terminalSummary, task.question, task.progressSummary])
+  }, [task])
+  const fileTree = useMemo(() => sortFileTree(buildFileTree(fileRefs)), [fileRefs])
+  const [openErr, setOpenErr] = useState<string | null>(null)
+  const openFile = useCallback((p: string) => {
+    setOpenErr(null)
+    void window.electronAPI
+      .systemOpenPath(p)
+      .then((err: string) => {
+        if (err) setOpenErr(err)
+      })
+      .catch((e: unknown) => setOpenErr(e instanceof Error ? e.message : String(e)))
+  }, [])
+
+  const renderFileTree = (nodes: FileTreeNode[], depth: number): React.ReactNode =>
+    nodes.map((n) => (
+      <div key={n.path} style={{ paddingLeft: depth * 14 }}>
+        {n.isFile ? (
+          <button
+            type="button"
+            onClick={() => openFile(n.path)}
+            className="group flex w-full items-center gap-1.5 rounded-lg px-1.5 py-[3px] text-left transition-colors hover:bg-sky-500/15"
+            title={n.path}
+          >
+            <FileText className="h-3 w-3 shrink-0 text-sky-300" aria-hidden />
+            <span className="min-w-0 truncate text-[11px] text-sky-300 group-hover:text-sky-200">
+              {n.label || n.name}
+            </span>
+            <ExternalLink className="h-2.5 w-2.5 shrink-0 text-sky-400/60" aria-hidden />
+          </button>
+        ) : (
+          <div className="flex items-center gap-1.5 px-1.5 py-[3px]">
+            <Folder className="h-3 w-3 shrink-0 text-sky-200/70" aria-hidden />
+            <span className="truncate text-[10.5px] font-medium text-white/70">{n.name}</span>
+          </div>
+        )}
+        {n.children.length > 0 && renderFileTree(n.children, depth + 1)}
+      </div>
+    ))
 
   if (!task && !cron) {
     return (
@@ -1266,6 +1434,23 @@ export function TasksDetailPanel({ data, selected, tab = 'output', onTabChange, 
       const meta = STATUS_META[task.status]
       return (
         <div className="space-y-2.5">
+          {fileRefs.length > 0 && (
+            <div className="rounded-[15px] border border-sky-400/20 bg-sky-500/[0.07] px-3 py-2.5">
+              <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold text-sky-300">
+                <Folder className="h-3 w-3" aria-hidden />
+                Созданные файлы
+                <span className="rounded-full bg-sky-500/20 px-1.5 py-px font-mono text-[9px] text-sky-300">
+                  {fileRefs.length}
+                </span>
+              </div>
+              <div className="max-h-56 space-y-0.5 overflow-y-auto pr-1">
+                {renderFileTree(fileTree, 0)}
+              </div>
+              {openErr && (
+                <div className="mt-1.5 text-[10px] text-red-300">Не удалось открыть: {openErr}</div>
+              )}
+            </div>
+          )}
           {task.status === 'running' && (
             <div className="rounded-[15px] border border-sky-400/25 bg-sky-500/10 px-3 py-2.5">
               <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold text-sky-300">
