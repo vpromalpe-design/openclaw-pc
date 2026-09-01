@@ -88,6 +88,7 @@ import {
   IPC_PROVIDERS_EXPORT,
   IPC_PROVIDERS_IMPORT,
   IPC_PROVIDERS_SAVE_CONFIG,
+  IPC_PROVIDERS_FETCH_MODELS,
   IPC_PROVIDERS_SET_MODEL_DEFAULTS,
   IPC_MODEL_SETTINGS_LOAD,
   IPC_MODEL_SETTINGS_APPLY,
@@ -172,6 +173,7 @@ import {
   removeProfileFromAuthOrder,
   normalizeAuthOrderEntry,
 } from '../providers/index.js'
+import { fetchProviderModels } from '../models/fetch-models.js'
 import { listSkillsWithProxy } from '../skills/index.js'
 import { listModelsWithProxy } from '../models/index.js'
 import {
@@ -1229,6 +1231,22 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
       const next = saveProviderConfig(current, providerId, config)
       deps.writeOpenClawConfig(next)
       readOpenClawConfig()
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_PROVIDERS_FETCH_MODELS,
+    wrapHandler('PROVIDERS_FETCH_MODELS', (opts: unknown) => {
+      const raw = validatePlainObject(opts, 'fetchModels opts')
+      const providerId = String(raw.providerId ?? '')
+      const baseUrl = String(raw.baseUrl ?? '')
+      const apiKey = String(raw.apiKey ?? '')
+      if (!providerId) throw new Error('providerId is required')
+      if (!/^https?:\/\//i.test(baseUrl)) throw new Error('baseUrl must be an http(s) URL')
+      if (!apiKey) throw new Error('apiKey is required')
+      const compatibility =
+        raw.compatibility === 'anthropic' ? ('anthropic' as const) : raw.compatibility === 'openai' ? ('openai' as const) : undefined
+      return fetchProviderModels({ providerId, baseUrl, apiKey, compatibility })
     }),
   )
 

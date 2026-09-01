@@ -14,7 +14,8 @@ export interface AgentMenuAgent {
 interface AgentMenuPortalProps {
   agent: AgentMenuAgent
   primaryModel?: string
-  modelOptions: string[]
+  /** v0.9.23 (B): options with human-readable labels. */
+  modelOptions: Array<{ id: string; label: string }>
   /** Screen X of the agent row's right edge (fixed-position anchor). */
   anchorX: number
   /** Screen Y of the agent row's vertical center. */
@@ -60,6 +61,24 @@ export function AgentMenuPortal({
     top: top ?? anchorCenterY,
   }
   const current = agent.model ?? primaryModel ?? ''
+  // v0.9.23 (B): группы «Облачные» / «Локальные» в меню модели агента.
+  const cloudModels = modelOptions.filter((o) => !o.id.startsWith('local/'))
+  const localModels = modelOptions.filter((o) => o.id.startsWith('local/'))
+  const renderItem = (o: { id: string; label: string }) => (
+    <button
+      key={o.id}
+      type="button"
+      className={cn('a-model-menu-item', current === o.id && 'active')}
+      onClick={() => {
+        onSetModel(o.id)
+        onClose()
+      }}
+    >
+      <span className="a-model-menu-ic">{o.id.startsWith('local/') ? '💻' : '🧠'}</span>
+      <span className="a-model-menu-name">{o.label}</span>
+      {current === o.id && <span className="a-model-menu-check">✓</span>}
+    </button>
+  )
 
   return createPortal(
     <div
@@ -72,21 +91,18 @@ export function AgentMenuPortal({
         {modelOptions.length === 0 && (
           <div className="a-model-menu-empty">моделей нет — добавьте провайдера в Моделях</div>
         )}
-        {modelOptions.map((m) => (
-          <button
-            key={m}
-            type="button"
-            className={cn('a-model-menu-item', current === m && 'active')}
-            onClick={() => {
-              onSetModel(m)
-              onClose()
-            }}
-          >
-            <span className="a-model-menu-ic">{'🧠'}</span>
-            <span className="a-model-menu-name">{m}</span>
-            {current === m && <span className="a-model-menu-check">✓</span>}
-          </button>
-        ))}
+        {cloudModels.length > 0 && (
+          <>
+            <div className="a-model-menu-group">Облачные</div>
+            {cloudModels.map(renderItem)}
+          </>
+        )}
+        {localModels.length > 0 && (
+          <>
+            <div className="a-model-menu-group">Локальные</div>
+            {localModels.map(renderItem)}
+          </>
+        )}
       </div>
       {agent.isDefault ? (
         <div className="a-model-menu-sep" />

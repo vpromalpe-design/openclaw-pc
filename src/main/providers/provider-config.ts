@@ -8,6 +8,7 @@ import type {
   AgentDefaultsConfig,
   AuthConfig,
 } from '../../shared/types.js'
+import { PROVIDER_ENDPOINTS } from '../../shared/provider-catalog.js'
 
 export interface ProviderSummary {
   providerId: string
@@ -81,14 +82,19 @@ export function getProvidersSummary(
  * Known non-builtin providers and their OpenAI-compatible endpoints. The
  * upstream gateway does not know about DeepSeek, so without an explicit
  * baseUrl it falls back to api.openai.com and the request 403s
- * (unsupported_country_region_territory from OpenAI).
+ * (unsupported_country_region_territory from OpenAI). Full catalog lives in
+ * shared/provider-catalog.ts (aligned with the wizard seeds).
  */
-const PROVIDER_ENDPOINT_DEFAULTS: Record<string, { baseUrl: string; api: string }> = {
-  deepseek: { baseUrl: 'https://api.deepseek.com/v1', api: 'openai-completions' },
-}
+const PROVIDER_ENDPOINT_DEFAULTS = PROVIDER_ENDPOINTS
 
 /**
- * Save one models.providers entry
+ * Save one models.providers entry.
+ *
+ * Синхронизация видимости (v0.9.23, фикс «подключил провайдера — он не
+ * виден в меню агентов / селекторе»): ядро показывает в `models.list` только
+ * модели из allowlist `agents.defaults.models` (если он не пуст). Поэтому при
+ * сохранении провайдера мы автоматически дописываем его модели в allowlist —
+ * и модель сразу появляется в Control UI селекторе, меню агентов и таблице.
  */
 export function saveProviderConfig(
   currentConfig: OpenClawConfig,
@@ -112,6 +118,33 @@ export function saveProviderConfig(
     if (!merged.api) merged.api = endpointDefault.api
   }
   next.models.providers[providerId] = merged
+
+  // Allowlist sync: make every model of this provider visible everywhere.
+  const modelList = Array.isArray(merged.models) ? merged.models : []
+  if (modelList.length > 0) {
+    next.agents = next.agents ?? {}
+    next.agents.defaults = next.agents.defaults ?? ({} as AgentDefaultsConfig)
+    next.agents.defaults.models = { ...(next.agents.defaults.models ?? {}) }
+    let firstRef: string | null = null
+    for (const m of modelList) {
+      const id = typeof m?.id === 'string' && m.id.trim() ? m.id.trim() : ''
+      if (!id) continue
+      const ref = `${providerId}/${id}`
+      if (!next.agents.defaults.models[ref]) {
+        next.agents.defaults.models[ref] = { alias: id }
+      }
+      firstRef = firstRef ?? ref
+    }
+    // First configured model becomes the default primary when none is set.
+    const dm = next.agents.defaults.model
+    const hasPrimary =
+      typeof dm === 'string'
+        ? Boolean(dm)
+        : Boolean(dm && typeof dm === 'object' && dm.primary)
+    if (!hasPrimary && firstRef) {
+      next.agents.defaults.model = { primary: firstRef }
+    }
+  }
   return next
 }
 

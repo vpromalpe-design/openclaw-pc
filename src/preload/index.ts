@@ -59,6 +59,7 @@ import {
   IPC_PROVIDERS_EXPORT,
   IPC_PROVIDERS_IMPORT,
   IPC_PROVIDERS_SAVE_CONFIG,
+  IPC_PROVIDERS_FETCH_MODELS,
   IPC_PROVIDERS_SET_MODEL_DEFAULTS,
   IPC_MODEL_SETTINGS_LOAD,
   IPC_MODEL_SETTINGS_APPLY,
@@ -251,6 +252,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   providersImport: (json: string) => invoke<{ imported: number; errors: string[] }>(IPC_PROVIDERS_IMPORT, json),
   providersSaveProviderConfig: (opts: { providerId: string; config: unknown }) =>
     invoke(IPC_PROVIDERS_SAVE_CONFIG, opts),
+  providersFetchModels: (opts: { providerId: string; baseUrl: string; apiKey: string; compatibility?: 'openai' | 'anthropic' }) =>
+    invoke<Array<{ id: string; name?: string }>>(IPC_PROVIDERS_FETCH_MODELS, opts),
   providersSetModelDefaults: (opts: { primary?: string; fallbacks?: string[] }) =>
     invoke(IPC_PROVIDERS_SET_MODEL_DEFAULTS, opts ?? {}),
 
