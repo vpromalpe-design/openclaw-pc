@@ -898,6 +898,33 @@ export async function synthesizeWithConfig(text: string): Promise<TtsUtterance |
 
 const MAX_ANSWER_CHARS = 4000
 
+/**
+ * Strip markdown before TTS so the voice does not read out formatting
+ * symbols ("**" → "звёздочка", "#" → "решётка", etc.). Order matters:
+ * double markers before single ones, code/links before emphasis.
+ */
+export function stripMarkdownForSpeech(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, ' ') // fenced code blocks
+    .replace(/`([^`]*)`/g, '$1') // inline code
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ') // images ![alt](url)
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1') // links [text](url) → text
+    .replace(/<[^>]+>/g, ' ') // HTML tags
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '') // ATX headings
+    .replace(/^\s{0,3}>\s?/gm, '') // blockquotes
+    .replace(/^\s*[-*+]\s+/gm, '') // bullet lists
+    .replace(/^\s*\d+[.)]\s+/gm, '') // numbered lists
+    .replace(/\|/g, ' ') // table pipes
+    .replace(/^\s*\|?[\s\-|:]*\|?\s*$/gm, ' ') // table separator rows (---, |---|---)
+    .replace(/\*\*([^*]+)\*\*/g, '$1') // bold
+    .replace(/\*([^*]+)\*/g, '$1') // italic
+    .replace(/__([^_]+)__/g, '$1') // bold alt
+    .replace(/_([^_]+)_/g, '$1') // italic alt
+    .replace(/~~([^~]+)~~/g, '$1') // strikethrough
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
 /** Cap the answer length so a huge reply cannot stall the queue. */
 export function trimForSpeech(text: string): string {
   if (text.length <= MAX_ANSWER_CHARS) return text
@@ -920,7 +947,7 @@ export function speakAgentAnswer(text: string): void {
     logInfo('[voice] speakAgentAnswer: skipped (tts disabled)')
     return
   }
-  const trimmed = trimForSpeech(text ?? '').trim()
+  const trimmed = trimForSpeech(stripMarkdownForSpeech(text ?? '')).trim()
   if (!trimmed) return
   logInfo(`[voice] speakAgentAnswer: ${trimmed.slice(0, 80)}`)
   // Dedupe: gateway may emit the same final text twice (e.g. delta + final).
