@@ -31,19 +31,29 @@ function extractModelsFromConfig(config: OpenClawConfig): ModelListItem[] {
   const items: ModelListItem[] = []
   const seen = new Set<string>()
 
+  const push = (id: string, providerId: string, name?: string) => {
+    const key = `${providerId}/${id}`
+    if (!id || seen.has(key)) return
+    seen.add(key)
+    items.push({ id, name, provider: providerId })
+  }
+
   for (const [providerId, p] of Object.entries(providers)) {
     if (!p || typeof p !== 'object') continue
     const models = (p as { models?: Array<{ id: string; name?: string }> }).models ?? []
-    for (const m of models) {
-      const id = m.id ?? ''
-      if (!id || seen.has(id)) continue
-      seen.add(id)
-      items.push({
-        id,
-        name: m.name,
-        provider: providerId,
-      })
-    }
+    for (const m of models) push(m.id ?? '', providerId, m.name)
+  }
+
+  // Allowlist entries (agents.defaults.models): catches models that live only
+  // in the allowlist (e.g. local/<model> from the wizard) without a
+  // models.providers record.
+  const allowlist = config?.agents?.defaults?.models ?? {}
+  for (const ref of Object.keys(allowlist)) {
+    const slash = ref.indexOf('/')
+    if (slash <= 0) continue
+    const providerId = ref.slice(0, slash)
+    const id = ref.slice(slash + 1)
+    if (id && id !== 'auto') push(id, providerId)
   }
 
   return items.sort((a, b) => a.id.localeCompare(b.id))
@@ -69,12 +79,34 @@ function mapRpcModels(payload: ModelsListRpcPayload): ModelListItem[] {
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 /**
- * List models: RPC first, config fallback
+ * List models: RPC first, config fallback.
+ *
+ * v0.9.23 (C): RPC `models.list` возвращает ТОЛЬКО allowlist (agents.defaults.models).
+ * Модели, подключённые в приложении (models.providers), в него не попадали —
+ * поэтому объединяем RPC-результат с конфигом (dedupe по `provider/id`), чтобы
+ * пикер и меню агентов показывали ВСЕ модели.
  */
 export async function listModelsWithProxy(
   readOpenClawConfig: () => OpenClawConfig
 ): Promise<ModelsListResult> {
   let client: Awaited<ReturnType<typeof createGatewayRpcClientFromConfig>> | null = null
+
+  const fromConfig = () => {
+    const config = readOpenClawConfig()
+    return extractModelsFromConfig(config)
+  }
+
+  const merge = (rpcModels: ModelListItem[], configModels: ModelListItem[]): ModelListItem[] => {
+    const seen = new Set<string>()
+    const out: ModelListItem[] = []
+    for (const m of [...rpcModels, ...configModels]) {
+      const key = m.provider ? `${m.provider}/${m.id}` : m.id
+      if (seen.has(key)) continue
+      seen.add(key)
+      out.push(m)
+    }
+    return out
+  }
 
   try {
     client = await createGatewayRpcClientFromConfig()
@@ -82,7 +114,7 @@ export async function listModelsWithProxy(
     client.close()
     client = null
 
-    const models = mapRpcModels(payload ?? {})
+    const models = merge(mapRpcModels(payload ?? {}), fromConfig())
     return { models }
   } catch (err) {
     if (client) {
@@ -98,13 +130,9 @@ export async function listModelsWithProxy(
         err.code === 'GATEWAY_NOT_CONNECTED' ||
         err.code === 'GATEWAY_TIMEOUT'
       ) {
-        const config = readOpenClawConfig()
-        const models = extractModelsFromConfig(config)
-        return { models }
+        return { models: fromConfig() }
       }
     }
-    const config = readOpenClawConfig()
-    const models = extractModelsFromConfig(config)
-    return { models }
+    return { models: fromConfig() }
   }
 }

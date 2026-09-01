@@ -720,7 +720,20 @@
       "ctxTitle": "Local model context (n_ctx)",
       "ctxTokens": "tokens",
       "ctxHint": "Context window for the local engine. Larger means the model \"remembers\" more of the conversation, but uses more memory (KV cache) and slows first token. Applies immediately: the engine restarts.",
-      "ctxApplying": "Restarting the engine…"
+      "ctxApplying": "Restarting the engine…",
+      "addAria": "Add a provider",
+      "addTitle": "Add a provider",
+      "addDesc": "Full wizard equivalent: provider, model, key, endpoint. A saved provider immediately appears in the model chain and pickers.",
+      "addProvider": "Add",
+      "fetchModels": "Fetch models",
+      "fetchModelsHint": "Fetch the model list from the provider API",
+      "fetchEmpty": "The API returned an empty model list",
+      "fetchFailed": "Failed to fetch models",
+      "baseUrlRequired": "Enter an API base URL",
+      "clearFetched": "Clear fetched",
+      "cloudflareIdsRequired": "Enter Cloudflare Account ID and Gateway ID",
+      "customProviderIdRequired": "Enter a provider ID",
+      "modelIdRequired": "Enter a model ID"
     },
     "chat": {
       "agentMode": "Agent task",

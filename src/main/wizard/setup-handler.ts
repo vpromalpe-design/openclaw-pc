@@ -757,7 +757,7 @@ function buildOpenClawConfig(state: WizardState): OpenClawConfig {
   }
   config.update = {
     channel: 'stable',
-    checkOnStart: true,
+    checkOnStart: false,
   }
   config.skills = {
     allowBundled: [],

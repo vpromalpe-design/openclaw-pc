@@ -46,6 +46,7 @@ import { Bot, Type, Send } from 'lucide-react'
 import type { GatewayStatus, GatewayStatusValue } from '../../shared/types'
 import { useUpdateNoticeStore } from '@/stores/update-store'
 import { cn } from '@/lib/utils'
+import { providerLabel } from '../../shared/provider-catalog'
 import { installShellSounds } from '@/lib/sounds'
 import { playTtsAudio } from '@/lib/tts-playback'
 
@@ -308,7 +309,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   /** v0.9.12 (E4): model picker options (connected providers) + which agent's ⋯ menu is open.
    *  v0.9.14: menu is rendered via portal at fixed screen coords (x = button right edge,
    *  y = button bottom) so the sidebar frame no longer clips it. */
-  const [modelOptions, setModelOptions] = useState<string[]>([])
+  const [modelOptions, setModelOptions] = useState<Array<{ id: string; label: string }>>([])
   const [agentModelMenu, setAgentModelMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const updateAvailable = useUpdateNoticeStore((state) => state.available)
   const updateDismissed = useUpdateNoticeStore((state) => state.dismissed)
@@ -524,11 +525,19 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     }
     try {
       // v0.9.12 (E4): model picker options — all models of connected providers.
+      // v0.9.23 (C): modelsList уже возвращает merge RPC + конфиг + allowlist
+      // (включая local/<model>); label — человеческое имя провайдера.
       const res = await window.electronAPI.modelsList()
       const opts = (res?.models ?? [])
-        .map((m) => (m.provider ? `${m.provider}/${m.id}` : m.id))
-        .filter((id): id is string => Boolean(id))
-      setModelOptions(Array.from(new Set(opts)).sort())
+        .map((m) => {
+          if (!m.id) return null
+          const provider = m.provider ?? ''
+          const id = provider ? `${provider}/${m.id}` : m.id
+          const label = provider ? `${providerLabel(provider)} · ${m.id}` : m.id
+          return { id, label }
+        })
+        .filter((x): x is { id: string; label: string } => x !== null)
+      setModelOptions(Array.from(new Map(opts.map((o) => [o.id, o])).values()))
     } catch {
       // non-fatal — model picker stays empty
     }
@@ -970,10 +979,19 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     newTextTab(activeAgent)
   }, [activeAgent, activeTabByAgent, tabsByAgent, newTextTab])
 
-  /** v0.9.12 (E4): set an agent's model (writes agents.list[].model, gateway hot-reloads). */
+  /** v0.9.12 (E4): set an agent's model (writes agents.list[].model, gateway hot-reloads).
+   *  v0.9.23 (B): выбор `local/<model>` в меню = реальный запуск локального движка
+   *  (localEngineStart) + запись той же ссылки агенту. */
   const setAgentModel = async (agentId: string, model: string) => {
     setAgentModelMenu(null)
     try {
+      if (model.startsWith('local/')) {
+        const modelId = model.slice('local/'.length)
+        if (engineRunning && engineModel !== modelId) {
+          await window.electronAPI.localEngineStop()
+        }
+        await window.electronAPI.localEngineStart({ modelId })
+      }
       const res = await window.electronAPI.agentsSetModel({ agentId, model })
       if (res.ok) {
         void refreshShellData()

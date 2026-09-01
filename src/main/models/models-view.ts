@@ -10,7 +10,10 @@ import type {
   ModelTableEntry,
   OpenClawConfig,
 } from '../../shared/types.js'
-import { getUserDataDir } from '../utils/paths.js'
+import {
+  getUserDataDir,
+} from '../utils/paths.js'
+import { PROVIDER_LABELS, PROVIDER_ALIASES } from '../../shared/provider-catalog.js'
 
 /** Providers shown in the table even when not yet configured (cloud, in wizard order). */
 const KNOWN_CLOUD_PROVIDERS = [
@@ -76,6 +79,15 @@ export function buildModelsView(config: OpenClawConfig): ModelsViewResult {
     'local',
   ])
 
+  // v0.9.23: скрываем «каноническую» пустую строку (deepseek), когда в
+  // конфиге есть её алиас (deepseek-direct) — иначе в таблице две строки
+  // одного провайдера и путаница.
+  for (const [alias, canonical] of Object.entries(PROVIDER_ALIASES)) {
+    if (providers[alias] && providerIds.has(canonical)) {
+      providerIds.delete(canonical)
+    }
+  }
+
   const entries: ModelTableEntry[] = []
   for (const providerId of providerIds) {
     const p = providers[providerId]
@@ -84,7 +96,7 @@ export function buildModelsView(config: OpenClawConfig): ModelsViewResult {
     const inChain = chainIndex >= 0
     const entry: ModelTableEntry = {
       providerId,
-      label: providerId,
+      label: PROVIDER_LABELS[providerId] ?? providerId,
       modelId: '',
       hasConfig: Boolean(p),
       hasApiKey: Boolean(p?.apiKey),

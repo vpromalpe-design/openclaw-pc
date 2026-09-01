@@ -571,7 +571,20 @@
       "comingSoon": "即将推出"
     },
     "models": {
-      "title": "模型"
+      "title": "模型",
+      "addAria": "添加提供商",
+      "addTitle": "添加提供商",
+      "addDesc": "与安装向导完全一致：提供商、模型、密钥、端点。保存后立即出现在模型链和选择器中。",
+      "addProvider": "添加",
+      "fetchModels": "获取模型列表",
+      "fetchModelsHint": "从提供商 API 获取模型列表",
+      "fetchEmpty": "API 返回空模型列表",
+      "fetchFailed": "获取模型列表失败",
+      "baseUrlRequired": "请输入 API Base URL",
+      "clearFetched": "清除已获取",
+      "cloudflareIdsRequired": "请输入 Cloudflare Account ID 和 Gateway ID",
+      "customProviderIdRequired": "请输入提供商 ID",
+      "modelIdRequired": "请输入模型 ID"
     }
   },
   "voice": {

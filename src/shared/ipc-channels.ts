@@ -140,6 +140,9 @@ export const IPC_PROVIDERS_IMPORT = 'providers:import' as const
 /** Providers: save provider block in config */
 export const IPC_PROVIDERS_SAVE_CONFIG = 'providers:saveProviderConfig' as const
 
+/** Providers: fetch model catalog from the provider API (v0.9.23) */
+export const IPC_PROVIDERS_FETCH_MODELS = 'providers:fetchModels' as const
+
 /** Providers: set default model / fallbacks */
 export const IPC_PROVIDERS_SET_MODEL_DEFAULTS = 'providers:setModelDefaults' as const
 
@@ -383,6 +386,7 @@ export const IPC_INVOKE_CHANNELS = [
   IPC_PROVIDERS_EXPORT,
   IPC_PROVIDERS_IMPORT,
   IPC_PROVIDERS_SAVE_CONFIG,
+  IPC_PROVIDERS_FETCH_MODELS,
   IPC_PROVIDERS_SET_MODEL_DEFAULTS,
   IPC_SKILLS_LIST,
   IPC_SKILLS_TOGGLE,

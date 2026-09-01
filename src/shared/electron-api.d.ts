@@ -235,6 +235,7 @@ export interface ElectronAPI {
   providersExport: (opts?: { maskKeys?: boolean }) => Promise<string>
   providersImport: (json: string) => Promise<{ imported: number; errors: string[] }>
   providersSaveProviderConfig: (opts: { providerId: string; config: Partial<ModelProviderConfig> }) => Promise<void>
+  providersFetchModels: (opts: { providerId: string; baseUrl: string; apiKey: string; compatibility?: 'openai' | 'anthropic' }) => Promise<Array<{ id: string; name?: string }>>
   providersSetModelDefaults: (opts: { primary?: string; fallbacks?: string[] }) => Promise<void>
 
   modelSettingsLoad: () => Promise<ModelSettingsLoadResult>

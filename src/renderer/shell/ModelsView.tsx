@@ -30,7 +30,8 @@ import {
 } from '@/components/ui/select'
 import { ShellLayout } from './ShellLayout'
 import { ProviderLogo } from '@/components/ProviderLogo'
-import { MODELS_BY_PROVIDER } from '@/constants/provider-presets'
+import { MODELS_BY_PROVIDER, PROVIDER_OPTIONS } from '@/constants/provider-presets'
+import { PROVIDER_ENDPOINTS, PROVIDER_LABELS } from '../../shared/provider-catalog'
 import type {
   ModelTableEntry,
   ModelsViewResult,
@@ -38,6 +39,7 @@ import type {
   LocalEngineState,
   LocalEngineRuntimeInfo,
   ModelConfig,
+  ModelProvider,
 } from '../../shared/types'
 export interface ModelsViewProps {
   onBack?: () => void
@@ -70,10 +72,18 @@ interface ProviderDraft {
   modelId: string
   apiKey: string
   showKey: boolean
-  customBaseUrl: string
+  /** Единый API base URL (все провайдеры, префилл из каталога). */
+  baseUrl: string
   customCompatibility: 'openai' | 'anthropic'
-  /** OpenRouter: editable endpoint (default https://openrouter.ai/api/v1). */
-  openrouterBaseUrl: string
+  /** Moonshot endpoint region (мастер-аналог). */
+  moonshotRegion: 'global' | 'cn'
+  /** Cloudflare AI Gateway (мастер-аналог). */
+  cloudflareAccountId: string
+  cloudflareGatewayId: string
+  /** Модели, загруженные с API провайдера (v0.9.23, B). */
+  fetchedModels: Array<{ id: string; name?: string }> | null
+  fetching: boolean
+  fetchError: string
   /** True when the user chose «Свой ID модели» instead of a preset. */
   customModel: boolean
   test: TestStatus
@@ -84,13 +94,36 @@ const emptyDraft = (modelId: string): ProviderDraft => ({
   modelId,
   apiKey: '',
   showKey: false,
-  customBaseUrl: '',
+  baseUrl: '',
   customCompatibility: 'openai',
-  openrouterBaseUrl: 'https://openrouter.ai/api/v1',
+  moonshotRegion: 'global',
+  cloudflareAccountId: '',
+  cloudflareGatewayId: '',
+  fetchedModels: null,
+  fetching: false,
+  fetchError: '',
   customModel: false,
   test: 'idle',
   message: '',
 })
+
+/** v0.9.23 (B): форма «Добавить провайдера» (аналог шага ModelStep мастера). */
+interface AddProviderForm {
+  provider: ModelProvider | ''
+  modelId: string
+  customModel: boolean
+  apiKey: string
+  showKey: boolean
+  baseUrl: string
+  /** Реальный id провайдера в конфиге для custom (мастер-аналог). */
+  customProviderId: string
+  compatibility: 'openai' | 'anthropic'
+  moonshotRegion: 'global' | 'cn'
+  cloudflareAccountId: string
+  cloudflareGatewayId: string
+  test: TestStatus
+  message: string
+}
 
 export function ModelsView({ onBack }: ModelsViewProps) {
   const { t } = useTranslation()
@@ -112,6 +145,27 @@ export function ModelsView({ onBack }: ModelsViewProps) {
   const [smallModelWarning, setSmallModelWarning] = useState<string | null>(null)
   const [ctxSize, setCtxSize] = useState(32768)
   const [ctxApplying, setCtxApplying] = useState(false)
+
+  // v0.9.23 (B): форма «Добавить провайдера» — полный аналог мастера.
+  const emptyAddForm = (): AddProviderForm => ({
+    provider: '',
+    modelId: '',
+    customModel: false,
+    apiKey: '',
+    showKey: false,
+    baseUrl: '',
+    customProviderId: '',
+    compatibility: 'openai',
+    moonshotRegion: 'global',
+    cloudflareAccountId: '',
+    cloudflareGatewayId: '',
+    test: 'idle',
+    message: '',
+  })
+  const [addForm, setAddForm] = useState<AddProviderForm>(emptyAddForm())
+  const [addingProvider, setAddingProvider] = useState(false)
+  const patchAddForm = (patch: Partial<AddProviderForm>) =>
+    setAddForm((f) => ({ ...f, ...patch }))
 
   const assessSize = (sizeBytes: number, name: string) => {
     if (sizeBytes > 0 && sizeBytes < 6_500_000_000) {
@@ -318,6 +372,9 @@ export function ModelsView({ onBack }: ModelsViewProps) {
         const presets =
           MODELS_BY_PROVIDER[entry.providerId as keyof typeof MODELS_BY_PROVIDER] ?? []
         const draft = emptyDraft(entry.modelId ?? '')
+        // v0.9.23 (B): base URL prefilled from the shared catalog so the panel
+        // can save a fully working provider config right away.
+        draft.baseUrl = PROVIDER_ENDPOINTS[entry.providerId]?.baseUrl ?? ''
         // A model that is not one of the bundled presets (e.g. a custom
         // OpenRouter model id) must open the panel in custom-input mode.
         draft.customModel =
@@ -379,14 +436,23 @@ export function ModelsView({ onBack }: ModelsViewProps) {
         apiKey,
         modelId,
         customBaseUrl:
-          entry.providerId === 'custom' && draft.customBaseUrl.trim()
-            ? draft.customBaseUrl.trim()
+          entry.providerId === 'custom' && draft.baseUrl.trim()
+            ? draft.baseUrl.trim()
             : undefined,
         customCompatibility:
           entry.providerId === 'custom' ? draft.customCompatibility : undefined,
         openrouterBaseUrl:
-          entry.providerId === 'openrouter' && draft.openrouterBaseUrl.trim()
-            ? draft.openrouterBaseUrl.trim()
+          entry.providerId === 'openrouter' && draft.baseUrl.trim()
+            ? draft.baseUrl.trim()
+            : undefined,
+        moonshotRegion: entry.providerId === 'moonshot' ? draft.moonshotRegion : undefined,
+        cloudflareAccountId:
+          entry.providerId === 'cloudflare-ai-gateway'
+            ? draft.cloudflareAccountId.trim() || undefined
+            : undefined,
+        cloudflareGatewayId:
+          entry.providerId === 'cloudflare-ai-gateway'
+            ? draft.cloudflareGatewayId.trim() || undefined
             : undefined,
       }
       const res = await window.electronAPI.providersTest(cfg)
@@ -417,15 +483,30 @@ export function ModelsView({ onBack }: ModelsViewProps) {
       if (draft.modelId.trim()) {
         config.models = [{ id: draft.modelId.trim(), name: draft.modelId.trim() }]
       }
+      // v0.9.23 (B): единый base URL + api-флейвор из каталога — панель
+      // теперь сохраняет полноценный конфиг для ЛЮБОГО провайдера (как мастер).
+      if (draft.baseUrl.trim()) config.baseUrl = draft.baseUrl.trim()
       if (entry.providerId === 'custom') {
-        if (draft.customBaseUrl.trim()) config.baseUrl = draft.customBaseUrl.trim()
         config.compatibility = draft.customCompatibility
+        config.api =
+          draft.customCompatibility === 'anthropic' ? 'anthropic-messages' : 'openai-completions'
+      } else {
+        const ep = PROVIDER_ENDPOINTS[entry.providerId]
+        if (ep?.api) config.api = ep.api
       }
-      // OpenRouter: persist the endpoint + api flavour so the gateway can
-      // actually reach the model (seed default is used when left untouched).
-      if (entry.providerId === 'openrouter') {
-        if (draft.openrouterBaseUrl.trim()) config.baseUrl = draft.openrouterBaseUrl.trim()
-        config.api = 'openai-completions'
+      if (entry.providerId === 'moonshot') {
+        config.baseUrl =
+          draft.moonshotRegion === 'cn'
+            ? 'https://api.moonshot.cn/v1'
+            : 'https://api.moonshot.ai/v1'
+      }
+      if (entry.providerId === 'cloudflare-ai-gateway') {
+        const account = draft.cloudflareAccountId.trim()
+        const gw = draft.cloudflareGatewayId.trim()
+        if (!account || !gw) {
+          throw new Error(t('shell.models.cloudflareIdsRequired'))
+        }
+        config.baseUrl = `https://gateway.ai.cloudflare.com/v1/${account}/${gw}`
       }
       await window.electronAPI.providersSaveProviderConfig({
         providerId: entry.providerId,
@@ -436,6 +517,179 @@ export function ModelsView({ onBack }: ModelsViewProps) {
       setError(e instanceof Error ? e.message : t('shell.models.saveFailed'))
     } finally {
       setSavingProvider(null)
+    }
+  }
+
+  /** v0.9.23 (B): загрузить каталог моделей провайдера с его API. */
+  const handleFetchModels = async (entry: ModelTableEntry) => {
+    const draft = drafts[entry.providerId]
+    if (!draft || draft.fetching) return
+    const apiKey = draft.apiKey.trim()
+    if (!apiKey) {
+      updateDraft(entry.providerId, {
+        fetchError: t('shell.models.apiKeyRequired'),
+      })
+      return
+    }
+    const baseUrl =
+      draft.baseUrl.trim() ||
+      PROVIDER_ENDPOINTS[entry.providerId]?.baseUrl ||
+      ''
+    if (!baseUrl) {
+      updateDraft(entry.providerId, { fetchError: t('shell.models.baseUrlRequired') })
+      return
+    }
+    updateDraft(entry.providerId, { fetching: true, fetchError: '', test: 'idle', message: '' })
+    try {
+      const ep = PROVIDER_ENDPOINTS[entry.providerId]
+      const compatibility =
+        entry.providerId === 'custom'
+          ? draft.customCompatibility
+          : ep?.api === 'anthropic-messages'
+            ? 'anthropic'
+            : 'openai'
+      const models = await window.electronAPI.providersFetchModels({
+        providerId: entry.providerId,
+        baseUrl,
+        apiKey,
+        compatibility,
+      })
+      const list = Array.isArray(models) ? models : []
+      if (list.length === 0) {
+        updateDraft(entry.providerId, { fetching: false, fetchError: t('shell.models.fetchEmpty') })
+        return
+      }
+      updateDraft(entry.providerId, {
+        fetching: false,
+        fetchedModels: list,
+        customModel: false,
+        modelId: list[0]!.id,
+        test: 'idle',
+        message: '',
+      })
+    } catch (e) {
+      updateDraft(entry.providerId, {
+        fetching: false,
+        fetchError: e instanceof Error ? e.message : t('shell.models.fetchFailed'),
+      })
+    }
+  }
+
+  /** v0.9.23 (B): форма «Добавить провайдера» — выбор провайдера. */
+  const handleAddProviderSelect = (provider: ModelProvider | '') => {
+    if (!provider) {
+      setAddForm(emptyAddForm())
+      return
+    }
+    const presets = MODELS_BY_PROVIDER[provider as keyof typeof MODELS_BY_PROVIDER] ?? []
+    setAddForm({
+      ...emptyAddForm(),
+      provider,
+      modelId: presets[0]?.id ?? '',
+      baseUrl: PROVIDER_ENDPOINTS[provider]?.baseUrl ?? '',
+    })
+  }
+
+  const addFormModelConfig = (): ModelConfig | null => {
+    const modelId = addForm.modelId.trim()
+    if (!addForm.provider || !modelId) return null
+    const apiKey = addForm.apiKey.trim()
+    const providerId =
+      addForm.provider === 'custom' ? addForm.customProviderId.trim() || 'custom' : addForm.provider
+    const cfg: ModelConfig = {
+      provider: providerId as ModelConfig['provider'],
+      apiKey,
+      modelId,
+      customProviderId: addForm.provider === 'custom' ? providerId : undefined,
+      customBaseUrl: addForm.provider === 'custom' ? addForm.baseUrl.trim() || undefined : undefined,
+      customCompatibility:
+        addForm.provider === 'custom' ? addForm.compatibility : undefined,
+      openrouterBaseUrl:
+        addForm.provider === 'openrouter' ? addForm.baseUrl.trim() || undefined : undefined,
+      moonshotRegion: addForm.provider === 'moonshot' ? addForm.moonshotRegion : undefined,
+      cloudflareAccountId:
+        addForm.provider === 'cloudflare-ai-gateway'
+          ? addForm.cloudflareAccountId.trim() || undefined
+          : undefined,
+      cloudflareGatewayId:
+        addForm.provider === 'cloudflare-ai-gateway'
+          ? addForm.cloudflareGatewayId.trim() || undefined
+          : undefined,
+    }
+    return cfg
+  }
+
+  /** v0.9.23 (B): «Проверить» в форме добавления (аналог мастера). */
+  const handleAddProviderTest = async () => {
+    const cfg = addFormModelConfig()
+    if (!cfg) return
+    patchAddForm({ test: 'testing', message: '' })
+    try {
+      const res = await window.electronAPI.providersTest(cfg)
+      patchAddForm(
+        res.ok
+          ? { test: 'ok', message: res.message ?? '' }
+          : { test: 'fail', message: res.message ?? t('shell.models.testFailed') },
+      )
+    } catch (e) {
+      patchAddForm({ test: 'fail', message: e instanceof Error ? e.message : String(e) })
+    }
+  }
+
+  /** v0.9.23 (B): «Добавить» — сохранить провайдера (пишет models.providers +
+   *  allowlist через providersSaveProviderConfig). */
+  const handleAddProvider = async () => {
+    if (!addForm.provider) return
+    const providerId =
+      addForm.provider === 'custom' ? addForm.customProviderId.trim() : addForm.provider
+    if (addForm.provider === 'custom' && !providerId) {
+      patchAddForm({ message: t('shell.models.customProviderIdRequired') })
+      return
+    }
+    const modelId = addForm.modelId.trim()
+    if (!modelId) {
+      patchAddForm({ message: t('shell.models.modelIdRequired') })
+      return
+    }
+    setAddingProvider(true)
+    setError(null)
+    try {
+      const config: Record<string, unknown> = {}
+      if (addForm.apiKey.trim()) config.apiKey = addForm.apiKey.trim()
+      config.models = [{ id: modelId, name: modelId }]
+      if (addForm.provider === 'custom') {
+        if (addForm.baseUrl.trim()) config.baseUrl = addForm.baseUrl.trim()
+        config.compatibility = addForm.compatibility
+        config.api =
+          addForm.compatibility === 'anthropic' ? 'anthropic-messages' : 'openai-completions'
+      } else {
+        const ep = PROVIDER_ENDPOINTS[addForm.provider]
+        if (ep?.api) config.api = ep.api
+        if (addForm.baseUrl.trim()) config.baseUrl = addForm.baseUrl.trim()
+      }
+      if (addForm.provider === 'moonshot') {
+        config.baseUrl =
+          addForm.moonshotRegion === 'cn'
+            ? 'https://api.moonshot.cn/v1'
+            : 'https://api.moonshot.ai/v1'
+      }
+      if (addForm.provider === 'cloudflare-ai-gateway') {
+        const account = addForm.cloudflareAccountId.trim()
+        const gw = addForm.cloudflareGatewayId.trim()
+        if (!account || !gw) {
+          patchAddForm({ message: t('shell.models.cloudflareIdsRequired') })
+          setAddingProvider(false)
+          return
+        }
+        config.baseUrl = `https://gateway.ai.cloudflare.com/v1/${account}/${gw}`
+      }
+      await window.electronAPI.providersSaveProviderConfig({ providerId, config })
+      await load()
+      setAddForm(emptyAddForm())
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('shell.models.saveFailed'))
+    } finally {
+      setAddingProvider(false)
     }
   }
 
@@ -599,6 +853,7 @@ export function ModelsView({ onBack }: ModelsViewProps) {
                       onEngineStop={() => void handleEngineStop()}
                       onDraft={(patch) => updateDraft(e.providerId, patch)}
                       onTest={() => void handleTestProvider(e)}
+                      onFetchModels={() => void handleFetchModels(e)}
                       onSave={() => void handleSaveProvider(e)}
                       t={t}
                     />
@@ -606,6 +861,293 @@ export function ModelsView({ onBack }: ModelsViewProps) {
                 })}
               </tbody>
             </table>
+          </div>
+        </section>
+
+        {/* Add provider — v0.9.23 (B): полный аналог мастера прямо на странице
+            «Модели» (по решению Дамира: страница должна позволять всё, что делает мастер). */}
+        <section className="rounded-lg border border-border bg-card p-4" aria-label={t('shell.models.addAria')}>
+          <div className="flex items-center gap-2 mb-1">
+            <Plus className="w-4 h-4 text-muted-foreground" aria-hidden />
+            <h2 className="text-sm font-medium">{t('shell.models.addTitle')}</h2>
+          </div>
+          <p className="text-xs text-muted-foreground mb-3">{t('shell.models.addDesc')}</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label htmlFor="add-provider" className="text-xs font-medium">
+                {t('wizard.model.providerLabel')}
+              </label>
+              <Select
+                value={addForm.provider || '__none__'}
+                onValueChange={(v) =>
+                  handleAddProviderSelect(v === '__none__' ? '' : (v as ModelProvider))
+                }
+              >
+                <SelectTrigger id="add-provider" className="w-full">
+                  <SelectValue placeholder={t('wizard.model.selectProvider')} />
+                </SelectTrigger>
+                <SelectContent className="max-h-80">
+                  <SelectItem value="__none__">{t('wizard.model.selectProvider')}</SelectItem>
+                  {PROVIDER_OPTIONS.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {PROVIDER_LABELS[p.id] ?? p.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="add-model" className="text-xs font-medium">
+                {t('shell.models.colModel')}
+              </label>
+              {addForm.provider &&
+              MODELS_BY_PROVIDER[addForm.provider as keyof typeof MODELS_BY_PROVIDER]?.length &&
+              !addForm.customModel ? (
+                <Select
+                  value={addForm.modelId}
+                  onValueChange={(v) => {
+                    if (v === CUSTOM_MODEL_OPTION) {
+                      patchAddForm({ customModel: true, modelId: '' })
+                    } else {
+                      patchAddForm({ modelId: v, test: 'idle', message: '' })
+                    }
+                  }}
+                >
+                  <SelectTrigger id="add-model" className="w-full">
+                    <SelectValue placeholder={t('shell.models.selectModel')} />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-80">
+                    {(MODELS_BY_PROVIDER[addForm.provider as keyof typeof MODELS_BY_PROVIDER] ?? []).map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={CUSTOM_MODEL_OPTION}>
+                      {t('wizard.model.customModelId')}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  id="add-model"
+                  type="text"
+                  value={addForm.modelId}
+                  onChange={(ev) => patchAddForm({ modelId: ev.target.value, test: 'idle', message: '' })}
+                  placeholder={t('shell.models.modelIdPlaceholder')}
+                  className="font-mono"
+                />
+              )}
+              {addForm.provider && !addForm.customModel &&
+                MODELS_BY_PROVIDER[addForm.provider as keyof typeof MODELS_BY_PROVIDER]?.length ? (
+                <button
+                  type="button"
+                  onClick={() => patchAddForm({ customModel: true, modelId: '' })}
+                  className="text-xs text-primary hover:underline"
+                >
+                  {t('wizard.model.customModelId')}
+                </button>
+              ) : addForm.customModel ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const presets =
+                      MODELS_BY_PROVIDER[addForm.provider as keyof typeof MODELS_BY_PROVIDER] ?? []
+                    patchAddForm({ customModel: false, modelId: presets[0]?.id ?? '' })
+                  }}
+                  className="text-xs text-primary hover:underline"
+                >
+                  {t('wizard.model.backToPresets')}
+                </button>
+              ) : null}
+            </div>
+
+            {addForm.provider === 'custom' && (
+              <div className="space-y-1.5">
+                <label htmlFor="add-custom-id" className="text-xs font-medium">
+                  {t('wizard.model.customProviderId')}
+                </label>
+                <Input
+                  id="add-custom-id"
+                  type="text"
+                  value={addForm.customProviderId}
+                  onChange={(ev) => patchAddForm({ customProviderId: ev.target.value })}
+                  placeholder="my-provider"
+                  className="font-mono"
+                />
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <label htmlFor="add-key" className="text-xs font-medium">
+                {t('shell.models.apiKey')}
+              </label>
+              <div className="relative">
+                <Input
+                  id="add-key"
+                  type={addForm.showKey ? 'text' : 'password'}
+                  value={addForm.apiKey}
+                  onChange={(ev) => patchAddForm({ apiKey: ev.target.value, test: 'idle', message: '' })}
+                  placeholder={
+                    PROVIDER_OPTIONS.find((p) => p.id === addForm.provider)?.placeholder ??
+                    t('shell.models.apiKeyPlaceholder')
+                  }
+                  className="pr-10 font-mono"
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  onClick={() => patchAddForm({ showKey: !addForm.showKey })}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label={addForm.showKey ? t('shell.models.hideKey') : t('shell.models.showKey')}
+                >
+                  {addForm.showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="add-baseurl" className="text-xs font-medium">
+                {t('wizard.model.apiBaseUrl')}
+              </label>
+              <Input
+                id="add-baseurl"
+                type="text"
+                value={addForm.baseUrl}
+                onChange={(ev) => patchAddForm({ baseUrl: ev.target.value, test: 'idle', message: '' })}
+                placeholder={
+                  addForm.provider ? PROVIDER_ENDPOINTS[addForm.provider]?.baseUrl ?? '' : ''
+                }
+                className="font-mono"
+              />
+            </div>
+
+            {addForm.provider === 'custom' && (
+              <div className="space-y-1.5">
+                <label htmlFor="add-compat" className="text-xs font-medium">
+                  {t('shell.models.compatibility')}
+                </label>
+                <Select
+                  value={addForm.compatibility}
+                  onValueChange={(v) => patchAddForm({ compatibility: v as 'openai' | 'anthropic' })}
+                >
+                  <SelectTrigger id="add-compat" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="openai">{t('shell.models.openaiCompatible')}</SelectItem>
+                    <SelectItem value="anthropic">{t('shell.models.anthropicCompatible')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {addForm.provider === 'moonshot' && (
+              <div className="space-y-1.5">
+                <label htmlFor="add-moonshot-region" className="text-xs font-medium">
+                  {t('wizard.model.moonshotEndpoint')}
+                </label>
+                <Select
+                  value={addForm.moonshotRegion}
+                  onValueChange={(v) => patchAddForm({ moonshotRegion: v as 'global' | 'cn' })}
+                >
+                  <SelectTrigger id="add-moonshot-region" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="global">{t('wizard.model.moonshotGlobal')}</SelectItem>
+                    <SelectItem value="cn">{t('wizard.model.moonshotChina')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {addForm.provider === 'cloudflare-ai-gateway' && (
+              <div className="space-y-1.5 md:col-span-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label htmlFor="add-cf-account" className="text-xs font-medium">
+                      Cloudflare Account ID <span className="text-destructive">*</span>
+                    </label>
+                    <Input
+                      id="add-cf-account"
+                      type="text"
+                      value={addForm.cloudflareAccountId}
+                      onChange={(ev) => patchAddForm({ cloudflareAccountId: ev.target.value })}
+                      placeholder="your-account-id"
+                      className="font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label htmlFor="add-cf-gateway" className="text-xs font-medium">
+                      Cloudflare Gateway ID <span className="text-destructive">*</span>
+                    </label>
+                    <Input
+                      id="add-cf-gateway"
+                      type="text"
+                      value={addForm.cloudflareGatewayId}
+                      onChange={(ev) => patchAddForm({ cloudflareGatewayId: ev.target.value })}
+                      placeholder="your-gateway-id"
+                      className="font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {addForm.message && (
+            <p className="text-xs text-destructive mt-3" role="alert">{addForm.message}</p>
+          )}
+          {addForm.test === 'fail' && addForm.message && (
+            <p className="text-xs text-destructive mt-2" role="alert">
+              <XCircle className="w-3.5 h-3.5 inline mr-1" aria-hidden />
+              {addForm.message}
+            </p>
+          )}
+          {addForm.test === 'ok' && (
+            <p className="text-xs text-green-600 dark:text-green-400 mt-2" role="status">
+              <CheckCircle2 className="w-3.5 h-3.5 inline mr-1" aria-hidden />
+              {addForm.message || t('shell.models.connected')}
+            </p>
+          )}
+
+          <div className="flex items-center gap-3 mt-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void handleAddProviderTest()}
+              disabled={!addForm.provider || !addForm.modelId.trim() || addForm.test === 'testing'}
+            >
+              {addForm.test === 'testing' ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-1" aria-hidden />
+              ) : addForm.test === 'ok' ? (
+                <CheckCircle2 className="w-4 h-4 mr-1" aria-hidden />
+              ) : (
+                <Zap className="w-4 h-4 mr-1" aria-hidden />
+              )}
+              {addForm.test === 'testing'
+                ? t('shell.models.testing')
+                : addForm.test === 'ok'
+                  ? t('shell.models.connected')
+                  : t('shell.models.testConnection')}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => void handleAddProvider()}
+              disabled={
+                addingProvider || !addForm.provider || !addForm.modelId.trim()
+              }
+            >
+              {addingProvider ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-1" aria-hidden />
+              ) : (
+                <Plus className="w-4 h-4 mr-1" aria-hidden />
+              )}
+              {t('shell.models.addProvider')}
+            </Button>
           </div>
         </section>
 
@@ -937,6 +1479,7 @@ interface ProviderRowGroupProps {
   onEngineStop: () => void
   onDraft: (patch: Partial<ProviderDraft>) => void
   onTest: () => void
+  onFetchModels: () => void
   onSave: () => void
   t: (key: string, opts?: Record<string, unknown>) => string
 }
@@ -959,6 +1502,7 @@ function ProviderRowGroup({
   onEngineStop,
   onDraft,
   onTest,
+  onFetchModels,
   onSave,
   t,
 }: ProviderRowGroupProps) {
@@ -972,7 +1516,7 @@ function ProviderRowGroup({
         <td className="py-2 pr-2">
           <span className="flex items-center gap-2">
             <ProviderLogo providerId={e.providerId} className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <span className="font-medium capitalize">{e.providerId}</span>
+            <span className="font-medium">{e.label}</span>
           </span>
         </td>
         <td className="py-2 pr-2 font-mono text-xs max-w-[180px] truncate">{e.modelId || '—'}</td>
@@ -1049,19 +1593,76 @@ function ProviderRowGroup({
             <div className="rounded-md border border-border bg-card p-3 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold capitalize">
-                  {t('shell.models.configureTitle', { provider: e.providerId })}
+                  {t('shell.models.configureTitle', { provider: e.label })}
                 </p>
                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onToggle} title={t('shell.models.close')}>
                   <X className="h-4 w-4" />
                 </Button>
               </div>
 
-              {/* Model */}
+              {/* Model + «Загрузить модели провайдера» (v0.9.23, B) */}
               <div className="space-y-1.5">
-                <label htmlFor={`cfg-model-${e.providerId}`} className="text-xs font-medium">
-                  {t('shell.models.colModel')}
-                </label>
-                {providerPresets.length > 0 && !draft.customModel ? (
+                <div className="flex items-center justify-between gap-2">
+                  <label htmlFor={`cfg-model-${e.providerId}`} className="text-xs font-medium">
+                    {t('shell.models.colModel')}
+                  </label>
+                  <div className="flex items-center gap-1">
+                    {draft.fetchedModels && (
+                      <button
+                        type="button"
+                        onClick={() => onDraft({ fetchedModels: null, modelId: '', test: 'idle', message: '' })}
+                        className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+                      >
+                        {t('shell.models.clearFetched')}
+                      </button>
+                    )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-xs"
+                      onClick={onFetchModels}
+                      disabled={draft.fetching}
+                      title={t('shell.models.fetchModelsHint')}
+                    >
+                      {draft.fetching ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" aria-hidden />
+                      ) : (
+                        <RefreshCw className="w-3.5 h-3.5 mr-1" aria-hidden />
+                      )}
+                      {t('shell.models.fetchModels')}
+                    </Button>
+                  </div>
+                </div>
+                {draft.fetchError && (
+                  <p className="text-xs text-destructive" role="alert">{draft.fetchError}</p>
+                )}
+                {draft.fetchedModels && draft.fetchedModels.length > 0 ? (
+                  <Select
+                    value={draft.modelId}
+                    onValueChange={(v) => {
+                      if (v === CUSTOM_MODEL_OPTION) {
+                        onDraft({ customModel: true, modelId: '', test: 'idle', message: '' })
+                      } else {
+                        onDraft({ modelId: v, test: 'idle', message: '' })
+                      }
+                    }}
+                  >
+                    <SelectTrigger id={`cfg-model-${e.providerId}`} className="w-full">
+                      <SelectValue placeholder={t('shell.models.selectModel')} />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-80">
+                      {draft.fetchedModels.slice(0, 200).map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.name && m.name !== m.id ? `${m.name} — ${m.id}` : m.id}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value={CUSTOM_MODEL_OPTION}>
+                        {t('wizard.model.customModelId')}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : providerPresets.length > 0 && !draft.customModel ? (
                   <Select
                     value={draft.modelId}
                     onValueChange={(v) => {
@@ -1142,62 +1743,102 @@ function ProviderRowGroup({
                 </div>
               </div>
 
-              {/* OpenRouter extras: editable endpoint — the panel used to only
-                  offer Model + API key, which is not enough to configure
-                  OpenRouter (v0.9.14). */}
-              {e.providerId === 'openrouter' && (
+              {/* v0.9.23 (B): единый API base URL для всех провайдеров + поля
+                  мастера (moonshot region, Cloudflare gateway) — панель стала
+                  полным аналогом мастера настройки. */}
+              <div className="space-y-1.5">
+                <label htmlFor={`cfg-baseurl-${e.providerId}`} className="text-xs font-medium">
+                  {t('wizard.model.apiBaseUrl')}
+                </label>
+                <Input
+                  id={`cfg-baseurl-${e.providerId}`}
+                  type="text"
+                  value={draft.baseUrl}
+                  onChange={(ev) => onDraft({ baseUrl: ev.target.value, test: 'idle', message: '' })}
+                  placeholder={
+                    PROVIDER_ENDPOINTS[e.providerId]?.baseUrl ?? 'https://llm.example.com/v1'
+                  }
+                  className="font-mono"
+                />
+              </div>
+
+              {e.providerId === 'custom' && (
                 <div className="space-y-1.5">
-                  <label htmlFor={`cfg-orurl-${e.providerId}`} className="text-xs font-medium">
-                    {t('wizard.model.apiBaseUrl')}
+                  <label htmlFor={`cfg-compat-${e.providerId}`} className="text-xs font-medium">
+                    {t('shell.models.compatibility')}
                   </label>
-                  <Input
-                    id={`cfg-orurl-${e.providerId}`}
-                    type="text"
-                    value={draft.openrouterBaseUrl}
-                    onChange={(ev) =>
-                      onDraft({ openrouterBaseUrl: ev.target.value, test: 'idle', message: '' })
-                    }
-                    placeholder="https://openrouter.ai/api/v1"
-                    className="font-mono"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {t('wizard.model.openrouterBaseUrlHint')}
-                  </p>
+                  <Select
+                    value={draft.customCompatibility}
+                    onValueChange={(v) => onDraft({ customCompatibility: v as 'openai' | 'anthropic' })}
+                  >
+                    <SelectTrigger id={`cfg-compat-${e.providerId}`} className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="openai">{t('shell.models.openaiCompatible')}</SelectItem>
+                      <SelectItem value="anthropic">{t('shell.models.anthropicCompatible')}</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
 
-              {/* Custom provider extras */}
-              {e.providerId === 'custom' && (
+              {e.providerId === 'moonshot' && (
+                <div className="space-y-1.5">
+                  <label htmlFor={`cfg-moonshot-region-${e.providerId}`} className="text-xs font-medium">
+                    {t('wizard.model.moonshotEndpoint')}
+                  </label>
+                  <Select
+                    value={draft.moonshotRegion}
+                    onValueChange={(v) =>
+                      onDraft({
+                        moonshotRegion: v as 'global' | 'cn',
+                        test: 'idle',
+                        message: '',
+                      })
+                    }
+                  >
+                    <SelectTrigger id={`cfg-moonshot-region-${e.providerId}`} className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="global">{t('wizard.model.moonshotGlobal')}</SelectItem>
+                      <SelectItem value="cn">{t('wizard.model.moonshotChina')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {e.providerId === 'cloudflare-ai-gateway' && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <label htmlFor={`cfg-baseurl-${e.providerId}`} className="text-xs font-medium">
-                      {t('shell.models.baseUrl')}
+                    <label htmlFor={`cfg-cf-account-${e.providerId}`} className="text-xs font-medium">
+                      Cloudflare Account ID <span className="text-destructive">*</span>
                     </label>
                     <Input
-                      id={`cfg-baseurl-${e.providerId}`}
+                      id={`cfg-cf-account-${e.providerId}`}
                       type="text"
-                      value={draft.customBaseUrl}
-                      onChange={(ev) => onDraft({ customBaseUrl: ev.target.value, test: 'idle', message: '' })}
-                      placeholder="https://llm.example.com/v1"
+                      value={draft.cloudflareAccountId}
+                      onChange={(ev) =>
+                        onDraft({ cloudflareAccountId: ev.target.value, test: 'idle', message: '' })
+                      }
+                      placeholder="your-account-id"
                       className="font-mono"
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label htmlFor={`cfg-compat-${e.providerId}`} className="text-xs font-medium">
-                      {t('shell.models.compatibility')}
+                    <label htmlFor={`cfg-cf-gateway-${e.providerId}`} className="text-xs font-medium">
+                      Cloudflare Gateway ID <span className="text-destructive">*</span>
                     </label>
-                    <Select
-                      value={draft.customCompatibility}
-                      onValueChange={(v) => onDraft({ customCompatibility: v as 'openai' | 'anthropic' })}
-                    >
-                      <SelectTrigger id={`cfg-compat-${e.providerId}`} className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="openai">{t('shell.models.openaiCompatible')}</SelectItem>
-                        <SelectItem value="anthropic">{t('shell.models.anthropicCompatible')}</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Input
+                      id={`cfg-cf-gateway-${e.providerId}`}
+                      type="text"
+                      value={draft.cloudflareGatewayId}
+                      onChange={(ev) =>
+                        onDraft({ cloudflareGatewayId: ev.target.value, test: 'idle', message: '' })
+                      }
+                      placeholder="your-gateway-id"
+                      className="font-mono"
+                    />
                   </div>
                 </div>
               )}

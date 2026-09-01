@@ -746,6 +746,15 @@ body {
   font-size: 11px;
   color: var(--text-3);
 }
+.a-model-menu-group {
+  padding: 6px 10px 2px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  flex-shrink: 0;
+}
 .a-model-menu-remove {
   display: flex;
   align-items: center;
