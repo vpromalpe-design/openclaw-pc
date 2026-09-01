@@ -166,7 +166,8 @@ export interface ElectronAPI {
   shellSetConfig: (config: Partial<ShellConfig>) => Promise<void>
   systemGetLocale: () => Promise<string>
   systemOpenExternal: (url: string) => Promise<void>
-  systemOpenPath: (path: string) => Promise<void>
+  /** Открыть локальный путь в системе (shell.openPath). Возвращает '' при успехе или текст ошибки. */
+  systemOpenPath: (path: string) => Promise<string>
   systemOpenLogDir: () => Promise<void>
   portCheck: (port: number) => Promise<PortCheckResult>
   wizardTestModel: (config: ModelConfig) => Promise<WizardTestModelResult>
