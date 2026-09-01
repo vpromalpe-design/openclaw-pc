@@ -317,7 +317,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   const setUpdateAvailable = useUpdateNoticeStore((state) => state.setUpdateAvailable)
   const dismissUpdateNotice = useUpdateNoticeStore((state) => state.dismissUpdateNotice)
 
-  // ── v0.9.5 shell frame data ────────────────────────────────────────────────
+  /** v0.9.5 shell frame data ──────────────────────────────────────────────── */
   const [agents, setAgents] = useState<AgentInfo[]>([{ id: 'main', name: 'main', isDefault: true }])
   // v0.9.21: live task data (ledger + cron, 10s poll) drives the sidebar badge,
   // the tasks list and the right-hand detail panel (replaces the Status bento).
@@ -325,6 +325,20 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   const [tasksSelected, setTasksSelected] = useState<TasksSelection>(null)
   const [tasksDetailTab, setTasksDetailTab] = useState<TasksDetailTab>('output')
   const [activeAgent, setActiveAgent] = useState('main')
+
+  // v0.9.24 FIX: if the active agent no longer exists in the config (e.g. the
+  // user created agents and the list was rewritten without "main"), fall back
+  // to the first configured agent instead of driving a phantom "main" session
+  // (gateway: `Agent "main" no longer exists in configuration`).
+  useEffect(() => {
+    if (agents.length === 0) return
+    if (!agents.some((a) => a.id === activeAgent)) {
+      const first = agents[0].id
+      setActiveAgent(first)
+      setControlSession(`agent:${first}:main`)
+    }
+  }, [agents, activeAgent, setControlSession])
+
   const [sessions, setSessions] = useState<ShellSessionRow[]>([])
   const [activeSection, setActiveSection] = useState('chat')
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null)

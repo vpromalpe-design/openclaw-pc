@@ -428,7 +428,9 @@ export function useTasksData(enabled = true): TasksData {
       pickVal?: string
     }): Promise<string | null> => {
       const text = opts.text.trim()
-      const agentId = (opts.agentId ?? 'main').trim() || 'main'
+      // Empty/missing agentId falls back to the first configured agent in the
+      // main process (handlers.ts TASKS_DISPATCH) — never a phantom "main".
+      const agentId = (opts.agentId ?? '').trim() || 'main'
       const freq = opts.freq
       const timeOpt = opts.timeOpt
       const pickVal = opts.pickVal || '19:30'
@@ -551,13 +553,34 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
   const [searchQuery, setSearchQuery] = useState('')
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({ completed: true })
   const [dispatchText, setDispatchText] = useState('')
-  const [dispatchAgent, setDispatchAgent] = useState('main')
+  // v0.9.24 FIX: start from the first real agent instead of a phantom "main"
+  // (config may have no agent named "main" after the user creates agents).
+  const [dispatchAgent, setDispatchAgent] = useState<string>(agents[0]?.id ?? 'main')
   const [dispatchTime, setDispatchTime] = useState('now')
   const [dispatchFreq, setDispatchFreq] = useState('once')
   const [dispatchPick, setDispatchPick] = useState('19:30')
   const [dispatching, setDispatching] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+
+  // v0.9.24 FIX: keep the dispatch agent selection in sync with the agent list
+  // (e.g. after agents load late or the previous selection was removed).
+  useEffect(() => {
+    if (agents.length === 0) return
+    if (!agents.some((a) => a.id === dispatchAgent)) {
+      setDispatchAgent(agents[0].id)
+    }
+  }, [agents, dispatchAgent])
+
+  /** Pick a valid agent id for dispatch: explicit selection if it still exists, otherwise the first agent. */
+  const resolveDispatchAgent = useCallback(
+    (wanted?: string): string => {
+      const w = (wanted ?? '').trim()
+      if (w && agents.some((a) => a.id === w)) return w
+      return agents[0]?.id ?? 'main'
+    },
+    [agents],
+  )
 
   const showFeedback = useCallback((msg: string) => {
     setFeedback(msg)
@@ -601,7 +624,7 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
     try {
       const err = await data.dispatchTask({
         text,
-        agentId: dispatchAgent,
+        agentId: resolveDispatchAgent(dispatchAgent),
         timeOpt: dispatchTime,
         freq: dispatchFreq,
         pickVal: dispatchPick,
@@ -620,7 +643,7 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
     } finally {
       setDispatching(false)
     }
-  }, [dispatchText, dispatchAgent, dispatchTime, dispatchFreq, dispatchPick, data, showFeedback])
+  }, [dispatchText, dispatchAgent, dispatchTime, dispatchFreq, dispatchPick, data, showFeedback, resolveDispatchAgent])
 
   const handleTaskAction = useCallback(
     async (task: TaskItem, act: string) => {
@@ -639,7 +662,7 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
       if (act === 'retry') {
         const err = await data.dispatchTask({
           text: task.title ?? task.id,
-          agentId: task.agentId ?? 'main',
+          agentId: resolveDispatchAgent(task.agentId),
           timeOpt: 'now',
           freq: 'once',
         })
@@ -663,7 +686,7 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
         onOpenSession?.(task.sessionKey ?? (task.agentId ? `agent:${task.agentId}:tasks` : undefined))
       }
     },
-    [data, showFeedback, onOpenSession],
+    [data, showFeedback, onOpenSession, resolveDispatchAgent],
   )
 
   const renderTaskCard = (task: TaskItem, isChild = false) => {
@@ -1473,7 +1496,9 @@ export function TasksDetailPanel({ data, selected, tab = 'output', onTabChange, 
               void (async () => {
                 const err = await data.dispatchTask({
                   text: task.title ?? task.id,
-                  agentId: task.agentId ?? 'main',
+                  // A legacy/phantom "main" or empty id resolves to the first
+                  // configured agent in the main process (TASKS_DISPATCH).
+                  agentId: task.agentId && task.agentId !== 'main' ? task.agentId : undefined,
                   timeOpt: 'now',
                   freq: 'once',
                 })
