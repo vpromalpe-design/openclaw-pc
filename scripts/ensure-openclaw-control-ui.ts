@@ -38,8 +38,14 @@ import { applyOpenClawUiSidebarDesktopPatches } from './lib/patch-openclaw-ui-si
 import { applyOpenClawUiLocalEnginePatches } from './lib/patch-openclaw-ui-local-engine.ts'
 import { applyOpenClawUiVoiceInputPatches } from './lib/patch-openclaw-ui-voice-input.ts'
 
-/** Written after GitHub UI build so cached installs can detect pre-npm / legacy bundles. */
-export const CONTROL_UI_ELECTRON_LIT_MARKER = '.electron-lit-compat-v1'
+/**
+ * Written after GitHub UI build so cached installs can detect pre-npm / legacy bundles.
+ * The suffix is the OpenClaw PC patch-set version: bump it whenever the set of applied
+ * control-ui patches changes (sidebar, local-engine, voice-input, ...) so cached
+ * `dist/control-ui` rebuilds instead of silently shipping a stale UI.
+ * v1: sidebar+local-engine | v2: +voice-input
+ */
+export const CONTROL_UI_ELECTRON_LIT_MARKER = '.electron-lit-compat-v1.pc-patches-v2'
 
 const GITHUB_REPO = 'openclaw/openclaw'
 
