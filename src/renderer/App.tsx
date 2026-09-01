@@ -136,6 +136,83 @@ function App() {
     return () => window.removeEventListener('message', onEngineBridgeMessage)
   }, [configExists])
 
+  // Control UI (iframe) → shell bridge for the mic input: the desktop mic
+  // button inside Control UI asks for STT/realtime status, asks the main
+  // process to transcribe WAV with whisper.cpp (offline), and persists the
+  // preferred online/offline mode.
+  useEffect(() => {
+    if (configExists !== true) return
+    const onSttBridgeMessage = async (event: MessageEvent) => {
+      const data = event.data as
+        | {
+            type?: string
+            action?: string
+            audioBase64?: string
+            mode?: string
+          }
+        | undefined
+      if (data?.type !== 'openclaw-pc:stt') return
+      const iframe = document.querySelector<HTMLIFrameElement>(
+        'iframe[title="OpenClaw Control UI"]',
+      )
+      if (!iframe || event.source !== iframe.contentWindow) return
+      const respond = (type: string, payload: object) => {
+        let targetOrigin: string | null = null
+        try {
+          targetOrigin = new URL(iframe.src).origin
+        } catch {
+          targetOrigin = null
+        }
+        if (!targetOrigin) return
+        iframe.contentWindow?.postMessage({ type, ...payload }, targetOrigin)
+      }
+      try {
+        if (data.action === 'transcribe' && data.audioBase64) {
+          const res = await window.electronAPI.sttTranscribe({
+            audioBase64: data.audioBase64,
+          })
+          respond('openclaw-pc:stt:result', {
+            ok: Boolean(res.ok),
+            text: res.text,
+            error: res.error,
+          })
+          return
+        }
+        if (data.action === 'set-mode' && data.mode) {
+          const mode =
+            data.mode === 'offline' || data.mode === 'online' ? data.mode : 'auto'
+          await window.electronAPI.sttSetPreferredMode({ mode })
+        }
+        // get-status (default): aggregate local STT + realtime voice state.
+        const [stt, voice] = await Promise.all([
+          window.electronAPI.sttLoad(),
+          window.electronAPI.voiceSettingsLoad(),
+        ])
+        const shell = await window.electronAPI.shellGetConfig()
+        const sttState = stt as {
+          enabled?: boolean
+          whisper?: { installed?: boolean; modelsInstalled?: string[] }
+          model?: string
+        }
+        respond('openclaw-pc:stt:state', {
+          sttEnabled: Boolean(sttState?.enabled),
+          whisperInstalled: Boolean(sttState?.whisper?.installed),
+          whisperModel: sttState?.model ?? 'base',
+          realtimeProvider: voice.provider ?? '',
+          realtimeHasKey: Boolean(voice.hasKey),
+          preferredMode: shell?.sttPreferredMode ?? 'auto',
+        })
+      } catch (err) {
+        respond('openclaw-pc:stt:result', {
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+    }
+    window.addEventListener('message', onSttBridgeMessage)
+    return () => window.removeEventListener('message', onSttBridgeMessage)
+  }, [configExists])
+
   /** Native title + document.title: wizard uses app name only (без «Мастер настройки» в заголовке). */
   useEffect(() => {
     if (route === null || configExists === null) {

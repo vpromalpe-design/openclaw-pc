@@ -865,7 +865,12 @@
       "transcribeFailed": "Failed to transcribe speech",
       "emptyResult": "Nothing recognized — try again or pick a larger model.",
       "micHint": "Test: press the button and say a phrase. Allow microphone access if prompted.",
-      "installFailed": "whisper.cpp install failed"
+      "installFailed": "whisper.cpp install failed",
+      "preferredMode": "Recognition mode in chat (mic next to the input)",
+      "preferredAuto": "Auto (whatever is available)",
+      "preferredOffline": "Local (whisper, no internet)",
+      "preferredOnline": "Cloud (Google/OpenAI realtime)",
+      "preferredHint": "The mic in chat has an Offline/Online toggle — this sets the default. If the chosen mode is not configured, an available one is used automatically."
     }
   }
 }

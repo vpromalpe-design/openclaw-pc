@@ -276,6 +276,7 @@ export interface ElectronAPI {
   sttApply: (payload: { enabled?: boolean; model?: string }) => Promise<{ ok: boolean }>
   sttInstall: (payload: { model: string }) => Promise<{ ok: boolean }>
   sttTranscribe: (payload: { audioBase64: string }) => Promise<{ ok: boolean; text?: string; error?: string }>
+  sttSetPreferredMode: (payload: { mode: 'auto' | 'offline' | 'online' }) => Promise<{ ok: boolean; mode: string }>
   onVoiceProgress: (cb: (payload: unknown) => void) => () => void
 
   modelsViewList: () => Promise<ModelsViewResult>

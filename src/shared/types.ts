@@ -58,6 +58,8 @@ export interface ShellConfig {
     /** whisper.cpp model: tiny | base | small | medium */
     model?: string
   }
+  /** v0.9.24: mic input mode preference: 'auto' | 'offline' | 'online'. */
+  sttPreferredMode?: 'auto' | 'offline' | 'online'
   /** User-defined display/switch order for downloaded local models (ids). */
   localModelsOrder?: string[]
   /** Telegram panel: display-only bot name (saved in shell config, not openclaw.json) */

@@ -184,6 +184,8 @@ export const IPC_STT_APPLY = 'stt:apply' as const
 export const IPC_STT_INSTALL = 'stt:install' as const
 /** STT: transcribe WAV (base64) with local whisper */
 export const IPC_STT_TRANSCRIBE = 'stt:transcribe' as const
+/** v0.9.24: set preferred mic mode ('auto' | 'offline' | 'online') in shell config */
+export const IPC_STT_SET_PREFERRED_MODE = 'stt:setPreferredMode' as const
 
 /** Voice: install/download progress (main → renderer, payload VoiceProgress) */
 export const IPC_VOICE_PROGRESS = 'voice:progress' as const
