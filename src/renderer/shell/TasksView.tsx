@@ -1602,29 +1602,32 @@ export function TasksDetailPanel({ data, selected, tab = 'output', onTabChange, 
     return base || ref.path
   }, [])
 
-  // v0.9.28: заменить полные пути в тексте ответа на имена-ссылки
+  // v0.9.28→v0.9.30: заменить полные пути (и резолвнутые имена) в тексте ответа на ссылки
   const renderAnswerText = useCallback(
     (text: string): React.ReactNode => {
-      const abs = fileRefs
-        .filter((r) => !r.relative)
-        .sort((a, b) => b.path.length - a.path.length)
-      if (abs.length === 0) return text
+      const entries: { match: string; ref: FileRef }[] = []
+      for (const ref of fileRefs) {
+        if (!ref.relative) entries.push({ match: ref.path, ref })
+        else if (ref.label) entries.push({ match: ref.label, ref }) // v0.9.30: `fire.txt` → ссылка
+      }
+      if (entries.length === 0) return text
+      entries.sort((a, b) => b.match.length - a.match.length)
       const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      const re = new RegExp('(' + abs.map((r) => esc(r.path)).join('|') + ')', 'g')
+      const re = new RegExp('(' + entries.map((e) => '`?' + esc(e.match) + '`?').join('|') + ')', 'g')
       const parts = text.split(re)
       return parts.map((part, i) => {
-        const ref = abs.find((r) => r.path === part)
-        if (!ref) return <span key={i}>{part}</span>
+        const entry = entries.find((e) => part === e.match || part === '`' + e.match + '`')
+        if (!entry) return <span key={i}>{part}</span>
         return (
           <button
             key={i}
             type="button"
-            onClick={() => openFile(ref.path)}
-            title={ref.path}
+            onClick={() => openFile(entry.ref.path)}
+            title={entry.ref.path}
             className="inline-flex max-w-full items-center gap-1 rounded-md bg-sky-500/15 px-1 py-px align-baseline font-medium text-sky-300 underline decoration-sky-400/40 underline-offset-2 transition-colors hover:bg-sky-500/25 hover:text-sky-200"
           >
             <ExternalLink className="h-2.5 w-2.5 shrink-0" aria-hidden />
-            <span className="min-w-0 truncate">{fileNameOf(ref)}</span>
+            <span className="min-w-0 truncate">{fileNameOf(entry.ref)}</span>
           </button>
         )
       })
