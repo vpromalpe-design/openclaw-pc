@@ -1335,6 +1335,26 @@ interface FileTreeNode {
 const FILE_EXT_RE = /\.(?:[A-Za-z0-9]{1,8})$/i
 const POSIX_ROOT_RE = /^\/(?:home|tmp|workspace|root|app|mnt|data|var|opt|srv|media|Users|users)\//i
 
+/** Обрезать кандидата по второму корню пути: «C:\a\b.txt и /tmp/x.log» → «C:\a\b.txt». */
+function cutAtSecondRoot(t: string): string {
+  const w1 = /[A-Za-z]:[\\/]/.exec(t)
+  if (w1) {
+    const after = t.slice(w1.index + w1[0].length)
+    const w2 = /[A-Za-z]:[\\/]/.exec(after)
+    if (w2) return t.slice(0, w1.index + w1[0].length + w2.index)
+    const p2 = / \/(?!\/)/.exec(after)
+    if (p2) return t.slice(0, w1.index + w1[0].length + p2.index)
+  } else {
+    const p1 = /(?<![A-Za-z0-9])\/(?!\/)/.exec(t)
+    if (p1) {
+      const after = t.slice(p1.index + 1)
+      const p2 = /(?<![A-Za-z0-9])\/(?!\/)/.exec(after)
+      if (p2) return t.slice(0, p1.index + 1 + p2.index)
+    }
+  }
+  return t
+}
+
 function looksLikeLocalTarget(target: string): boolean {
   const t = target.trim()
   if (!t) return false
@@ -1355,14 +1375,44 @@ function decodeFileTarget(t: string): string | null {
       /* keep raw */
     }
   }
-  // отрезать хвостовые знаки препинания/закрывающие скобки
+  // экранированные слэши из JSON-цитат: C:\\Users\\... → C:\Users\...
+  s = s.replace(/\\\\/g, '\\').trim()
+  // отрезать хвостовые знаки препинания/закрывающие скобки (повторно после замен)
   s = s.replace(/[)\],;:>»"'`]+$/, '').trim()
+  // если после первого пути идёт ещё один корень (C:\… или /путь…) — обрезать до него
+  s = cutAtSecondRoot(s).trim()
+  // отделить «хвост предложения»: путь с пробелами, за которым идёт ещё текст
+  let guard = 0
+  while (guard < 3 && /\s/.test(s)) {
+    const last = s.split(/[\\/]/).pop() ?? ''
+    if (last && FILE_EXT_RE.test(last)) break
+    const i = s.lastIndexOf(' ')
+    if (i <= 0) break
+    s = s.slice(0, i).trim()
+    guard++
+  }
   return s || null
 }
 
-/** Извлечь локальные файлы из текстов: markdown-ссылки, бэктик-спаны, file://, Windows-пути. */
+/** Извлечь локальные файлы из текстов: markdown-ссылки, бэктик-спаны, file://, Windows/POSIX-пути. */
 export function extractFileRefs(texts: Array<string | null | undefined>): FileRef[] {
   const out = new Map<string, string | undefined>()
+  // v0.9.27: пробелы разрешены (агенты пишут пути с пробелами и кириллицей);
+  // хвост фразы отделяется в decodeFileTarget, расширение проверяется после обрезки.
+  // запятая/точка с запятой — разделители: несколько путей в строке не сливаются в один.
+  const winRe = /(?<![A-Za-z0-9])([A-Za-z]:[\\/][^,\r\n"'<>()|*?]+)/g
+  const posixRe = /(?<![A-Za-z0-9:/])(\/[^,\r\n"'<>()|*?]+)/g
+  const scanPaths = (frag: string, label?: string) => {
+    let m: RegExpExecArray | null
+    while ((m = winRe.exec(frag)) !== null) {
+      const p = decodeFileTarget(m[1])
+      if (p && FILE_EXT_RE.test(p) && looksLikeLocalTarget(p)) out.set(p, label)
+    }
+    while ((m = posixRe.exec(frag)) !== null) {
+      const p = decodeFileTarget(m[1])
+      if (p && looksLikeLocalTarget(p)) out.set(p, label)
+    }
+  }
   for (const raw of texts) {
     if (!raw) continue
     // 1) markdown-ссылки [label](target) — target может содержать пробелы
@@ -1375,13 +1425,15 @@ export function extractFileRefs(texts: Array<string | null | undefined>): FileRe
         if (p) out.set(p, m[1].trim())
       }
     }
-    // 2) бэктик-спаны — агенты часто оборачивают пути в `код`
+    // 2) бэктик-спаны — агенты часто оборачивают пути в `код`; внутри могут быть JSON-цитаты путей
     const codeRe = /`([^`]+)`/g
     while ((m = codeRe.exec(raw)) !== null) {
       const t = m[1].trim()
       if (looksLikeLocalTarget(t)) {
         const p = decodeFileTarget(t)
         if (p) out.set(p, undefined)
+      } else {
+        scanPaths(t)
       }
     }
     // 3) file:// URLs
@@ -1390,18 +1442,8 @@ export function extractFileRefs(texts: Array<string | null | undefined>): FileRe
       const p = decodeFileTarget(decodeURIComponent(m[1]))
       if (p) out.set(p, undefined)
     }
-    // 4) Windows-пути в свободном тексте — только с расширением файла (меньше ложных срабатываний)
-    const winRe = /(?<![A-Za-z0-9])([A-Za-z]:[\\/][^\s"'<>()|*?]+)/g
-    while ((m = winRe.exec(raw)) !== null) {
-      const p = decodeFileTarget(m[1])
-      if (p && FILE_EXT_RE.test(p) && looksLikeLocalTarget(p)) out.set(p, undefined)
-    }
-    // 5) POSIX-пути в свободном тексте — с расширением файла или из известных корней
-    const posixRe = /(?<![A-Za-z0-9:/])(\/[^\s"'<>()]+)/g
-    while ((m = posixRe.exec(raw)) !== null) {
-      const p = decodeFileTarget(m[1])
-      if (p && looksLikeLocalTarget(p)) out.set(p, undefined)
-    }
+    // 4/5) Windows- и POSIX-пути в свободном тексте
+    scanPaths(raw)
   }
   return [...out.entries()].map(([path, label]) => ({ path, label }))
 }
@@ -1457,7 +1499,8 @@ export function TasksDetailPanel({ data, selected, tab = 'output', onTabChange, 
   // v0.9.26: «Созданные файлы» — файлы, упомянутые агентом в выводах задачи.
   const fileRefs = useMemo(() => {
     if (!task) return []
-    return extractFileRefs([task.answer, task.terminalSummary, task.question, task.progressSummary])
+    // v0.9.27: добавлен title — агент часто пишет путь уже в заголовке задачи
+    return extractFileRefs([task.title, task.answer, task.terminalSummary, task.question, task.progressSummary])
   }, [task])
   const fileTree = useMemo(() => sortFileTree(buildFileTree(fileRefs)), [fileRefs])
   const [openErr, setOpenErr] = useState<string | null>(null)
