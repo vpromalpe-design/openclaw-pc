@@ -6,7 +6,7 @@
  * - control-ui/index.html script (and modulepreload) targets exist on disk
  */
 
-import { access, readFile } from 'node:fs/promises'
+import { access, readFile, readdir } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { verifyControlUiBundle } from './lib/control-ui-verify.ts'
@@ -27,6 +27,21 @@ async function exists(p: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+/** Recursively scan control-ui assets for a required OpenClaw PC patch sentinel (e.g. voice-input). */
+async function scanSentinel(dir: string, needle: string): Promise<boolean> {
+  const entries = await readdir(dir, { withFileTypes: true }).catch(() => [])
+  for (const e of entries) {
+    const full = join(dir, e.name)
+    if (e.isDirectory()) {
+      if (await scanSentinel(full, needle)) return true
+    } else if (/^.*\.js$/.test(e.name)) {
+      const raw = await readFile(full, 'utf8').catch(() => '')
+      if (raw.includes(needle)) return true
+    }
+  }
+  return false
 }
 
 async function readJson<T>(p: string): Promise<T> {
@@ -132,6 +147,15 @@ async function main(): Promise<void> {
   )
   await verifyControlUiBundle(controlUiRoot)
   console.log('  [ok] control-ui bundle (refs + JS syntax)')
+
+  const voiceSentinel = 'openclaw-pc-voice-input'
+  if (!(await scanSentinel(controlUiRoot, voiceSentinel))) {
+    throw new Error(
+      `control-ui missing OpenClaw PC voice-input patch (${voiceSentinel} not found in assets). ` +
+        'Rebuild control-ui: delete dist/control-ui marker under build/openclaw and re-run download-openclaw.',
+    )
+  }
+  console.log('  [ok] control-ui voice-input patch present')
 
   console.log('\n  OK: packaged win-unpacked consistency check passed\n')
 }
