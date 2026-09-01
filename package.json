@@ -1,6 +1,6 @@
 {
   "name": "openclaw-pc",
-  "version": "0.9.27+openclaw.2026.7.1",
+  "version": "0.9.28+openclaw.2026.7.1",
   "openclawFeishuLarkSdkVersion": "^1.60.0",
   "openclawBundleVersion": "2026.7.1",
   "description": "OpenClaw PC — Windows desktop app and installer for OpenClaw: agents, models, voice and Telegram in one place.",
