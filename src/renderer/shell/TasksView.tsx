@@ -20,9 +20,12 @@ import {
   Folder,
   FileText,
   ExternalLink,
+  Mic,
+  Square,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { recordMic } from '@/utils/mic-recorder'
 
 /** Agent shape passed down from the shell sidebar (same as EmbeddedShellLayout). */
 export interface AgentInfo {
@@ -564,6 +567,12 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
   const [dispatchPick, setDispatchPick] = useState('19:30')
   const [dispatching, setDispatching] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
+  // v0.9.27: голосовой ввод задачи (STT) — как в чате
+  const [sttReady, setSttReady] = useState(false)
+  const [dictating, setDictating] = useState(false)
+  const [transcribing, setTranscribing] = useState(false)
+  const [dictError, setDictError] = useState<string | null>(null)
+  const stopDictationRef = useRef<(() => void) | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   // v0.9.24 FIX: keep the dispatch agent selection in sync with the agent list
@@ -589,6 +598,55 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
     setFeedback(msg)
     window.setTimeout(() => setFeedback(null), 3200)
   }, [])
+
+  // v0.9.27: инициализация STT для голосового ввода задачи
+  useEffect(() => {
+    let cancelled = false
+    void window.electronAPI
+      .sttLoad()
+      .then((res) => {
+        if (!cancelled) {
+          setSttReady(res.whisper.installed && res.whisper.modelsInstalled.includes(res.model))
+        }
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+      stopDictationRef.current?.()
+    }
+  }, [])
+
+  /** Toggle mic dictation in the dispatch box: press → record, press again → transcribe into input. */
+  const toggleDictate = async () => {
+    if (dictating) {
+      stopDictationRef.current?.()
+      return
+    }
+    setDictError(null)
+    setDictating(true)
+    let stopResolve: () => void = () => undefined
+    const stopSignal = new Promise<void>((r) => {
+      stopResolve = r
+    })
+    stopDictationRef.current = stopResolve
+    try {
+      const audioBase64 = await recordMic({ stopSignal, maxMs: 15000 })
+      setDictating(false)
+      setTranscribing(true)
+      const res = await window.electronAPI.sttTranscribe({ audioBase64 })
+      if (res.ok && res.text) {
+        setDispatchText((prev) => (prev.trim() ? `${prev.trim()} ${res.text}` : res.text!))
+      } else {
+        setDictError(res.error ?? 'Не удалось распознать речь')
+      }
+    } catch (e) {
+      setDictating(false)
+      setDictError(e instanceof Error ? e.message : 'Не удалось распознать речь')
+    } finally {
+      setTranscribing(false)
+      stopDictationRef.current = null
+    }
+  }
 
   const visible = useCallback(
     (t: TaskItem): boolean => {
@@ -1112,8 +1170,56 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
 
       {/* ── Dispatch (footer) ── */}
       <div className="shrink-0 border-t border-white/[0.07] bg-white/[0.03] px-5 py-3 backdrop-blur-xl">
+        {(dictating || transcribing || dictError) && (
+          <div
+            className={`mb-2 flex items-center gap-2 text-[11px] ${
+              dictError ? 'text-red-400' : 'text-white/50'
+            }`}
+          >
+            {dictating ? (
+              <>
+                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-red-500" />
+                Запись… (нажмите ещё раз для остановки)
+              </>
+            ) : transcribing ? (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Распознавание…
+              </>
+            ) : (
+              <>
+                <AlertTriangle className="h-3 w-3" />
+                {dictError}
+              </>
+            )}
+          </div>
+        )}
         <div className="flex items-start gap-2.5">
           <span className="mt-2 text-[15px]">⚡</span>
+          <button
+            type="button"
+            title={
+              sttReady
+                ? 'Голосовой ввод (микрофон) — нажмите, говорите, нажмите ещё раз'
+                : 'Голосовой ввод недоступен — whisper не установлен'
+            }
+            aria-label="Голосовой ввод"
+            onClick={() => void toggleDictate()}
+            disabled={transcribing || dispatching || !sttReady}
+            className={`mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-all ${
+              dictating
+                ? 'border-red-500/60 bg-red-500/20 text-red-400'
+                : 'border-white/10 bg-white/[0.05] text-white/60 hover:text-white disabled:opacity-40'
+            }`}
+          >
+            {dictating ? (
+              <Square className="h-3.5 w-3.5" />
+            ) : transcribing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Mic className="h-3.5 w-3.5" />
+            )}
+          </button>
           <Textarea
             ref={textareaRef}
             value={dispatchText}
