@@ -569,6 +569,7 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
   const [feedback, setFeedback] = useState<string | null>(null)
   // v0.9.27: голосовой ввод задачи (STT) — как в чате
   const [sttReady, setSttReady] = useState(false)
+  const [sttMode, setSttMode] = useState<'offline' | 'online'>('offline')
   const [dictating, setDictating] = useState(false)
   const [transcribing, setTranscribing] = useState(false)
   const [dictError, setDictError] = useState<string | null>(null)
@@ -607,6 +608,7 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
       .then((res) => {
         if (!cancelled) {
           setSttReady(res.whisper.installed && res.whisper.modelsInstalled.includes(res.model))
+          if (res.preferredMode === 'online' || res.preferredMode === 'offline') setSttMode(res.preferredMode)
         }
       })
       .catch(() => undefined)
@@ -615,6 +617,17 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
       stopDictationRef.current?.()
     }
   }, [])
+
+  /** Переключить режим распознавания: Офлайн (whisper) / Онлайн (как в чате). */
+  const cycleSttMode = useCallback(async () => {
+    const next: 'offline' | 'online' = sttMode === 'offline' ? 'online' : 'offline'
+    try {
+      const res = await window.electronAPI.sttSetPreferredMode({ mode: next })
+      if (res.ok) setSttMode(res.mode as 'offline' | 'online')
+    } catch {
+      /* ignore */
+    }
+  }, [sttMode])
 
   /** Toggle mic dictation in the dispatch box: press → record, press again → transcribe into input. */
   const toggleDictate = async () => {
@@ -1196,6 +1209,43 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
         )}
         <div className="flex items-start gap-2.5">
           <span className="mt-2 text-[15px]">⚡</span>
+          <Textarea
+            ref={textareaRef}
+            value={dispatchText}
+            onChange={(e) => {
+              setDispatchText(e.target.value)
+              e.target.style.height = 'auto'
+              e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey && dispatchText.trim()) {
+                e.preventDefault()
+                void handleDispatch()
+              }
+            }}
+            placeholder="Новая задача для агента…"
+            rows={2}
+            className="min-h-[38px] flex-1 resize-none rounded-2xl border-white/10 bg-white/[0.05] text-[12.5px] text-white/90 placeholder:text-white/30"
+          />
+          {/* v0.9.27: переключатель Офлайн/Онлайн + микрофон — как в основном чате, справа */}
+          <button
+            type="button"
+            title={
+              sttMode === 'online'
+                ? 'Распознавание: Онлайн — переключить на Офлайн (whisper, локально)'
+                : 'Распознавание: Офлайн (whisper, локально) — переключить на Онлайн'
+            }
+            onClick={() => void cycleSttMode()}
+            disabled={!sttReady}
+            className={`mt-1 hidden h-[26px] shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-[10px] font-bold tracking-[0.3px] transition-colors sm:inline-flex disabled:opacity-40 ${
+              sttMode === 'online'
+                ? 'border-sky-400/40 bg-sky-500/10 text-sky-300'
+                : 'border-emerald-400/40 bg-emerald-500/10 text-emerald-300'
+            }`}
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+            {sttMode === 'online' ? 'Онлайн' : 'Офлайн'}
+          </button>
           <button
             type="button"
             title={
@@ -1220,24 +1270,6 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
               <Mic className="h-3.5 w-3.5" />
             )}
           </button>
-          <Textarea
-            ref={textareaRef}
-            value={dispatchText}
-            onChange={(e) => {
-              setDispatchText(e.target.value)
-              e.target.style.height = 'auto'
-              e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && dispatchText.trim()) {
-                e.preventDefault()
-                void handleDispatch()
-              }
-            }}
-            placeholder="Новая задача для агента…"
-            rows={2}
-            className="min-h-[38px] flex-1 resize-none rounded-2xl border-white/10 bg-white/[0.05] text-[12.5px] text-white/90 placeholder:text-white/30"
-          />
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2 pl-7">
           <select
@@ -1322,6 +1354,8 @@ export interface TasksDetailPanelProps {
 export interface FileRef {
   path: string
   label?: string
+  /** v0.9.27: относительное имя (файл.txt) — резолвится в абсолютный путь по workspace агента */
+  relative?: boolean
 }
 
 interface FileTreeNode {
@@ -1433,7 +1467,20 @@ export function extractFileRefs(texts: Array<string | null | undefined>): FileRe
         const p = decodeFileTarget(t)
         if (p) out.set(p, undefined)
       } else {
+        const before = out.size
         scanPaths(t)
+        // v0.9.27: относительные имена в бэктиках (`файл.txt`) — кандидаты;
+        // реальный путь резолвится по workspace агента через tasks:resolveFiles.
+        // Только если в спанe не нашлось абсолютных путей (иначе имена — их куски).
+        if (out.size === before) {
+          const relRe = /(?<![A-Za-z0-9_.-])([A-Za-zА-Яа-яЁё0-9][A-Za-zА-Яа-яЁё0-9 _()'-]{0,79}\.(?:[A-Za-z0-9]{1,8}))(?![A-Za-z0-9])/g
+          let rm: RegExpExecArray | null
+          while ((rm = relRe.exec(t)) !== null) {
+            const name = rm[1].trim()
+            if (!name || name.includes(':') || name.includes('\\') || name.includes('/')) continue
+            if (!out.has(name)) out.set(name, undefined)
+          }
+        }
       }
     }
     // 3) file:// URLs
@@ -1445,7 +1492,11 @@ export function extractFileRefs(texts: Array<string | null | undefined>): FileRe
     // 4/5) Windows- и POSIX-пути в свободном тексте
     scanPaths(raw)
   }
-  return [...out.entries()].map(([path, label]) => ({ path, label }))
+  return [...out.entries()].map(([path, label]) => {
+    const isAbs =
+      /^[A-Za-z]:[\\/]/.test(path) || path.startsWith('\\\\') || path.startsWith('/') || path.startsWith('file://')
+    return { path, label: label ?? undefined, relative: !isAbs }
+  })
 }
 
 /** Построить дерево директорий из путей. */
@@ -1497,11 +1548,44 @@ export function TasksDetailPanel({ data, selected, tab = 'output', onTabChange, 
   const cron = selected?.kind === 'cron' ? data.cronJobs.find((x) => x.id === selected.id) ?? null : null
 
   // v0.9.26: «Созданные файлы» — файлы, упомянутые агентом в выводах задачи.
-  const fileRefs = useMemo(() => {
+  const fileRefsBase = useMemo(() => {
     if (!task) return []
     // v0.9.27: добавлен title — агент часто пишет путь уже в заголовке задачи
     return extractFileRefs([task.title, task.answer, task.terminalSummary, task.question, task.progressSummary])
   }, [task])
+  // v0.9.27: относительные имена (файл.txt) → реальные пути по workspace агента (только существующие файлы)
+  const [resolvedFiles, setResolvedFiles] = useState<Record<string, string>>({})
+  useEffect(() => {
+    let cancelled = false
+    const relative = [...new Set(fileRefsBase.filter((r) => r.relative && !/[\\/]/.test(r.path)).map((r) => r.path))]
+    if (relative.length === 0) {
+      setResolvedFiles({})
+      return
+    }
+    void window.electronAPI
+      .tasksResolveFiles({ names: relative })
+      .then((res) => {
+        if (!cancelled) setResolvedFiles(res.resolved ?? {})
+      })
+      .catch(() => {
+        if (!cancelled) setResolvedFiles({})
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [fileRefsBase])
+  const fileRefs = useMemo(() => {
+    const out = new Map<string, FileRef>()
+    for (const r of fileRefsBase) {
+      if (r.relative) {
+        const abs = resolvedFiles[r.path]
+        if (abs) out.set(abs, { path: abs, label: r.path })
+      } else {
+        out.set(r.path, r)
+      }
+    }
+    return [...out.values()]
+  }, [fileRefsBase, resolvedFiles])
   const fileTree = useMemo(() => sortFileTree(buildFileTree(fileRefs)), [fileRefs])
   const [openErr, setOpenErr] = useState<string | null>(null)
   const openFile = useCallback((p: string) => {

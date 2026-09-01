@@ -28,6 +28,7 @@ import { inferModelConfigFromOpenClaw, listAgentSummariesFromConfig } from '../w
 import { testVoiceConnection } from '../wizard/voice-tester.js'
 import fs from 'node:fs'
 import path from 'node:path'
+import os from 'node:os'
 import type { ModelsViewResult } from '../../shared/types.js'
 import { LOCAL_MODEL_PRESETS, modelsDir, testLocalEngineChat, LOCAL_ENGINE_PORT, type LocalEngineTestResult } from '../models/local-engine.js'
 import { DEFAULT_GATEWAY_PORT } from '../../shared/constants.js'
@@ -77,6 +78,7 @@ import {
   IPC_TASKS_LOCAL_REMOVE,
   IPC_TASKS_LOCAL_SET_STATUS,
   IPC_TASKS_RESUME,
+  IPC_TASKS_RESOLVE_FILES,
   IPC_CRON_LIST,
   IPC_CRON_ADD,
   IPC_CRON_RUN,
@@ -935,6 +937,71 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
   )
 
   ipcMain.handle(
+    IPC_TASKS_RESOLVE_FILES,
+    wrapHandler('TASKS_RESOLVE_FILES', (payload: unknown): { resolved: Record<string, string> } => {
+      const raw = validatePlainObject(payload, 'tasks:resolveFiles')
+      const names = Array.isArray(raw.names)
+        ? raw.names.filter((n): n is string => typeof n === 'string' && n.trim().length > 0).map((n) => n.trim())
+        : []
+      const resolved: Record<string, string> = {}
+      if (names.length === 0) return { resolved }
+      // корни для поиска: workspace агента (openclaw.json), Desktop, домашняя папка, cwd процесса
+      const roots: string[] = []
+      try {
+        const cfg = deps.openclawConfigExists() ? (deps.readOpenClawConfig() ?? {}) : {}
+        const ws = (cfg as { agents?: { defaults?: { workspace?: string } } }).agents?.defaults?.workspace
+        if (typeof ws === 'string' && ws.trim()) roots.push(ws.trim())
+      } catch {
+        /* ignore */
+      }
+      try {
+        const home = os.homedir()
+        roots.push(path.join(home, 'Desktop'))
+        roots.push(home)
+      } catch {
+        /* ignore */
+      }
+      try {
+        roots.push(process.cwd())
+      } catch {
+        /* ignore */
+      }
+      const SKIP = new Set(['node_modules', '.git', 'AppData', 'Application Data', '.openclaw'])
+      const findByName = (root: string, name: string, depth: number): string | null => {
+        try {
+          if (!fs.existsSync(root)) return null
+          const direct = path.join(root, name)
+          if (fs.existsSync(direct) && fs.statSync(direct).isFile()) return direct
+          if (depth <= 0) return null
+          const entries = fs.readdirSync(root, { withFileTypes: true })
+          for (const e of entries) {
+            if (!e.isDirectory()) continue
+            if (SKIP.has(e.name)) continue
+            const hit = findByName(path.join(root, e.name), name, depth - 1)
+            if (hit) return hit
+          }
+        } catch {
+          /* ignore */
+        }
+        return null
+      }
+      for (const name of names) {
+        // имена с разделителями пути уже абсолютные/относительные — пропускаем кривые
+        if (/[\\/]/.test(name)) continue
+        for (const root of roots) {
+          const depth = root.includes('Desktop') ? 1 : 4
+          const hit = findByName(root, name, depth)
+          if (hit) {
+            resolved[name] = hit
+            break
+          }
+        }
+      }
+      return { resolved }
+    }),
+  )
+
+  ipcMain.handle(
     IPC_TASKS_LOCAL_REMOVE,
     wrapHandler('TASKS_LOCAL_REMOVE', async (opts: unknown): Promise<{ ok: boolean }> => {
       const { taskId } = (opts ?? {}) as { taskId?: string }
@@ -1609,9 +1676,12 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
       const stt = readStt()
       const model: WhisperModelId = stt.model === 'tiny' || stt.model === 'small' || stt.model === 'medium' ? stt.model : 'base'
       const whisper = whisperStatus()
+      const shell = deps.readShellConfig()
+      const preferredMode = shell.sttPreferredMode === 'online' || shell.sttPreferredMode === 'offline' ? shell.sttPreferredMode : 'auto'
       return {
         enabled: Boolean(stt.enabled),
         model,
+        preferredMode,
         whisper: {
           installed: whisper.installed,
           modelsInstalled: whisper.modelsInstalled,

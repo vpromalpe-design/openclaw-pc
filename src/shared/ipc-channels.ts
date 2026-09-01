@@ -110,6 +110,9 @@ export const IPC_TASKS_LOCAL_CHANGED = 'tasks:localChanged' as const
 /** Tasks board: list cron jobs (scheduled tasks) */
 export const IPC_CRON_LIST = 'cron:list' as const
 
+/** v0.9.27: resolve relative file names from task output into existing absolute paths */
+export const IPC_TASKS_RESOLVE_FILES = 'tasks:resolveFiles' as const
+
 /** Tasks board: add a cron job (schedule a task) */
 export const IPC_CRON_ADD = 'cron:add' as const
 
