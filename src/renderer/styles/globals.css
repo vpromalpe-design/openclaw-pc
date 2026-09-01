@@ -65,7 +65,7 @@
   --track: rgba(255, 255, 255, 0.1);
   --text-2: rgba(255, 255, 255, 0.72);
   --text-3: rgba(255, 255, 255, 0.62);
-  --menu-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0)), rgba(18, 26, 48, 0.7);
+  --menu-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0)), rgba(18, 26, 48, 0.97);
   --menu-border: rgba(255, 255, 255, 0.22);
   --menu-hi: rgba(255, 255, 255, 0.28);
   --menu-hi-2: rgba(255, 255, 255, 0.05);
@@ -673,7 +673,7 @@ body {
   display: flex;
   flex-direction: column;
   border-radius: 14px;
-  background: rgba(18, 26, 48, 0.95);
+  background: rgba(18, 26, 48, 0.98);
   backdrop-filter: blur(40px) saturate(180%);
   border: 1px solid var(--glass-border-2);
   box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
