@@ -76,6 +76,7 @@ import {
   IPC_STT_APPLY,
   IPC_STT_INSTALL,
   IPC_STT_TRANSCRIBE,
+  IPC_STT_SET_PREFERRED_MODE,
   IPC_VOICE_PROGRESS,
   IPC_MODELS_VIEW_LIST,
   IPC_MODELS_VIEW_APPLY,
@@ -278,6 +279,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sttInstall: (payload: { model: string }) => invoke(IPC_STT_INSTALL, payload),
   sttTranscribe: (payload: { audioBase64: string }) =>
     invoke<{ ok: boolean; text?: string; error?: string }>(IPC_STT_TRANSCRIBE, payload),
+  sttSetPreferredMode: (payload: { mode: 'auto' | 'offline' | 'online' }) =>
+    invoke<{ ok: boolean; mode: string }>(IPC_STT_SET_PREFERRED_MODE, payload),
   onVoiceProgress: (cb: (payload: unknown) => void) => on(IPC_VOICE_PROGRESS, cb),
 
   modelsViewList: () => invoke(IPC_MODELS_VIEW_LIST),

@@ -104,6 +104,7 @@ import {
   IPC_STT_APPLY,
   IPC_STT_INSTALL,
   IPC_STT_TRANSCRIBE,
+  IPC_STT_SET_PREFERRED_MODE,
   IPC_MODELS_VIEW_LIST,
   IPC_MODELS_VIEW_APPLY,
   IPC_LOCAL_LIST,
@@ -1657,6 +1658,17 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
           /* ignore */
         }
       }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_STT_SET_PREFERRED_MODE,
+    wrapHandler('STT_SET_PREFERRED_MODE', (payload: unknown) => {
+      const raw = validatePlainObject(payload, 'stt:setPreferredMode')
+      const mode = raw.mode === 'offline' || raw.mode === 'online' ? raw.mode : 'auto'
+      const current = deps.readShellConfig()
+      deps.writeShellConfig({ ...current, sttPreferredMode: mode })
+      return { ok: true, mode }
     }),
   )
 

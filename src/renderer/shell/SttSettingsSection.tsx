@@ -64,6 +64,8 @@ export function SttSettingsSection() {
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [recordMs, setRecordMs] = useState(4000)
+  /** v0.9.24: preferred mic mode in chat ('auto' | 'offline' | 'online') */
+  const [preferredMode, setPreferredMode] = useState<'auto' | 'offline' | 'online'>('auto')
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const refresh = async () => {
@@ -71,6 +73,12 @@ export function SttSettingsSection() {
     setState(res)
     setEnabled(res.enabled)
     setModel(res.model)
+    try {
+      const shell = await window.electronAPI.shellGetConfig()
+      setPreferredMode(shell.sttPreferredMode ?? 'auto')
+    } catch {
+      /* non-fatal */
+    }
   }
 
   useEffect(() => {
@@ -123,6 +131,16 @@ export function SttSettingsSection() {
     try {
       await window.electronAPI.sttApply({ model: v })
       await refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  const handlePreferredMode = async (v: string) => {
+    const mode = v === 'offline' || v === 'online' ? v : 'auto'
+    setPreferredMode(mode)
+    try {
+      await window.electronAPI.sttSetPreferredMode({ mode })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
@@ -193,6 +211,21 @@ export function SttSettingsSection() {
         <Toggle checked={enabled} onChange={(v) => void handleEnabled(v)} id="stt-enabled" />
       </div>
       <p className="text-xs text-muted-foreground">{t('voice.stt.desc')}</p>
+
+      <div className="space-y-1.5">
+        <label className="text-xs text-muted-foreground">{t('voice.stt.preferredMode')}</label>
+        <Select value={preferredMode} onValueChange={(v) => void handlePreferredMode(v)}>
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="auto">{t('voice.stt.preferredAuto')}</SelectItem>
+            <SelectItem value="offline">{t('voice.stt.preferredOffline')}</SelectItem>
+            <SelectItem value="online">{t('voice.stt.preferredOnline')}</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-[11px] text-muted-foreground">{t('voice.stt.preferredHint')}</p>
+      </div>
 
       {error && (
         <p className="text-xs text-destructive" role="alert">
