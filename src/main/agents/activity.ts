@@ -27,7 +27,7 @@ import { createGatewayRpcClientFromConfig, GatewayRpcClient } from '../gateway/r
 import { IPC_AGENTS_ACTIVITY } from '../../shared/ipc-channels.js'
 import { logInfo, logWarn } from '../utils/logger.js'
 import { speakAgentAnswer } from '../voice/voice.js'
-import { notifyFinalAssistantMessage } from '../tasks/monitor.js'
+import { notifyTaskSessionActivity } from '../tasks/monitor.js'
 
 let client: GatewayRpcClient | null = null
 let subscribed = false
@@ -83,7 +83,15 @@ function handleEvent(event: string, payload: unknown): void {
     const snapshot = p.sessionSnapshot
     if (snapshot && snapshot.hasActiveRun === true) return
     const msg = p.message
-    if (!msg || typeof msg !== 'object' || msg.role !== 'assistant') return
+    if (!msg || typeof msg !== 'object') return
+    const sessionKey = typeof p.sessionKey === 'string' ? p.sessionKey : null
+    // v0.9.30: feed the tasks monitor with EVERY session.message (user/tool/assistant)
+    // so it can debounce-finalize on the LAST assistant message, not the first.
+    if (sessionKey) {
+      const role = typeof msg.role === 'string' ? msg.role : null
+      notifyTaskSessionActivity(sessionKey, role, role === 'assistant' ? extractAssistantText(msg.content) : undefined)
+    }
+    if (msg.role !== 'assistant') return
     const messageId = typeof p.messageId === 'string' ? p.messageId : null
     if (messageId) {
       if (spokenMessageIds.has(messageId)) return
@@ -94,9 +102,6 @@ function handleEvent(event: string, payload: unknown): void {
       }
     }
     const text = extractAssistantText(msg.content)
-    // v0.9.22: finalize shell tasks awaiting an answer (only session agent:<id>:tasks).
-    const sessionKey = typeof p.sessionKey === 'string' ? p.sessionKey : null
-    if (sessionKey && text) notifyFinalAssistantMessage(sessionKey, text)
     if (text) speakAgentAnswer(text)
     return
   }
