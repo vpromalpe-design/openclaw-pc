@@ -853,7 +853,17 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
       }
       const text = (o.text ?? '').trim()
       if (!text) throw new Error('text is required')
-      const targetAgent = typeof o.agentId === 'string' && o.agentId.trim() ? o.agentId.trim() : 'main'
+      // v0.9.24 FIX: never fall back to a phantom "main" — if the caller did
+      // not pick an agent, use the first agent from the config (agents.list),
+      // otherwise the gateway rejects the session with
+      // `Agent "main" no longer exists in configuration`.
+      let targetAgent = typeof o.agentId === 'string' && o.agentId.trim() ? o.agentId.trim() : ''
+      if (!targetAgent) {
+        const cfg = deps.readOpenClawConfig()
+        const list = Array.isArray(cfg?.agents?.list) ? cfg.agents.list : []
+        targetAgent = list.length > 0 ? String(list[0]?.id ?? '') : ''
+      }
+      if (!targetAgent) targetAgent = 'main'
       // Dedicated task session per agent — never collides with normal chat.
       const sessionKey = `agent:${targetAgent}:tasks`
       const mode = o.mode === 'schedule' ? 'schedule' : 'now'
