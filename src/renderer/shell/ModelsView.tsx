@@ -43,6 +43,9 @@ import type {
 } from '../../shared/types'
 export interface ModelsViewProps {
   onBack?: () => void
+  /** v0.9.24: вызывается после любого изменения конфига моделей, чтобы шелл
+   *  (меню агентов, «Состояние», статусбар) обновился немедленно. */
+  onChanged?: () => void
 }
 
 function statusLabel(
@@ -125,7 +128,7 @@ interface AddProviderForm {
   message: string
 }
 
-export function ModelsView({ onBack }: ModelsViewProps) {
+export function ModelsView({ onBack, onChanged }: ModelsViewProps) {
   const { t } = useTranslation()
   const [data, setData] = useState<ModelsViewResult | null>(null)
   const [loading, setLoading] = useState(true)
@@ -259,6 +262,7 @@ export function ModelsView({ onBack }: ModelsViewProps) {
       try {
         await window.electronAPI.localEngineStart({ modelId: entry.modelId })
         await load()
+        onChanged?.()
       } catch (e) {
         setError(e instanceof Error ? e.message : t('shell.models.engineStartFailed'))
       } finally {
@@ -284,6 +288,7 @@ export function ModelsView({ onBack }: ModelsViewProps) {
     try {
       await window.electronAPI.modelsViewApply({ primary, fallbacks, restart: true })
       await load()
+      onChanged?.()
     } catch (e) {
       setError(e instanceof Error ? e.message : t('shell.models.applyFailed'))
     } finally {
@@ -346,6 +351,7 @@ export function ModelsView({ onBack }: ModelsViewProps) {
       assessSize(added.custom?.sizeBytes ?? 0, added.custom?.fileName ?? added.custom.id)
       setCustomUrl('')
       await load()
+      onChanged?.()
     } catch (e) {
       setError(e instanceof Error ? e.message : t('shell.models.downloadFailed'))
     }
@@ -356,6 +362,7 @@ export function ModelsView({ onBack }: ModelsViewProps) {
     try {
       await window.electronAPI.localEngineStop()
       await load()
+      onChanged?.()
     } catch (e) {
       setError(e instanceof Error ? e.message : t('shell.models.engineStopFailed'))
     } finally {
@@ -513,6 +520,7 @@ export function ModelsView({ onBack }: ModelsViewProps) {
         config,
       })
       await load()
+      onChanged?.()
     } catch (e) {
       setError(e instanceof Error ? e.message : t('shell.models.saveFailed'))
     } finally {
@@ -685,6 +693,7 @@ export function ModelsView({ onBack }: ModelsViewProps) {
       }
       await window.electronAPI.providersSaveProviderConfig({ providerId, config })
       await load()
+      onChanged?.()
       setAddForm(emptyAddForm())
     } catch (e) {
       setError(e instanceof Error ? e.message : t('shell.models.saveFailed'))
@@ -764,6 +773,7 @@ export function ModelsView({ onBack }: ModelsViewProps) {
     try {
       await window.electronAPI.localEngineReorder(ids)
       await load()
+      onChanged?.()
     } catch (e) {
       setError(e instanceof Error ? e.message : t('shell.models.applyFailed'))
     } finally {

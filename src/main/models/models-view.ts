@@ -176,6 +176,23 @@ export function applyModelsPriority(
     model.fallbacks = fallbacks
   }
   next.agents.defaults.model = model as never
+
+  // Allowlist sync (v0.9.24, фикс «кнопка Подключить нажата, но не работает»):
+  // ядро показывает в models.list и РАЗРЕШАЕТ агенту только модели из
+  // allowlist agents.defaults.models (если он не пуст). Без этого primary/
+  // fallbacks вне allowlist отклоняются gateway — модель не меняется, хотя
+  // конфиг записан. Дописываем выбранные модели в allowlist (alias = id).
+  const refs = [...(primary ? [primary] : []), ...fallbacks]
+  if (refs.length > 0) {
+    next.agents.defaults.models = { ...(next.agents.defaults.models ?? {}) }
+    for (const ref of refs) {
+      const slash = ref.indexOf('/')
+      const modelPart = slash >= 0 ? ref.slice(slash + 1) : ref
+      if (!next.agents.defaults.models[ref]) {
+        next.agents.defaults.models[ref] = { alias: modelPart }
+      }
+    }
+  }
   return { config: next, backupPath }
 }
 

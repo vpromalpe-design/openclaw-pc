@@ -125,7 +125,6 @@ export function saveProviderConfig(
     next.agents = next.agents ?? {}
     next.agents.defaults = next.agents.defaults ?? ({} as AgentDefaultsConfig)
     next.agents.defaults.models = { ...(next.agents.defaults.models ?? {}) }
-    let firstRef: string | null = null
     for (const m of modelList) {
       const id = typeof m?.id === 'string' && m.id.trim() ? m.id.trim() : ''
       if (!id) continue
@@ -133,17 +132,11 @@ export function saveProviderConfig(
       if (!next.agents.defaults.models[ref]) {
         next.agents.defaults.models[ref] = { alias: id }
       }
-      firstRef = firstRef ?? ref
     }
-    // First configured model becomes the default primary when none is set.
-    const dm = next.agents.defaults.model
-    const hasPrimary =
-      typeof dm === 'string'
-        ? Boolean(dm)
-        : Boolean(dm && typeof dm === 'object' && dm.primary)
-    if (!hasPrimary && firstRef) {
-      next.agents.defaults.model = { primary: firstRef }
-    }
+    // v0.9.24 (Damir): НЕ назначаем первого провайдера primary автоматически.
+    // Провайдер просто добавляется в allowlist (виден в меню агентов/селекторе)
+    // «наряду со всеми»; основная модель меняется только явным выбором
+    // (визард или кнопка «Подключить» в Моделях).
   }
   return next
 }

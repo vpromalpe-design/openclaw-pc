@@ -437,6 +437,25 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     [activeAgent, activeTabByAgent],
   )
 
+  /** v0.9.24: свежий список моделей для меню агента (RPC + конфиг + allowlist). */
+  const loadModelOptions = useCallback(async () => {
+    try {
+      const res = await window.electronAPI.modelsList()
+      const opts = (res?.models ?? [])
+        .map((m) => {
+          if (!m.id) return null
+          const provider = m.provider ?? ''
+          const id = provider ? `${provider}/${m.id}` : m.id
+          const label = provider ? `${providerLabel(provider)} · ${m.id}` : m.id
+          return { id, label }
+        })
+        .filter((x): x is { id: string; label: string } => x !== null)
+      setModelOptions(Array.from(new Map(opts.map((o) => [o.id, o])).values()))
+    } catch {
+      // non-fatal — model picker stays empty
+    }
+  }, [])
+
   const refreshShellData = useCallback(async () => {
     try {
       const config = await window.electronAPI.configRead()
@@ -527,21 +546,13 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
       // v0.9.12 (E4): model picker options — all models of connected providers.
       // v0.9.23 (C): modelsList уже возвращает merge RPC + конфиг + allowlist
       // (включая local/<model>); label — человеческое имя провайдера.
-      const res = await window.electronAPI.modelsList()
-      const opts = (res?.models ?? [])
-        .map((m) => {
-          if (!m.id) return null
-          const provider = m.provider ?? ''
-          const id = provider ? `${provider}/${m.id}` : m.id
-          const label = provider ? `${providerLabel(provider)} · ${m.id}` : m.id
-          return { id, label }
-        })
-        .filter((x): x is { id: string; label: string } => x !== null)
-      setModelOptions(Array.from(new Map(opts.map((o) => [o.id, o])).values()))
+      // v0.9.24: вынесено в loadModelOptions — подгружается и при каждом
+      // открытии меню модели агента (свежие модели без ожидания refresh).
+      await loadModelOptions()
     } catch {
       // non-fatal — model picker stays empty
     }
-  }, [ensureAgentTabs])
+  }, [ensureAgentTabs, loadModelOptions])
 
   useEffect(() => {
     const unsub = window.electronAPI.onGatewayLog((log) => {
@@ -994,6 +1005,9 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
       }
       const res = await window.electronAPI.agentsSetModel({ agentId, model })
       if (res.ok) {
+        // Оптимистичное обновление: сайдбар/меню показывают новую модель
+        // мгновенно, не дожидаясь перечитывания конфига.
+        setAgents((prev) => prev.map((a) => (a.id === agentId ? { ...a, model } : a)))
         void refreshShellData()
       }
     } catch {
@@ -1128,6 +1142,10 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   // v0.9.12 (D1): the active tab drives what the chat canvas shows.
   const activeTabs = tabsByAgent[activeAgent] ?? []
   const activeTabId = activeTabByAgent[activeAgent] ?? activeTabs[0]?.id
+  // v0.9.24 (Damir): единый источник истины для отображения модели — модель
+  // АКТИВНОГО агента (agents.list[].model ?? дефолт). Раньше «Состояние» и
+  // статусбар показывали только глобальную primary → рассинхрон.
+  const activeAgentModel = agents.find((a) => a.id === activeAgent)?.model ?? primaryModel
   const activeTab = activeTabs.find((tb) => tb.id === activeTabId) ?? activeTabs[0]
   const activeTabHistory = activeTab?.kind === 'text' ? activeTab.history : []
 
@@ -1184,7 +1202,12 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
       case 'llm-api':
         return <ProviderView onBack={() => handleNavigateToPanel('')} />
       case 'models':
-        return <ModelsView onBack={() => handleNavigateToPanel('')} />
+        return (
+          <ModelsView
+            onBack={() => handleNavigateToPanel('')}
+            onChanged={() => void refreshShellData()}
+          />
+        )
       case 'skills':
         return <SkillsView onBack={() => handleNavigateToPanel('')} />
       case 'tasks':
@@ -1507,6 +1530,8 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                       if (agentModelMenu?.id === a.id) {
                         setAgentModelMenu(null)
                       } else {
+                        // Свежие модели при каждом открытии меню (v0.9.24).
+                        void loadModelOptions()
                         setAgentModelMenu({
                           id: a.id,
                           x: rowRect.right,
@@ -1768,9 +1793,9 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
               <div className="shell-tile">
                 <div className="t-label">Модель</div>
                 <div className="t-val" style={{ fontSize: 13 }}>
-                  {shortModel(primaryModel)}
+                  {shortModel(activeAgentModel)}
                 </div>
-                <div className="t-sub mono">{primaryModel ?? '—'}</div>
+                <div className="t-sub mono">{activeAgentModel ?? '—'}</div>
               </div>
               <div className="shell-tile wide">
                 <div className="t-label">
@@ -1893,7 +1918,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
           <span className="sep">·</span>
           <span>agent: {activeAgent}</span>
           <span className="sep">·</span>
-          <span>model: {primaryModel ?? '—'}</span>
+          <span>model: {activeAgentModel ?? '—'}</span>
           <span className="sep">·</span>
           <span>engine: {engineLabel}</span>
           <span className="sp-r">
