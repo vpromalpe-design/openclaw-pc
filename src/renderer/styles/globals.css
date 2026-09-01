@@ -1454,3 +1454,70 @@ body {
     display: none;
   }
 }
+
+/* v0.9.28: точная копия кнопки голоса из основного чата (control-ui pc-mic / pc-mode) */
+.pc-mic {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+  user-select: none;
+  white-space: nowrap;
+}
+.pc-mic:hover { background: rgba(255, 255, 255, 0.14); }
+.pc-mic:active { transform: translateY(0); }
+.pc-mic:disabled { opacity: 0.45; cursor: not-allowed; }
+.pc-mic--rec {
+  background: rgba(228, 63, 63, 0.22);
+  border-color: rgba(228, 63, 63, 0.6);
+  color: #ff7b7b;
+  animation: pc-mic-pulse 1.1s ease-in-out infinite;
+}
+.pc-mic--busy { pointer-events: none; opacity: 0.8; }
+.pc-mic--err { border-color: rgba(228, 63, 63, 0.55); color: #ff7b7b; }
+.pc-mic__icon { width: 14px; height: 14px; flex: none; }
+.pc-mic__label { line-height: 1; }
+.pc-mode {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.pc-mode:hover { color: rgba(255, 255, 255, 0.9); border-color: rgba(255, 255, 255, 0.3); }
+.pc-mode--offline { color: #4ade80; border-color: rgba(74, 222, 128, 0.4); }
+.pc-mode--online { color: #60a5fa; border-color: rgba(96, 165, 250, 0.4); }
+.pc-mode__dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; margin-right: 4px; }
+.pc-spinner {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-top-color: rgba(255, 255, 255, 0.9);
+  animation: pc-spin 0.8s linear infinite;
+  flex: none;
+}
+@keyframes pc-mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(228, 63, 63, 0.45); }
+  50% { box-shadow: 0 0 0 6px rgba(228, 63, 63, 0); }
+}
+@keyframes pc-spin { to { transform: rotate(360deg); } }

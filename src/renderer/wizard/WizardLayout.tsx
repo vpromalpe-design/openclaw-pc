@@ -74,9 +74,10 @@ export function WizardLayout() {
   const StepContent = STEP_COMPONENTS[currentStep]
 
   return (
-    <div className="h-screen relative flex select-none overflow-hidden bg-[rgba(11,16,32,0.72)]">
+    <div className="h-screen relative flex select-none flex-col overflow-hidden bg-[rgba(11,16,32,0.72)]">
       <div className="app-bg" aria-hidden />
 
+      <div className="relative z-10 flex min-h-0 flex-1">
       {/* ── Left sidebar (installer-style) ── */}
       <aside
         className="relative z-10 flex w-[272px] shrink-0 flex-col overflow-hidden border-r border-white/10"
@@ -105,37 +106,9 @@ export function WizardLayout() {
           completedSteps={completedSteps}
           onStepClick={store.goToStep}
         />
-
-        {/* v0.9.17: language picker moved from the footer into the sidebar */}
-        {/* v0.9.21: bottom row height aligned with the footer buttons (h-10 + py-3.5) */}
-        <div className="flex shrink-0 items-center justify-center gap-2 border-t border-white/10 px-4 py-3.5">
-          <Globe className="h-4 w-4 shrink-0 text-white/40" aria-hidden />
-          <Select
-            value={uiLocale}
-            onValueChange={(v) => {
-              const next = v as ShellLocale
-              setUiLocale(next)
-              void setAppLocale(next)
-            }}
-          >
-            <SelectTrigger
-              className="h-10 w-full shrink-0 bg-white/5 text-xs text-[#F2F4F8]"
-              aria-label={t('shell.settings.language')}
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SHELL_SUPPORTED_LOCALES.map((loc) => (
-                <SelectItem key={loc} value={loc}>
-                  {SHELL_LOCALE_LABELS[loc]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
       </aside>
 
-      {/* ── Right: content + footer ── */}
+      {/* ── Right: content ── */}
       <div className="relative z-10 flex min-w-0 flex-1 flex-col">
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-4xl mx-auto px-8 py-7">
@@ -147,43 +120,70 @@ export function WizardLayout() {
             <StepContent />
           </div>
         </main>
+      </div>
+      </div>
 
-        <footer className="relative shrink-0 border-t border-white/10 bg-white/[0.04] backdrop-blur-xl">
-          <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-2 px-8 py-3.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <Button variant="ghost" size="lg" onClick={() => { tuk(); window.close() }}>
-                <X className="w-5 h-5" />
-                {t('wizard.nav.cancel')}
-              </Button>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-end gap-3">
-              {stepDef.skippable && !isLastStep && (
-                <Button variant="ghost" size="lg" onClick={() => { tuk(); store.nextStep() }}>
-                  {t('wizard.nav.skip')}
-                  <SkipForward className="w-5 h-5" />
-                </Button>
-              )}
-              {!isFirstStep && !isLastStep && (
-                <Button variant="outline" size="lg" onClick={() => { tuk(); store.prevStep() }}>
-                  <ChevronLeft className="w-5 h-5" />
-                  {t('wizard.nav.previous')}
-                </Button>
-              )}
-              {!isLastStep && !isFirstStep && (
-                <Button
-                  size="lg"
-                  onClick={() => { tuk(); store.nextStep() }}
-                  disabled={!canAdvance}
+      {/* ── v0.9.28: единая нижняя панель на всю ширину (одна ровная линия) ── */}
+      <footer className="relative z-10 shrink-0 border-t border-white/10 bg-white/[0.04] backdrop-blur-xl">
+        <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-8 py-3.5">
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="ghost" size="lg" onClick={() => { tuk(); window.close() }}>
+              <X className="w-5 h-5" />
+              {t('wizard.nav.cancel')}
+            </Button>
+            <div className="flex items-center gap-2 border-l border-white/10 pl-3">
+              <Globe className="h-4 w-4 shrink-0 text-white/40" aria-hidden />
+              <Select
+                value={uiLocale}
+                onValueChange={(v) => {
+                  const next = v as ShellLocale
+                  setUiLocale(next)
+                  void setAppLocale(next)
+                }}
+              >
+                <SelectTrigger
+                  className="h-10 w-[150px] shrink-0 bg-white/5 text-xs text-[#F2F4F8]"
+                  aria-label={t('shell.settings.language')}
                 >
-                  {t('wizard.nav.next')}
-                  <ChevronRight className="w-5 h-5" />
-                </Button>
-              )}
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SHELL_SUPPORTED_LOCALES.map((loc) => (
+                    <SelectItem key={loc} value={loc}>
+                      {SHELL_LOCALE_LABELS[loc]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
-        </footer>
-      </div>
+
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            {stepDef.skippable && !isLastStep && (
+              <Button variant="ghost" size="lg" onClick={() => { tuk(); store.nextStep() }}>
+                {t('wizard.nav.skip')}
+                <SkipForward className="w-5 h-5" />
+              </Button>
+            )}
+            {!isFirstStep && !isLastStep && (
+              <Button variant="outline" size="lg" onClick={() => { tuk(); store.prevStep() }}>
+                <ChevronLeft className="w-5 h-5" />
+                {t('wizard.nav.previous')}
+              </Button>
+            )}
+            {!isLastStep && !isFirstStep && (
+              <Button
+                size="lg"
+                onClick={() => { tuk(); store.nextStep() }}
+                disabled={!canAdvance}
+              >
+                {t('wizard.nav.next')}
+                <ChevronRight className="w-5 h-5" />
+              </Button>
+            )}
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }

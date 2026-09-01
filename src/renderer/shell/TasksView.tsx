@@ -21,7 +21,6 @@ import {
   FileText,
   ExternalLink,
   Mic,
-  Square,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -601,13 +600,15 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
   }, [])
 
   // v0.9.27: инициализация STT для голосового ввода задачи
+  // v0.9.28: точная копия логики control-ui — готовность = enabled && whisper.installed
+  // (НЕ modelsInstalled.includes(model): у Дамира стоит другая модель, чем дефолтная base → кнопка была мертва)
   useEffect(() => {
     let cancelled = false
     void window.electronAPI
       .sttLoad()
       .then((res) => {
         if (!cancelled) {
-          setSttReady(res.whisper.installed && res.whisper.modelsInstalled.includes(res.model))
+          setSttReady(res.enabled && res.whisper.installed)
           if (res.preferredMode === 'online' || res.preferredMode === 'offline') setSttMode(res.preferredMode)
         }
       })
@@ -618,9 +619,11 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
     }
   }, [])
 
-  /** Переключить режим распознавания: Офлайн (whisper) / Онлайн (как в чате). */
+  /** Переключить режим распознавания: Офлайн (whisper) / Онлайн — как в чате
+   *  (онлайн доступен только при настроенном realtime-провайдере; в shell его нет → не переключается). */
   const cycleSttMode = useCallback(async () => {
     const next: 'offline' | 'online' = sttMode === 'offline' ? 'online' : 'offline'
+    if (next === 'online') return // онлайн недоступен (realtime не настроен) — точная копия control-ui
     try {
       const res = await window.electronAPI.sttSetPreferredMode({ mode: next })
       if (res.ok) setSttMode(res.mode as 'offline' | 'online')
@@ -1227,49 +1230,44 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
             rows={2}
             className="min-h-[38px] flex-1 resize-none rounded-2xl border-white/10 bg-white/[0.05] text-[12.5px] text-white/90 placeholder:text-white/30"
           />
-          {/* v0.9.27: переключатель Офлайн/Онлайн + микрофон — как в основном чате, справа */}
-          <button
-            type="button"
-            title={
-              sttMode === 'online'
-                ? 'Распознавание: Онлайн — переключить на Офлайн (whisper, локально)'
-                : 'Распознавание: Офлайн (whisper, локально) — переключить на Онлайн'
-            }
-            onClick={() => void cycleSttMode()}
-            disabled={!sttReady}
-            className={`mt-1 hidden h-[26px] shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-[10px] font-bold tracking-[0.3px] transition-colors sm:inline-flex disabled:opacity-40 ${
-              sttMode === 'online'
-                ? 'border-sky-400/40 bg-sky-500/10 text-sky-300'
-                : 'border-emerald-400/40 bg-emerald-500/10 text-emerald-300'
-            }`}
-          >
-            <span className="h-1.5 w-1.5 rounded-full bg-current" />
-            {sttMode === 'online' ? 'Онлайн' : 'Офлайн'}
-          </button>
-          <button
-            type="button"
-            title={
-              sttReady
-                ? 'Голосовой ввод (микрофон) — нажмите, говорите, нажмите ещё раз'
-                : 'Голосовой ввод недоступен — whisper не установлен'
-            }
-            aria-label="Голосовой ввод"
-            onClick={() => void toggleDictate()}
-            disabled={transcribing || dispatching || !sttReady}
-            className={`mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-all ${
-              dictating
-                ? 'border-red-500/60 bg-red-500/20 text-red-400'
-                : 'border-white/10 bg-white/[0.05] text-white/60 hover:text-white disabled:opacity-40'
-            }`}
-          >
-            {dictating ? (
-              <Square className="h-3.5 w-3.5" />
-            ) : transcribing ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Mic className="h-3.5 w-3.5" />
+          {/* v0.9.28: точная копия кнопки голоса из основного чата (control-ui pc-mic/pc-mode) */}
+          <div className="mt-1 flex shrink-0 items-center gap-1.5">
+            <button
+              type="button"
+              className={`pc-mic ${dictating ? 'pc-mic--rec' : ''} ${transcribing ? 'pc-mic--busy' : ''} ${dictError ? 'pc-mic--err' : ''}`}
+              title={
+                sttReady
+                  ? sttMode === 'online'
+                    ? 'Онлайн-распознавание — нажмите, говорите'
+                    : 'Голосовой ввод — нажмите, говорите, нажмите ещё раз'
+                  : 'Голосовой ввод недоступен — whisper не установлен'
+              }
+              aria-label="Голосовой ввод"
+              onClick={() => void toggleDictate()}
+              disabled={transcribing || dispatching || !sttReady}
+            >
+              {transcribing ? (
+                <span className="pc-spinner" aria-hidden="true" />
+              ) : (
+                <Mic className="pc-mic__icon" />
+              )}
+              <span className="pc-mic__label">
+                {dictating ? 'Стоп' : transcribing ? 'Распознаю…' : 'Говорите'}
+              </span>
+            </button>
+            {!dictating && !transcribing && (
+              <button
+                type="button"
+                className={`pc-mode ${sttMode === 'online' ? 'pc-mode--online' : 'pc-mode--offline'}`}
+                title="Переключить режим распознавания: Офлайн (локально) / Онлайн (доступен при настроенном realtime)"
+                onClick={() => void cycleSttMode()}
+                disabled={!sttReady}
+              >
+                <span className="pc-mode__dot" aria-hidden="true" />
+                {sttMode === 'online' ? 'Онлайн' : 'Офлайн'}
+              </button>
             )}
-          </button>
+          </div>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2 pl-7">
           <select
