@@ -47,6 +47,7 @@ import {
   IPC_TASKS_LOCAL_REMOVE,
   IPC_TASKS_LOCAL_SET_STATUS,
   IPC_TASKS_RESUME,
+  IPC_TASKS_RESOLVE_FILES,
   IPC_TASKS_LOCAL_CHANGED,
   IPC_CRON_LIST,
   IPC_CRON_ADD,
@@ -222,6 +223,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     invoke<{ ok: boolean }>(IPC_TASKS_LOCAL_SET_STATUS, opts),
   tasksResume: (opts: { taskId: string; reply?: string }) =>
     invoke<{ ok: boolean; runId?: string; error?: string }>(IPC_TASKS_RESUME, opts),
+  tasksResolveFiles: (opts: { names: string[] }) =>
+    invoke<{ resolved: Record<string, string> }>(IPC_TASKS_RESOLVE_FILES, opts),
   onTasksLocalChanged: (callback: () => void) => on(IPC_TASKS_LOCAL_CHANGED, callback),
   cronList: () => invoke<{ jobs: Array<Record<string, unknown>> }>(IPC_CRON_LIST),
   cronAdd: (opts: {

@@ -212,6 +212,8 @@ export interface ElectronAPI {
     runId?: string
     error?: string
   }>
+  /** v0.9.27: resolve relative file names from task output into existing absolute paths */
+  tasksResolveFiles: (opts: { names: string[] }) => Promise<{ resolved: Record<string, string> }>
   onTasksLocalChanged: (callback: () => void) => () => void
   cronList: () => Promise<{ jobs: Array<Record<string, unknown>> }>
   cronAdd: (opts: {
@@ -268,6 +270,7 @@ export interface ElectronAPI {
   sttLoad: () => Promise<{
     enabled: boolean
     model: 'tiny' | 'base' | 'small' | 'medium'
+    preferredMode?: 'auto' | 'offline' | 'online'
     whisper: {
       installed: boolean
       modelsInstalled: string[]
