@@ -1584,7 +1584,6 @@ export function TasksDetailPanel({ data, selected, tab = 'output', onTabChange, 
     }
     return [...out.values()]
   }, [fileRefsBase, resolvedFiles])
-  const fileTree = useMemo(() => sortFileTree(buildFileTree(fileRefs)), [fileRefs])
   const [openErr, setOpenErr] = useState<string | null>(null)
   const openFile = useCallback((p: string) => {
     setOpenErr(null)
@@ -1596,31 +1595,42 @@ export function TasksDetailPanel({ data, selected, tab = 'output', onTabChange, 
       .catch((e: unknown) => setOpenErr(e instanceof Error ? e.message : String(e)))
   }, [])
 
-  const renderFileTree = (nodes: FileTreeNode[], depth: number): React.ReactNode =>
-    nodes.map((n) => (
-      <div key={n.path} style={{ paddingLeft: depth * 14 }}>
-        {n.isFile ? (
+  // v0.9.28: имя файла из пути (label || basename) — для компактного списка и ссылок в тексте
+  const fileNameOf = useCallback((ref: FileRef): string => {
+    if (ref.label) return ref.label
+    const base = ref.path.split(/[\\/]+/).filter(Boolean).pop()
+    return base || ref.path
+  }, [])
+
+  // v0.9.28: заменить полные пути в тексте ответа на имена-ссылки
+  const renderAnswerText = useCallback(
+    (text: string): React.ReactNode => {
+      const abs = fileRefs
+        .filter((r) => !r.relative)
+        .sort((a, b) => b.path.length - a.path.length)
+      if (abs.length === 0) return text
+      const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const re = new RegExp('(' + abs.map((r) => esc(r.path)).join('|') + ')', 'g')
+      const parts = text.split(re)
+      return parts.map((part, i) => {
+        const ref = abs.find((r) => r.path === part)
+        if (!ref) return <span key={i}>{part}</span>
+        return (
           <button
+            key={i}
             type="button"
-            onClick={() => openFile(n.path)}
-            className="group flex w-full items-center gap-1.5 rounded-lg px-1.5 py-[3px] text-left transition-colors hover:bg-sky-500/15"
-            title={n.path}
+            onClick={() => openFile(ref.path)}
+            title={ref.path}
+            className="inline-flex max-w-full items-center gap-1 rounded-md bg-sky-500/15 px-1 py-px align-baseline font-medium text-sky-300 underline decoration-sky-400/40 underline-offset-2 transition-colors hover:bg-sky-500/25 hover:text-sky-200"
           >
-            <FileText className="h-3 w-3 shrink-0 text-sky-300" aria-hidden />
-            <span className="min-w-0 truncate text-[11px] text-sky-300 group-hover:text-sky-200">
-              {n.label || n.name}
-            </span>
-            <ExternalLink className="h-2.5 w-2.5 shrink-0 text-sky-400/60" aria-hidden />
+            <ExternalLink className="h-2.5 w-2.5 shrink-0" aria-hidden />
+            <span className="min-w-0 truncate">{fileNameOf(ref)}</span>
           </button>
-        ) : (
-          <div className="flex items-center gap-1.5 px-1.5 py-[3px]">
-            <Folder className="h-3 w-3 shrink-0 text-sky-200/70" aria-hidden />
-            <span className="truncate text-[10.5px] font-medium text-white/70">{n.name}</span>
-          </div>
-        )}
-        {n.children.length > 0 && renderFileTree(n.children, depth + 1)}
-      </div>
-    ))
+        )
+      })
+    },
+    [fileRefs, fileNameOf, openFile],
+  )
 
   if (!task && !cron) {
     return (
@@ -1664,9 +1674,9 @@ export function TasksDetailPanel({ data, selected, tab = 'output', onTabChange, 
     if (task) {
       const meta = STATUS_META[task.status]
       return (
-        <div className="space-y-2.5">
+        <div className="space-y-2">
           {fileRefs.length > 0 && (
-            <div className="rounded-[15px] border border-sky-400/20 bg-sky-500/[0.07] px-3 py-2.5">
+            <div className="rounded-[15px] border border-sky-400/20 bg-sky-500/[0.07] px-3 py-2">
               <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold text-sky-300">
                 <Folder className="h-3 w-3" aria-hidden />
                 Созданные файлы
@@ -1674,8 +1684,23 @@ export function TasksDetailPanel({ data, selected, tab = 'output', onTabChange, 
                   {fileRefs.length}
                 </span>
               </div>
-              <div className="max-h-56 space-y-0.5 overflow-y-auto pr-1">
-                {renderFileTree(fileTree, 0)}
+              {/* v0.9.28: плоский список имён (не дерево) — компактно, вертикально, без ухода вправо */}
+              <div className="space-y-0.5">
+                {fileRefs.map((ref) => (
+                  <button
+                    key={ref.path}
+                    type="button"
+                    onClick={() => openFile(ref.path)}
+                    title={ref.path}
+                    className="group flex w-full min-w-0 items-center gap-1.5 rounded-lg px-1.5 py-[3px] text-left transition-colors hover:bg-sky-500/15"
+                  >
+                    <FileText className="h-3 w-3 shrink-0 text-sky-300" aria-hidden />
+                    <span className="min-w-0 truncate text-[11px] text-sky-300 group-hover:text-sky-200">
+                      {fileNameOf(ref)}
+                    </span>
+                    <ExternalLink className="h-2.5 w-2.5 shrink-0 text-sky-400/60" aria-hidden />
+                  </button>
+                ))}
               </div>
               {openErr && (
                 <div className="mt-1.5 text-[10px] text-red-300">Не удалось открыть: {openErr}</div>
@@ -1703,9 +1728,12 @@ export function TasksDetailPanel({ data, selected, tab = 'output', onTabChange, 
             </div>
           )}
           {task.answer && (
-            <div className="rounded-[15px] border border-white/[0.08] bg-white/[0.04] px-3 py-2.5">
+            <div className="rounded-[15px] border border-white/[0.08] bg-white/[0.04] px-3 py-2">
               <div className="mb-1 text-[10px] font-semibold text-white/40">Ответ агента</div>
-              <p className="whitespace-pre-wrap text-[11px] leading-relaxed text-white/85">{task.answer}</p>
+              {/* v0.9.28: полные пути заменяются на имена-ссылки */}
+              <p className="whitespace-pre-wrap text-[11px] leading-relaxed text-white/85">
+                {renderAnswerText(task.answer)}
+              </p>
             </div>
           )}
           {task.terminalSummary && (
