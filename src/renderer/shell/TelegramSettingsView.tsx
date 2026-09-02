@@ -21,6 +21,8 @@ import type { TelegramBotAccountRow } from '../../shared/types'
 export interface TelegramSettingsViewProps {
   /** Back navigation when embedded in parent layout */
   onBack?: () => void
+  /** Called after a bot was added/removed so the parent refreshes the agent list */
+  onAgentsChanged?: () => void
 }
 
 function defaultNavigateBack() {
@@ -36,7 +38,7 @@ type SaveState = 'idle' | 'busy' | 'saved' | 'error'
  * only unlinks it — the agent (with its Telegram badge) survives and is
  * deleted manually in the agent list, if ever needed.
  */
-export function TelegramSettingsView({ onBack }: TelegramSettingsViewProps = {}) {
+export function TelegramSettingsView({ onBack, onAgentsChanged }: TelegramSettingsViewProps = {}) {
   const { t } = useTranslation()
   const handleBack = onBack ?? defaultNavigateBack
 
@@ -136,6 +138,7 @@ export function TelegramSettingsView({ onBack }: TelegramSettingsViewProps = {})
         setTestResult(null)
         setShowAdd(false)
         await reload()
+        onAgentsChanged?.()
       } else {
         setBusyState('error')
         setErrorText(describeError(res.error ?? 'unknown'))
@@ -146,7 +149,7 @@ export function TelegramSettingsView({ onBack }: TelegramSettingsViewProps = {})
     } finally {
       setBusyState('idle')
     }
-  }, [token, busyState, describeError, t, reload])
+  }, [token, busyState, describeError, t, reload, onAgentsChanged])
 
   const runRemove = useCallback(
     async (accountId: string) => {
@@ -167,6 +170,7 @@ export function TelegramSettingsView({ onBack }: TelegramSettingsViewProps = {})
         if (res.ok) {
           setNotice({ ok: true, text: t('shell.telegram.removed') })
           await reload()
+          onAgentsChanged?.()
         } else {
           setBusyState('error')
           setErrorText(describeError(res.error ?? 'unknown'))
@@ -178,7 +182,7 @@ export function TelegramSettingsView({ onBack }: TelegramSettingsViewProps = {})
         setBusyState('idle')
       }
     },
-    [busyState, confirmRemove, describeError, t, reload],
+    [busyState, confirmRemove, describeError, t, reload, onAgentsChanged],
   )
 
   const openBotLink = useCallback((bot: TelegramBotAccountRow) => {

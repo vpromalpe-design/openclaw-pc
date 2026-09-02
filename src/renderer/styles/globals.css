@@ -331,6 +331,13 @@ body {
   font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
+  max-width: 240px;
+}
+.shell-pill > span:nth-child(2) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .shell-pill:hover {
   background: var(--glass-strong);
@@ -405,6 +412,8 @@ body {
   top: calc(100% + 10px);
   right: 0;
   min-width: 250px;
+  max-width: min(400px, calc(100vw - 24px));
+  width: max-content;
   background: var(--menu-bg);
   backdrop-filter: blur(60px) saturate(220%) brightness(1.1);
   -webkit-backdrop-filter: blur(60px) saturate(220%) brightness(1.1);
@@ -445,10 +454,17 @@ body {
   color: var(--text-2);
   transition: background 0.15s, color 0.15s;
   width: 100%;
+  min-width: 0;
   background: none;
   border: none;
   text-align: left;
   font-family: inherit;
+}
+.shell-menu-item-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .shell-menu-item:hover {
   background: rgba(10, 132, 255, 0.25);
@@ -468,6 +484,7 @@ body {
 }
 .shell-menu-item .hint {
   margin-left: auto;
+  flex-shrink: 0;
   font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
   font-size: 9.5px;
   color: var(--text-3);

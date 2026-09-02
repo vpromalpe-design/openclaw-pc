@@ -1221,6 +1221,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
               handleNavigateToPanel('')
               void refreshShellData()
             }}
+            onAgentsChanged={() => void refreshShellData()}
           />
         )
       case 'gateway':
@@ -1373,7 +1374,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                   onClick={() => openChatForAgent(a.id)}
                 >
                   <span className="ic">{renderAgentBadge(a)}</span>
-                  {a.name}
+                  <span className="shell-menu-item-name">{a.name}</span>
                   <span className="hint">
                     {a.isDefault ? 'default' : shortModel(a.model)}
                   </span>
