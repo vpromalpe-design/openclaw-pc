@@ -13,7 +13,11 @@ import { readShellConfig, readOpenClawConfig } from '../config/index.js'
 const PROTOCOL_VERSION = 4
 // Use a gateway-approved client id: upstream validates `client.id` against
 // GATEWAY_CLIENT_IDS (packages/gateway-protocol/src/client-info.ts).
-const CLIENT_ID = 'openclaw-control-ui'
+// v0.10.0 (core 2026.8.1): 'openclaw-control-ui' is rejected without device
+// identity ("control ui requires device identity"). Local loopback manager
+// clients must present as 'gateway-client' + mode 'backend' to keep full
+// operator scopes (skipLocalBackendSelfPairing path). Verified on staging.
+const CLIENT_ID = 'gateway-client'
 const CLIENT_VERSION = '0.1.2'
 
 // ─── Errors ────────────────────────────────────────────────────────────────

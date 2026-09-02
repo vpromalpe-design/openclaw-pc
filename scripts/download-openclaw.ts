@@ -21,6 +21,7 @@ import {
   ensureOpenClawControlUiBuilt,
   CONTROL_UI_ELECTRON_LIT_MARKER,
 } from './ensure-openclaw-control-ui.ts'
+import { transpileControlUiForElectronEmbedded } from './lib/transpile-control-ui-for-electron.ts'
 import { patchOpenClawFeishuRegisterOnce } from './patch-openclaw-feishu-register-once.ts'
 import { patchOpenClawStripSlackChannel } from './patch-openclaw-strip-slack-channel.ts'
 import { ensureOpenClawFeishuLarkSdk } from './ensure-openclaw-feishu-sdk.ts'
@@ -39,6 +40,11 @@ function newOpenclawNpmTmpDir(): string {
 
 function skipControlUiBuild(): boolean {
   return process.env.OPENCLAW_SKIP_CONTROL_UI_BUILD === '1'
+}
+
+/** Staging path (variant C): keep npm-prepackaged dist/control-ui as-is (lower syntax only, NO desktop patches, NO GitHub rebuild). */
+function useNpmControlUi(): boolean {
+  return process.env.OPENCLAW_USE_NPM_CONTROL_UI === '1'
 }
 
 const CONTROL_UI_DIST = join(OPENCLAW_DIR, 'dist', 'control-ui')
@@ -194,6 +200,19 @@ async function main(): Promise<void> {
             await finalizeDesktopOpenClawBundle(OPENCLAW_DIR)
             return
           }
+          if (useNpmControlUi()) {
+            console.log(
+              '  [info] dist/control-ui lacks Electron Lit compat marker — lowering npm-prepackaged in place (OPENCLAW_USE_NPM_CONTROL_UI=1)',
+            )
+            await transpileControlUiForElectronEmbedded(CONTROL_UI_DIST)
+            await writeFile(
+              join(CONTROL_UI_DIST, CONTROL_UI_ELECTRON_LIT_MARKER),
+              'npm-prepackaged\n',
+              'utf8',
+            )
+            await finalizeDesktopOpenClawBundle(OPENCLAW_DIR)
+            return
+          }
           console.log(
             '  [info] dist/control-ui lacks Electron Lit compat marker — rebuilding from GitHub...',
           )
@@ -225,9 +244,15 @@ async function main(): Promise<void> {
             await finalizeDesktopOpenClawBundle(OPENCLAW_DIR)
             return
           }
-          console.log(
-            '  [info] dist/control-ui missing — building from GitHub sources for this version...',
-          )
+          if (useNpmControlUi()) {
+            console.log(
+              '  [info] OPENCLAW_USE_NPM_CONTROL_UI=1 but dist/control-ui missing — building from GitHub sources for this version...',
+            )
+          } else {
+            console.log(
+              '  [info] dist/control-ui missing — building from GitHub sources for this version...',
+            )
+          }
           await ensureOpenClawControlUiBuilt(OPENCLAW_DIR, version)
           await finalizeDesktopOpenClawBundle(OPENCLAW_DIR)
           return
@@ -366,10 +391,22 @@ async function main(): Promise<void> {
   if (!skipControlUiBuild()) {
     const npmControlUi = join(OPENCLAW_DIR, 'dist', 'control-ui')
     if (await fileExists(join(npmControlUi, 'index.html'))) {
-      await rm(npmControlUi, { recursive: true, force: true })
-      console.log(
-        '  [control-ui] removed prepackaged dist/control-ui from npm (rebuild with legacy Lit decorator emit for Electron)',
-      )
+      if (useNpmControlUi()) {
+        console.log(
+          '  [control-ui] OPENCLAW_USE_NPM_CONTROL_UI=1: KEEPING npm-prepackaged dist/control-ui; lowering for embedded Chromium only (desktop UI patches SKIPPED)',
+        )
+        await transpileControlUiForElectronEmbedded(npmControlUi)
+        await writeFile(
+          join(npmControlUi, CONTROL_UI_ELECTRON_LIT_MARKER),
+          'npm-prepackaged\n',
+          'utf8',
+        )
+      } else {
+        await rm(npmControlUi, { recursive: true, force: true })
+        console.log(
+          '  [control-ui] removed prepackaged dist/control-ui from npm (rebuild with legacy Lit decorator emit for Electron)',
+        )
+      }
     }
   }
 
@@ -377,6 +414,10 @@ async function main(): Promise<void> {
     await stripControlUiForCiArtifactMerge()
     console.log(
       '  [skip] Control UI build skipped (OPENCLAW_SKIP_CONTROL_UI_BUILD=1); supply dist/control-ui before prepare-bundle',
+    )
+  } else if (useNpmControlUi()) {
+    console.log(
+      '  [skip] GitHub-source Control UI rebuild skipped (npm-prepackaged kept + lowered)',
     )
   } else {
     await ensureOpenClawControlUiBuilt(OPENCLAW_DIR, actualVersion)
