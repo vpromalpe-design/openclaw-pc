@@ -694,7 +694,18 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
       }
 
       // 2. Account + defaultAccount bookkeeping (top-level bot stays untouched as 'default').
-      const nextAccounts: Record<string, Record<string, unknown>> = { ...accounts, [accountId]: { botToken } }
+      // New accounts inherit the top-level access policy (allowFrom / dmPolicy /
+      // groupPolicy / groups / proxy) so a freshly added bot accepts its owner
+      // right away instead of demanding a pairing approval (v0.9.32, report 2026-09-02).
+      const accessKeys = ['allowFrom', 'dmPolicy', 'groupAllowFrom', 'groupPolicy', 'groups', 'proxy'] as const
+      const inheritedAccess: Record<string, unknown> = {}
+      for (const key of accessKeys) {
+        if (tg[key] !== undefined) inheritedAccess[key] = tg[key]
+      }
+      const nextAccounts: Record<string, Record<string, unknown>> = {
+        ...accounts,
+        [accountId]: { botToken, ...inheritedAccess },
+      }
       let defaultAccount = typeof tg.defaultAccount === 'string' && tg.defaultAccount ? tg.defaultAccount : undefined
       if (!defaultAccount) {
         if (topToken) {
