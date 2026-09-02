@@ -974,7 +974,7 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
 
   ipcMain.handle(
     IPC_AGENTS_REMOVE,
-    wrapHandler('AGENTS_REMOVE', (payload: unknown) => {
+    wrapHandler('AGENTS_REMOVE', async (payload: unknown) => {
       const raw = validatePlainObject(payload, 'agentsRemove')
       const agentId = typeof raw.agentId === 'string' ? raw.agentId.trim() : ''
       if (!agentId) throw new Error('agentId is required')
@@ -1014,12 +1014,14 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
       }
 
       // 3. Restart the gateway so it forgets the agent (in-memory sessions).
+      //    v0.9.33: await the restart (like removeBot) so the UI does not
+      //    issue follow-up requests while the gateway is being killed.
       const gw = cfg.gateway
       const port = gw?.port ?? DEFAULT_GATEWAY_PORT
       const bind = gw?.bind ?? 'loopback'
       const token = gw?.auth?.token?.trim()
       const force = Boolean(gw?.forcePortOnConflict)
-      void gatewayManager.restart({ port, bind, token: token || undefined, force })
+      await gatewayManager.restart({ port, bind, token: token || undefined, force })
 
       return { ok: true }
     }),
