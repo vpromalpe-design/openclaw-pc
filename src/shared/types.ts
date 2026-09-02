@@ -66,7 +66,31 @@ export interface ShellConfig {
   telegramBotName?: string
   /** Telegram panel: display-only bot link (t.me/<username> or custom) */
   telegramBotUrl?: string
+  /**
+   * v0.9.31: Telegram bots added through the Telegram panel. Every entry
+   * marks an agent that was auto-created for a bot (Telegram icon in the
+   * agent list). `linked` stays true while the account exists in
+   * channels.telegram; after the bot is removed the entry survives so the
+   * agent keeps its Telegram badge until the agent itself is deleted.
+   */
+  telegramBots?: ShellTelegramBotLink[]
   windowBounds: WindowBounds
+}
+
+/** v0.9.31: Telegram bot → agent link created from the Telegram panel. */
+export interface ShellTelegramBotLink {
+  /** Account id in channels.telegram(.accounts.<id>) — bot username without '@' (top-level bot = 'default') */
+  accountId: string
+  /** Linked agent id (auto-created when the bot was added) */
+  agentId: string
+  /** Bot username with '@', e.g. '@gavrikos_bot' */
+  username: string
+  /** Bot display name (first_name when known) */
+  name?: string
+  /** True while the account is still present in channels.telegram */
+  linked?: boolean
+  /** ISO-8601 timestamp of the first link */
+  addedAt?: string
 }
 
 // ─── OpenClawConfig ───────────────────────────────────────────────────────────
@@ -217,24 +241,49 @@ export interface TelegramChannelConfig {
   proxy?: string
 }
 
-/** Telegram settings panel: load snapshot */
-export interface TelegramSettingsLoadResult {
-  /** Channel enabled (or token present) in openclaw.json */
-  enabled: boolean
-  /** True when a bot token is already stored */
+/** One connected bot account shown in the Telegram panel (v0.9.31). */
+export interface TelegramBotAccountRow {
+  /** Account id inside channels.telegram.accounts (top-level bot = 'default') */
+  accountId: string
+  /** True for the top-level/default bot */
+  isDefault: boolean
+  /** Bot username for display, e.g. '@gavrikos_bot' (when known) */
+  username?: string
+  /** Bot display name (when known) */
+  name?: string
+  /** Agent bound to this bot (auto-created when the bot was added via the panel) */
+  agentId?: string
+  /** True when this bot was added via the panel (its agent carries the Telegram badge) */
+  hasAgentLink?: boolean
+  /** True when this account has a stored token */
   hasToken: boolean
-  /** Owner user ids from allowFrom */
-  allowFrom: string[]
-  /** Display-only fields stored in shell config */
-  botName?: string
-  botUrl?: string
+  /** True when the account is enabled */
+  enabled: boolean
 }
 
-/** Telegram settings panel: save result */
+/** Telegram settings panel: load snapshot (v0.9.31: multi-bot) */
+export interface TelegramSettingsLoadResult {
+  /** Channel enabled (or any token present) in openclaw.json */
+  enabled: boolean
+  /** Owner user ids from allowFrom (shared by all accounts) */
+  allowFrom: string[]
+  /** Explicit default account id, when set */
+  defaultAccount?: string
+  /** Connected bot accounts (top-level default first) */
+  bots: TelegramBotAccountRow[]
+}
+
+/** Telegram settings panel: save/add/remove result */
 export interface TelegramSettingsSaveResult {
   ok: boolean
   restarted: boolean
   error?: string
+  /** New bot account id (addBot) */
+  accountId?: string
+  /** Linked agent id (addBot) */
+  agentId?: string
+  /** Bot username with '@' (addBot) */
+  username?: string
 }
 
 /** Wizard Discord channel (aligned with upstream DiscordConfig) */

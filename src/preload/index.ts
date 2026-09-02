@@ -31,7 +31,8 @@ import {
   IPC_WIZARD_TEST_MODEL,
   IPC_WIZARD_TEST_TELEGRAM,
   IPC_TELEGRAM_GET,
-  IPC_TELEGRAM_SAVE,
+  IPC_TELEGRAM_ADD_BOT,
+  IPC_TELEGRAM_REMOVE_BOT,
   IPC_WIZARD_COMPLETE_SETUP,
   IPC_SYSTEM_OPEN_LOG_DIR,
   IPC_SHELL_GET_VERSIONS,
@@ -189,8 +190,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   wizardTestModel: (config: unknown) => invoke(IPC_WIZARD_TEST_MODEL, config),
   wizardTestTelegram: (config: unknown) => invoke(IPC_WIZARD_TEST_TELEGRAM, config),
   telegramGet: () => invoke<TelegramSettingsLoadResult>(IPC_TELEGRAM_GET),
-  telegramSave: (payload: { botToken?: string; botName?: string; botUrl?: string }) =>
-    invoke<TelegramSettingsSaveResult>(IPC_TELEGRAM_SAVE, payload),
+  telegramAddBot: (payload: { botToken: string }) =>
+    invoke<TelegramSettingsSaveResult>(IPC_TELEGRAM_ADD_BOT, payload),
+  telegramRemoveBot: (payload: { accountId: string }) =>
+    invoke<TelegramSettingsSaveResult>(IPC_TELEGRAM_REMOVE_BOT, payload),
   wizardCompleteSetup: (state: unknown) => invoke(IPC_WIZARD_COMPLETE_SETUP, state),
   systemOpenLogDir: () => invoke(IPC_SYSTEM_OPEN_LOG_DIR),
   shellGetVersions: () => invoke(IPC_SHELL_GET_VERSIONS),

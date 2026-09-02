@@ -12,6 +12,8 @@ import type {
   VoiceSettingsApplyResult,
   VoiceTestResult,
   AgentListEntry,
+  ShellTelegramBotLink,
+  TelegramBotAccountRow,
 } from '../../shared/types.js'
 import type { PortCheckResult } from '../utils/port-check.js'
 import { testModelConnection } from '../wizard/model-tester.js'
@@ -59,7 +61,8 @@ import {
   IPC_WIZARD_TEST_MODEL,
   IPC_WIZARD_TEST_TELEGRAM,
   IPC_TELEGRAM_GET,
-  IPC_TELEGRAM_SAVE,
+  IPC_TELEGRAM_ADD_BOT,
+  IPC_TELEGRAM_REMOVE_BOT,
   IPC_AGENTS_ADD,
   IPC_AGENTS_SET_MODEL,
   IPC_AGENTS_REMOVE,
@@ -556,55 +559,263 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
     }),
   )
 
+  // ─── Telegram panel (v0.9.31: multi-bot; bots live in channels.telegram.accounts) ─────
+  const shellTelegramLinks = (shell: ShellConfig): ShellTelegramBotLink[] =>
+    Array.isArray(shell.telegramBots) ? shell.telegramBots : []
+
+  const asRecord = (value: unknown): Record<string, Record<string, unknown>> =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, Record<string, unknown>>)
+      : {}
+
+  const telegramBindings = (cfg: OpenClawConfig): Array<Record<string, unknown>> =>
+    Array.isArray((cfg as { bindings?: unknown }).bindings)
+      ? ((cfg as { bindings?: unknown }).bindings as Array<Record<string, unknown>>)
+      : []
+
+  const telegramBindingAgent = (cfg: OpenClawConfig, accountId: string): string | undefined => {
+    for (const b of telegramBindings(cfg)) {
+      const match = b?.match as Record<string, unknown> | undefined
+      if (match?.channel === 'telegram' && match?.accountId === accountId && typeof b.agentId === 'string') {
+        return b.agentId
+      }
+    }
+    return undefined
+  }
+
+  const telegramBotRows = (cfg: OpenClawConfig): TelegramBotAccountRow[] => {
+    const tg = (cfg.channels?.telegram ?? {}) as Record<string, unknown>
+    const shell = deps.readShellConfig()
+    const links = shellTelegramLinks(shell)
+    const accounts = asRecord(tg.accounts)
+    const defaultAccount = typeof tg.defaultAccount === 'string' && tg.defaultAccount ? tg.defaultAccount : undefined
+    const topToken = typeof tg.botToken === 'string' && tg.botToken.trim() ? tg.botToken.trim() : ''
+    const rows: TelegramBotAccountRow[] = []
+    const pushRow = (accountId: string, isDefault: boolean): void => {
+      const link = links.find((l) => l.accountId === accountId)
+      const linked = Boolean(link?.agentId) && link?.linked !== false
+      rows.push({
+        accountId,
+        isDefault,
+        username: link?.username,
+        name: link?.name,
+        agentId: linked ? (link?.agentId ?? telegramBindingAgent(cfg, accountId)) : undefined,
+        hasAgentLink: linked,
+        hasToken: true,
+        enabled: tg.enabled !== false,
+      })
+    }
+    if (topToken) {
+      pushRow('default', true)
+    }
+    const accountIds = Object.keys(accounts).filter((id) => {
+      const acc = accounts[id] ?? {}
+      return typeof acc.botToken === 'string' && acc.botToken.trim().length > 0
+    })
+    accountIds.sort()
+    for (const accountId of accountIds) {
+      pushRow(accountId, accountId === 'default' || accountId === defaultAccount)
+    }
+    return rows
+  }
+
   ipcMain.handle(
     IPC_TELEGRAM_GET,
     wrapHandler('TELEGRAM_GET', () => {
       const cfg = deps.readOpenClawConfig()
-      const tg = cfg?.channels?.telegram
-      const shell = deps.readShellConfig()
+      const tg = (cfg?.channels?.telegram ?? {}) as Record<string, unknown>
+      const defaultAccount = typeof tg.defaultAccount === 'string' && tg.defaultAccount ? tg.defaultAccount : undefined
       return {
-        enabled: Boolean(tg?.enabled) || Boolean(tg?.botToken),
-        hasToken: Boolean(tg?.botToken),
-        allowFrom: Array.isArray(tg?.allowFrom) ? (tg.allowFrom as string[]) : [],
-        botName: shell.telegramBotName ?? undefined,
-        botUrl: shell.telegramBotUrl ?? undefined,
+        enabled: Boolean(tg.enabled) || Boolean(tg.botToken) || Object.keys(asRecord(tg.accounts)).length > 0,
+        allowFrom: Array.isArray(tg.allowFrom) ? (tg.allowFrom as string[]) : [],
+        defaultAccount,
+        bots: telegramBotRows(cfg),
       }
     }),
   )
 
   ipcMain.handle(
-    IPC_TELEGRAM_SAVE,
-    wrapHandler('TELEGRAM_SAVE', async (payload: unknown) => {
-      const raw = validatePlainObject(payload, 'telegramSave')
+    IPC_TELEGRAM_ADD_BOT,
+    wrapHandler('TELEGRAM_ADD_BOT', async (payload: unknown) => {
+      const raw = validatePlainObject(payload, 'telegramAddBot')
       const botToken = typeof raw.botToken === 'string' ? raw.botToken.trim() : ''
-      const botName = typeof raw.botName === 'string' ? raw.botName.trim() : ''
-      const botUrl = typeof raw.botUrl === 'string' ? raw.botUrl.trim() : ''
+      if (!botToken) {
+        return { ok: false, restarted: false, error: 'missing-token' }
+      }
 
       const cfg = deps.readOpenClawConfig()
-      const tg = cfg?.channels?.telegram
+      const tg = (cfg.channels?.telegram ?? {}) as Record<string, unknown>
+      const accounts = asRecord(tg.accounts)
+
+      // Duplicate guard: the same token is already stored (default top-level bot or an account).
+      const topToken = typeof tg.botToken === 'string' && tg.botToken.trim() ? tg.botToken.trim() : ''
+      if (topToken && topToken === botToken) {
+        return { ok: false, restarted: false, error: 'already-added' }
+      }
+      for (const acc of Object.values(accounts)) {
+        if (acc?.botToken === botToken) return { ok: false, restarted: false, error: 'already-added' }
+      }
+
+      // Probe the token (getMe) → bot username.
+      const probe = await testTelegramConnection({
+        botToken,
+        proxy: typeof tg.proxy === 'string' && tg.proxy.trim() ? tg.proxy : undefined,
+      })
+      if (!probe.ok || !probe.botName) {
+        return { ok: false, restarted: false, error: probe.message ?? 'invalid-token' }
+      }
+      const displayName = probe.botName
+      const usernamePart = displayName.startsWith('@') ? displayName.slice(1).toLowerCase() : ''
+      const accountId = usernamePart || `bot-${probe.botId ?? 'unknown'}`
+      if (Object.prototype.hasOwnProperty.call(accounts, accountId)) {
+        return { ok: false, restarted: false, error: 'duplicate' }
+      }
+
+      // 1. Agent: reuse when one with the same id already exists, otherwise create it.
+      const agentList = Array.isArray(cfg.agents?.list) ? cfg.agents.list : []
+      const existingAgent = agentList.find((a) => String(a?.id ?? '') === accountId)
+      let agentId: string
+      if (existingAgent) {
+        agentId = String(existingAgent.id)
+      } else {
+        let base =
+          accountId
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/gi, '-')
+            .replace(/^-+|-+$/g, '') || 'agent'
+        if (/^[0-9]/.test(base)) base = `agent-${base}`
+        const existingIds = new Set(agentList.map((a) => String(a?.id ?? '')))
+        agentId = base
+        let n = 2
+        while (existingIds.has(agentId)) agentId = `${base}-${n++}`
+        const entry: AgentListEntry = { id: agentId, name: displayName }
+        cfg.agents = cfg.agents ?? {}
+        cfg.agents.list = [...agentList, entry]
+      }
+
+      // 2. Account + defaultAccount bookkeeping (top-level bot stays untouched as 'default').
+      const nextAccounts: Record<string, Record<string, unknown>> = { ...accounts, [accountId]: { botToken } }
+      let defaultAccount = typeof tg.defaultAccount === 'string' && tg.defaultAccount ? tg.defaultAccount : undefined
+      if (!defaultAccount) {
+        if (topToken) {
+          defaultAccount = 'default'
+        } else {
+          const ids = Object.keys(nextAccounts)
+          defaultAccount = ids.includes('default') ? 'default' : ids.sort()[0] ?? accountId
+        }
+      }
       const nextTg: Record<string, unknown> = {
+        ...tg,
         enabled: true,
-        dmPolicy: typeof tg?.dmPolicy === 'string' ? tg.dmPolicy : 'pairing',
+        accounts: nextAccounts,
+        defaultAccount,
       }
-      if (botToken) {
-        nextTg.botToken = botToken
-      } else if (typeof tg?.botToken === 'string' && tg.botToken) {
-        nextTg.botToken = tg.botToken
-      }
-      if (Array.isArray(tg?.allowFrom) && (tg.allowFrom as unknown[]).length > 0) {
-        nextTg.allowFrom = tg.allowFrom
-      }
-      if (typeof tg?.proxy === 'string' && tg.proxy) {
-        nextTg.proxy = tg.proxy
-      }
+
+      // 3. Binding: telegram account → agent.
+      const bindings = telegramBindings(cfg)
+      const hasBinding = bindings.some((b) => {
+        const match = b?.match as Record<string, unknown> | undefined
+        return match?.channel === 'telegram' && match?.accountId === accountId
+      })
+      const nextBindings = hasBinding
+        ? bindings
+        : [...bindings, { agentId, match: { channel: 'telegram', accountId } }]
+
       cfg.channels = cfg.channels ?? {}
       cfg.channels.telegram = nextTg
+      ;(cfg as { bindings?: unknown }).bindings = nextBindings
       deps.writeOpenClawConfig(cfg)
+      readOpenClawConfig()
 
+      // 4. Shell registry: mark the agent as telegram-linked (Telegram badge in the UI).
       const shell = deps.readShellConfig()
-      if (botName) shell.telegramBotName = botName
-      if (botUrl) shell.telegramBotUrl = botUrl
+      const links = shellTelegramLinks(shell)
+      const prior = links.find((l) => l.accountId === accountId)
+      const link: ShellTelegramBotLink = {
+        accountId,
+        agentId,
+        username: displayName.startsWith('@') ? displayName : `@${accountId}`,
+        name: displayName,
+        linked: true,
+        addedAt: prior?.addedAt ?? new Date().toISOString(),
+      }
+      shell.telegramBots = [...links.filter((l) => l.accountId !== accountId), link]
       deps.writeShellConfig(shell)
+
+      const gw = cfg.gateway
+      const port = gw?.port ?? DEFAULT_GATEWAY_PORT
+      const bind = gw?.bind ?? 'loopback'
+      const token = gw?.auth?.token?.trim()
+      const force = Boolean(gw?.forcePortOnConflict)
+      const restarted = await gatewayManager.restart({ port, bind, token: token || undefined, force })
+      return { ok: true, restarted, accountId, agentId, username: link.username }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_TELEGRAM_REMOVE_BOT,
+    wrapHandler('TELEGRAM_REMOVE_BOT', async (payload: unknown) => {
+      const raw = validatePlainObject(payload, 'telegramRemoveBot')
+      const accountId = typeof raw.accountId === 'string' ? raw.accountId.trim() : ''
+      if (!accountId) throw new Error('accountId is required')
+
+      const cfg = deps.readOpenClawConfig()
+      const tg = (cfg.channels?.telegram ?? {}) as Record<string, unknown>
+      const accounts = asRecord(tg.accounts)
+      const topToken = typeof tg.botToken === 'string' && tg.botToken.trim() ? tg.botToken.trim() : ''
+
+      // Drop the account (top-level 'default' clears channels.telegram.botToken).
+      const removedTopLevel = accountId === 'default' && Boolean(topToken)
+      const nextAccounts: Record<string, Record<string, unknown>> = {}
+      for (const [id, acc] of Object.entries(accounts)) {
+        if (id !== accountId) nextAccounts[id] = acc
+      }
+      const nextTop = removedTopLevel ? '' : topToken
+      const remainingIds = Object.keys(nextAccounts).filter(
+        (id) => typeof nextAccounts[id]?.botToken === 'string' && (nextAccounts[id]?.botToken as string).trim().length > 0,
+      )
+      const stillEnabled = Boolean(nextTop) || remainingIds.length > 0
+
+      const nextTg: Record<string, unknown> = { ...tg }
+      if (removedTopLevel) delete nextTg.botToken
+      if (!stillEnabled) {
+        nextTg.enabled = false
+        delete nextTg.botToken
+        delete nextTg.accounts
+        delete nextTg.defaultAccount
+      } else {
+        nextTg.enabled = true
+        if (Object.keys(nextAccounts).length > 0) nextTg.accounts = nextAccounts
+        else delete nextTg.accounts
+        const oldDefault = typeof tg.defaultAccount === 'string' && tg.defaultAccount ? tg.defaultAccount : undefined
+        let newDefault = oldDefault && oldDefault !== accountId ? oldDefault : undefined
+        if (!newDefault) {
+          if (nextTop) newDefault = 'default'
+          else if (remainingIds.includes('default')) newDefault = 'default'
+          else newDefault = remainingIds.sort()[0] ?? 'default'
+        }
+        nextTg.defaultAccount = newDefault
+      }
+
+      // Remove the telegram binding for this account (the agent itself survives).
+      const bindings = telegramBindings(cfg)
+      const nextBindings = bindings.filter((b) => {
+        const match = b?.match as Record<string, unknown> | undefined
+        return !(match?.channel === 'telegram' && match?.accountId === accountId)
+      })
+      cfg.channels = cfg.channels ?? {}
+      cfg.channels.telegram = nextTg
+      ;(cfg as { bindings?: unknown }).bindings = nextBindings
+      deps.writeOpenClawConfig(cfg)
+      readOpenClawConfig()
+
+      // Mark the shell link as unlinked (agent keeps its Telegram badge until deleted manually).
+      const shell = deps.readShellConfig()
+      const links = shellTelegramLinks(shell)
+      if (links.some((l) => l.accountId === accountId)) {
+        shell.telegramBots = links.map((l) => (l.accountId === accountId ? { ...l, linked: false } : l))
+        deps.writeShellConfig(shell)
+      }
 
       const gw = cfg.gateway
       const port = gw?.port ?? DEFAULT_GATEWAY_PORT
@@ -693,6 +904,15 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
       cfg.agents.list = list.filter((a) => String(a?.id ?? '') !== agentId)
       deps.writeOpenClawConfig(cfg)
       readOpenClawConfig()
+
+      // 1b. Drop telegram bot links pointing at this agent (removes the badge).
+      const shell = deps.readShellConfig()
+      const links = Array.isArray(shell.telegramBots) ? shell.telegramBots : []
+      const keptLinks = links.filter((l) => l.agentId !== agentId)
+      if (keptLinks.length !== links.length) {
+        shell.telegramBots = keptLinks
+        deps.writeShellConfig(shell)
+      }
 
       // 2. Delete the agent state dir (chats = sessions/, auth profiles, etc.).
       //    Node fs handles non-ASCII paths natively (UTF-16) — no CLI involved.
@@ -2410,7 +2630,8 @@ export function removeIpcHandlers(): void {
   ipcMain.removeHandler(IPC_WIZARD_TEST_MODEL)
   ipcMain.removeHandler(IPC_WIZARD_TEST_TELEGRAM)
   ipcMain.removeHandler(IPC_TELEGRAM_GET)
-  ipcMain.removeHandler(IPC_TELEGRAM_SAVE)
+  ipcMain.removeHandler(IPC_TELEGRAM_ADD_BOT)
+  ipcMain.removeHandler(IPC_TELEGRAM_REMOVE_BOT)
   ipcMain.removeHandler(IPC_WIZARD_COMPLETE_SETUP)
   ipcMain.removeHandler(IPC_SYSTEM_OPEN_LOG_DIR)
   ipcMain.removeHandler(IPC_SHELL_GET_VERSIONS)
