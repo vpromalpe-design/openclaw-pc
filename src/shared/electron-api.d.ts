@@ -177,9 +177,19 @@ export interface ElectronAPI {
   }) => Promise<WizardTestTelegramResult>
   telegramGet: () => Promise<TelegramSettingsLoadResult>
   /** Add a Telegram bot: probe token, create account + agent + binding, restart the gateway. */
-  telegramAddBot: (payload: { botToken: string }) => Promise<TelegramSettingsSaveResult>
+  telegramAddBot: (payload: {
+    botToken: string
+    /** Telegram user ids allowed to talk to this bot (optional, union with inherited owner ids) */
+    accessIds?: string[]
+  }) => Promise<TelegramSettingsSaveResult>
   /** Remove a Telegram bot account + binding (the linked agent survives). */
   telegramRemoveBot: (payload: { accountId: string }) => Promise<TelegramSettingsSaveResult>
+  /** Replace the allowFrom access list of one bot account (gateway restart follows). */
+  telegramUpdateAccess: (payload: {
+    accountId: string
+    /** Empty list clears account-level allowFrom (falls back to top-level inheritance) */
+    accessIds: string[]
+  }) => Promise<TelegramSettingsSaveResult>
   wizardCompleteSetup: (state: WizardState) => Promise<WizardCompleteResult>
   shellGetVersions: () => Promise<AppVersionInfo>
   shellResizeForMainInterface: () => Promise<void>

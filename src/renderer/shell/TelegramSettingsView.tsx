@@ -3,14 +3,18 @@ import { useTranslation } from 'react-i18next'
 import {
   AlertTriangle,
   CheckCircle2,
+  Check,
   Eye,
   EyeOff,
   ExternalLink,
   Loader2,
   MessageCircle,
+  Pencil,
   Plus,
   Send,
   Trash2,
+  Users,
+  X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -27,6 +31,18 @@ export interface TelegramSettingsViewProps {
 
 function defaultNavigateBack() {
   window.location.hash = ''
+}
+
+/** Parse a comma/space separated list of Telegram user ids into a de-duplicated array. */
+function parseTelegramIds(value: string): string[] {
+  return Array.from(
+    new Set(
+      value
+        .split(/[\s,;]+/)
+        .map((s) => s.trim())
+        .filter((s) => /^\d{4,}$/.test(s)),
+    ),
+  )
 }
 
 type SaveState = 'idle' | 'busy' | 'saved' | 'error'
@@ -49,6 +65,11 @@ export function TelegramSettingsView({ onBack, onAgentsChanged }: TelegramSettin
   const [token, setToken] = useState('')
   const [showToken, setShowToken] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
+  /** Comma/space separated Telegram ids allowed to talk to the new bot */
+  const [accessText, setAccessText] = useState('')
+  /** accountId whose access list is being edited inline (null = closed) */
+  const [editingAccess, setEditingAccess] = useState<string | null>(null)
+  const [accessDraft, setAccessDraft] = useState('')
 
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null)
@@ -123,11 +144,21 @@ export function TelegramSettingsView({ onBack, onAgentsChanged }: TelegramSettin
   const runAdd = useCallback(async () => {
     const trimmed = token.trim()
     if (!trimmed || busyState === 'busy') return
+    // If the user typed something in the access field it must parse to ids.
+    const accessIds = accessText.trim() ? parseTelegramIds(accessText) : []
+    if (accessText.trim() && accessIds.length === 0) {
+      setBusyState('error')
+      setErrorText(t('shell.telegram.errors.invalidAccessIds'))
+      return
+    }
     setBusyState('busy')
     setErrorText('')
     setNotice(null)
     try {
-      const res = await window.electronAPI.telegramAddBot({ botToken: trimmed })
+      const res = await window.electronAPI.telegramAddBot({
+        botToken: trimmed,
+        ...(accessIds.length > 0 ? { accessIds } : {}),
+      })
       if (res.ok) {
         const name = res.username ?? res.accountId ?? ''
         setNotice({
@@ -135,6 +166,7 @@ export function TelegramSettingsView({ onBack, onAgentsChanged }: TelegramSettin
           text: `${t('shell.telegram.added')} ${name} — ${t('shell.telegram.agentCreated')}`,
         })
         setToken('')
+        setAccessText('')
         setTestResult(null)
         setShowAdd(false)
         await reload()
@@ -149,7 +181,7 @@ export function TelegramSettingsView({ onBack, onAgentsChanged }: TelegramSettin
     } finally {
       setBusyState('idle')
     }
-  }, [token, busyState, describeError, t, reload, onAgentsChanged])
+  }, [token, accessText, busyState, describeError, t, reload, onAgentsChanged])
 
   const runRemove = useCallback(
     async (accountId: string) => {
@@ -183,6 +215,39 @@ export function TelegramSettingsView({ onBack, onAgentsChanged }: TelegramSettin
       }
     },
     [busyState, confirmRemove, describeError, t, reload, onAgentsChanged],
+  )
+
+  const runSaveAccess = useCallback(
+    async (accountId: string) => {
+      if (busyState === 'busy') return
+      const accessIds = accessDraft.trim() ? parseTelegramIds(accessDraft) : []
+      if (accessDraft.trim() && accessIds.length === 0) {
+        setErrorText(t('shell.telegram.errors.invalidAccessIds'))
+        return
+      }
+      setBusyState('busy')
+      setErrorText('')
+      setNotice(null)
+      try {
+        const res = await window.electronAPI.telegramUpdateAccess({ accountId, accessIds })
+        if (res.ok) {
+          setNotice({ ok: true, text: t('shell.telegram.accessSaved') })
+          setEditingAccess(null)
+          setAccessDraft('')
+          await reload()
+          onAgentsChanged?.()
+        } else {
+          setBusyState('error')
+          setErrorText(describeError(res.error ?? 'unknown'))
+        }
+      } catch (err) {
+        setBusyState('error')
+        setErrorText(err instanceof Error ? err.message : String(err))
+      } finally {
+        setBusyState('idle')
+      }
+    },
+    [busyState, accessDraft, describeError, t, reload, onAgentsChanged],
   )
 
   const openBotLink = useCallback((bot: TelegramBotAccountRow) => {
@@ -269,6 +334,60 @@ export function TelegramSettingsView({ onBack, onAgentsChanged }: TelegramSettin
                             ? t('shell.telegram.servesMain')
                             : t('shell.telegram.noAgent')}
                         </span>
+                      )}
+                    </div>
+                    {/* Access (who may talk to this bot) — inline editable */}
+                    <div className="mt-1">
+                      {editingAccess === bot.accountId ? (
+                        <div className="flex items-center gap-1.5">
+                          <Input
+                            value={accessDraft}
+                            onChange={(e) => setAccessDraft(e.target.value)}
+                            placeholder="371063404, 123456789"
+                            className="h-7 w-full max-w-[230px] text-xs"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') void runSaveAccess(bot.accountId)
+                              if (e.key === 'Escape') setEditingAccess(null)
+                            }}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-green-600 dark:text-green-400"
+                            title={t('shell.telegram.saveAccess')}
+                            onClick={() => void runSaveAccess(bot.accountId)}
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground"
+                            title={t('shell.telegram.cancelEditAccess')}
+                            onClick={() => setEditingAccess(null)}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingAccess(bot.accountId)
+                            setAccessDraft((bot.allowFrom ?? []).join(', '))
+                          }}
+                          className="group flex max-w-full items-center gap-1.5 rounded-md text-xs text-muted-foreground transition-colors hover:text-foreground"
+                          title={t('shell.telegram.editAccess')}
+                        >
+                          <Users size={11} className="shrink-0 text-[#229ED9]" />
+                          <span className="truncate">
+                            {bot.allowFrom && bot.allowFrom.length > 0
+                              ? `${t('shell.telegram.access')}: ${bot.allowFrom.join(', ')}`
+                              : t('shell.telegram.accessUnset')}
+                          </span>
+                          <Pencil size={10} className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
+                        </button>
                       )}
                     </div>
                   </div>
@@ -362,6 +481,21 @@ export function TelegramSettingsView({ onBack, onAgentsChanged }: TelegramSettin
               <p className="text-xs text-muted-foreground">{t('shell.telegram.addHint')}</p>
             </div>
 
+            {/* Who may talk to the new bot */}
+            <div className="flex flex-col gap-1">
+              <label htmlFor="tg-new-access" className="text-xs font-medium text-muted-foreground">
+                {t('shell.telegram.addAccessLabel')}
+              </label>
+              <Input
+                id="tg-new-access"
+                value={accessText}
+                onChange={(e) => setAccessText(e.target.value)}
+                placeholder={t('shell.telegram.addAccessPlaceholder')}
+                className="font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground">{t('shell.telegram.addAccessHint')}</p>
+            </div>
+
             {/* Test token */}
             <div className="flex flex-wrap items-center gap-3">
               <Button
@@ -400,7 +534,7 @@ export function TelegramSettingsView({ onBack, onAgentsChanged }: TelegramSettin
                 )}
                 {busyState === 'busy' ? t('shell.telegram.adding') : t('shell.telegram.addAndRestart')}
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => setShowAdd(false)} disabled={busyState === 'busy'}>
+              <Button variant="ghost" size="sm" onClick={() => { setShowAdd(false); setAccessText('') }} disabled={busyState === 'busy'}>
                 {t('shell.telegram.cancel')}
               </Button>
             </div>

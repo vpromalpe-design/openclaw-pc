@@ -62,6 +62,9 @@ export const IPC_TELEGRAM_ADD_BOT = 'telegram:addBot' as const
 /** Telegram settings panel: remove a bot (unlink account + binding; agent survives), then restart the gateway */
 export const IPC_TELEGRAM_REMOVE_BOT = 'telegram:removeBot' as const
 
+/** Telegram settings panel: replace the allowFrom access list of one bot account, then restart the gateway */
+export const IPC_TELEGRAM_UPDATE_ACCESS = 'telegram:updateAccess' as const
+
 /** Wizard: atomically write config + credentials + start gateway */
 export const IPC_WIZARD_COMPLETE_SETUP = 'wizard:completeSetup' as const
 
