@@ -63,6 +63,7 @@ import {
   IPC_TELEGRAM_GET,
   IPC_TELEGRAM_ADD_BOT,
   IPC_TELEGRAM_REMOVE_BOT,
+  IPC_TELEGRAM_UPDATE_ACCESS,
   IPC_AGENTS_ADD,
   IPC_AGENTS_SET_MODEL,
   IPC_AGENTS_REMOVE,
@@ -594,6 +595,9 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
     const pushRow = (accountId: string, isDefault: boolean): void => {
       const link = links.find((l) => l.accountId === accountId)
       const linked = Boolean(link?.agentId) && link?.linked !== false
+      const acc = accountId === 'default' ? tg : (accounts[accountId] ?? {})
+      const accAllow =
+        typeof acc.allowFrom === 'undefined' ? undefined : Array.isArray(acc.allowFrom) ? (acc.allowFrom as string[]) : []
       rows.push({
         accountId,
         isDefault,
@@ -603,6 +607,7 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
         hasAgentLink: linked,
         hasToken: true,
         enabled: tg.enabled !== false,
+        allowFrom: accAllow,
       })
     }
     if (topToken) {
@@ -642,6 +647,22 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
       if (!botToken) {
         return { ok: false, restarted: false, error: 'missing-token' }
       }
+      // Optional explicit access list: Telegram user ids that may talk to this
+      // bot. Union-ed with the inherited top-level allowFrom so the owner never
+      // locks himself out (v0.9.32).
+      const rawAccess =
+        Array.isArray(raw.accessIds)
+          ? (raw.accessIds as unknown[]).filter((x): x is string => typeof x === 'string')
+          : []
+      const normalizeIds = (ids: string[]): string[] =>
+        Array.from(
+          new Set(
+            ids
+              .map((s) => s.trim())
+              .filter((s) => /^\d{4,}$/.test(s))
+          ),
+        )
+      const explicitIds = normalizeIds(rawAccess)
 
       const cfg = deps.readOpenClawConfig()
       const tg = (cfg.channels?.telegram ?? {}) as Record<string, unknown>
@@ -701,6 +722,14 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
       const inheritedAccess: Record<string, unknown> = {}
       for (const key of accessKeys) {
         if (tg[key] !== undefined) inheritedAccess[key] = tg[key]
+      }
+      if (explicitIds.length > 0) {
+        // Explicit list wins over plain inheritance, but the owner ids from the
+        // top-level allowFrom stay so the owner keeps access to the new bot.
+        const topIds = Array.isArray(tg.allowFrom)
+          ? normalizeIds((tg.allowFrom as string[]))
+          : []
+        inheritedAccess.allowFrom = Array.from(new Set([...topIds, ...explicitIds]))
       }
       const nextAccounts: Record<string, Record<string, unknown>> = {
         ...accounts,
@@ -827,6 +856,54 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
         shell.telegramBots = links.map((l) => (l.accountId === accountId ? { ...l, linked: false } : l))
         deps.writeShellConfig(shell)
       }
+
+      const gw = cfg.gateway
+      const port = gw?.port ?? DEFAULT_GATEWAY_PORT
+      const bind = gw?.bind ?? 'loopback'
+      const token = gw?.auth?.token?.trim()
+      const force = Boolean(gw?.forcePortOnConflict)
+      const restarted = await gatewayManager.restart({ port, bind, token: token || undefined, force })
+      return { ok: true, restarted }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_TELEGRAM_UPDATE_ACCESS,
+    wrapHandler('TELEGRAM_UPDATE_ACCESS', async (payload: unknown) => {
+      const raw = validatePlainObject(payload, 'telegramUpdateAccess')
+      const accountId = typeof raw.accountId === 'string' ? raw.accountId.trim() : ''
+      if (!accountId) throw new Error('accountId is required')
+      const rawIds = Array.isArray(raw.accessIds)
+        ? (raw.accessIds as unknown[]).filter((x): x is string => typeof x === 'string')
+        : []
+      const accessIds = Array.from(new Set(rawIds.map((s) => s.trim()).filter((s) => /^\d{4,}$/.test(s))))
+
+      const cfg = deps.readOpenClawConfig()
+      const tg = (cfg.channels?.telegram ?? {}) as Record<string, unknown>
+      const accounts = asRecord(tg.accounts)
+      const isTopLevel = accountId === 'default'
+
+      if (!isTopLevel && !Object.prototype.hasOwnProperty.call(accounts, accountId)) {
+        throw new Error(`unknown telegram account: ${accountId}`)
+      }
+
+      const nextTg: Record<string, unknown> = { ...tg }
+      if (isTopLevel) {
+        // Top-level bot: owner ids live on channels.telegram.allowFrom.
+        if (accessIds.length > 0) nextTg.allowFrom = accessIds
+        else delete nextTg.allowFrom
+      } else {
+        const acc = { ...(accounts[accountId] ?? {}) } as Record<string, unknown>
+        if (accessIds.length > 0) acc.allowFrom = accessIds
+        else delete acc.allowFrom // empty → fall back to top-level inheritance
+        const nextAccounts: Record<string, Record<string, unknown>> = { ...accounts, [accountId]: acc }
+        nextTg.accounts = nextAccounts
+      }
+
+      cfg.channels = cfg.channels ?? {}
+      cfg.channels.telegram = nextTg
+      deps.writeOpenClawConfig(cfg)
+      readOpenClawConfig()
 
       const gw = cfg.gateway
       const port = gw?.port ?? DEFAULT_GATEWAY_PORT
@@ -2643,6 +2720,7 @@ export function removeIpcHandlers(): void {
   ipcMain.removeHandler(IPC_TELEGRAM_GET)
   ipcMain.removeHandler(IPC_TELEGRAM_ADD_BOT)
   ipcMain.removeHandler(IPC_TELEGRAM_REMOVE_BOT)
+  ipcMain.removeHandler(IPC_TELEGRAM_UPDATE_ACCESS)
   ipcMain.removeHandler(IPC_WIZARD_COMPLETE_SETUP)
   ipcMain.removeHandler(IPC_SYSTEM_OPEN_LOG_DIR)
   ipcMain.removeHandler(IPC_SHELL_GET_VERSIONS)

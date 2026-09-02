@@ -793,8 +793,18 @@
         "proxyUnsupported": "Only http/https proxies are supported (socks5 does not work).",
         "duplicate": "A bot with this username is already connected.",
         "alreadyAdded": "This bot is already connected.",
-        "http": "Telegram replied with an error. Check the token and network."
-      }
+        "http": "Telegram replied with an error. Check the token and network.",
+        "invalidAccessIds": "Enter numeric Telegram IDs separated by commas (e.g. 371063404)."
+      },
+      "addAccessLabel": "Bot access (Telegram IDs)",
+      "addAccessPlaceholder": "371063404, 123456789 — comma separated",
+      "addAccessHint": "Who may chat with this bot. Empty = same as the main bot (owner).",
+      "access": "Access",
+      "accessUnset": "Access unset — like the main bot",
+      "editAccess": "Edit access",
+      "saveAccess": "Save",
+      "cancelEditAccess": "Cancel",
+      "accessSaved": "Access updated, gateway restarted."
     }
   },
   "voice": {

@@ -259,6 +259,8 @@ export interface TelegramBotAccountRow {
   hasToken: boolean
   /** True when the account is enabled */
   enabled: boolean
+  /** Telegram IDs allowed to talk to this bot (account-level allowFrom; empty = not set) */
+  allowFrom?: string[]
 }
 
 /** Telegram settings panel: load snapshot (v0.9.31: multi-bot) */
