@@ -53,11 +53,14 @@ export const IPC_WIZARD_TEST_MODEL = 'wizard:testModel' as const
 /** Test Telegram bot token (getMe) during wizard setup */
 export const IPC_WIZARD_TEST_TELEGRAM = 'wizard:testTelegram' as const
 
-/** Telegram settings panel: load current channel state (token present, bot name/url) */
+/** Telegram settings panel: load current channel state (token present, bots) */
 export const IPC_TELEGRAM_GET = 'telegram:get' as const
 
-/** Telegram settings panel: save bot token/name/url, then restart the gateway */
-export const IPC_TELEGRAM_SAVE = 'telegram:save' as const
+/** Telegram settings panel: add a bot (token → account + agent + binding), then restart the gateway */
+export const IPC_TELEGRAM_ADD_BOT = 'telegram:addBot' as const
+
+/** Telegram settings panel: remove a bot (unlink account + binding; agent survives), then restart the gateway */
+export const IPC_TELEGRAM_REMOVE_BOT = 'telegram:removeBot' as const
 
 /** Wizard: atomically write config + credentials + start gateway */
 export const IPC_WIZARD_COMPLETE_SETUP = 'wizard:completeSetup' as const

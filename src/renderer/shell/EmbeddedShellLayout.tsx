@@ -42,6 +42,7 @@ import { GatewaySettingsView } from './GatewaySettingsView'
 import { TasksView, TasksDetailPanel, useTasksData } from './TasksView'
 import type { TasksSelection, TasksDetailTab } from './TasksView'
 import { AgentMenuPortal } from './AgentMenu'
+import { TelegramGlyph } from '@/components/TelegramGlyph'
 import { Bot, Type, Send } from 'lucide-react'
 import type { GatewayStatus, GatewayStatusValue } from '../../shared/types'
 import { useUpdateNoticeStore } from '@/stores/update-store'
@@ -135,6 +136,14 @@ const AGENT_ICONS: Record<string, string> = {
 
 function agentIcon(id: string): string {
   return AGENT_ICONS[id] ?? '🤖'
+}
+
+/** v0.9.31: badge node for an agent — Telegram glyph for bot-linked agents. */
+function renderAgentBadge(agent: AgentInfo): React.ReactNode {
+  if (agent.telegramBot) {
+    return <TelegramGlyph size={14} className="text-[#229ED9] align-[-1.5px]" />
+  }
+  return <>{agentIcon(agent.id)}</>
 }
 
 /** Short model label: strip provider prefix (openrouter/stealth/ox-alpha → ox-alpha). */
@@ -274,6 +283,8 @@ interface AgentInfo {
   name: string
   model?: string
   isDefault?: boolean
+  /** v0.9.31: agent was auto-created together with a Telegram bot → Telegram badge */
+  telegramBot?: boolean
 }
 
 type OpenMenu = 'agent' | 'settings' | 'more' | null
@@ -486,12 +497,30 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
             : null
       setPrimaryModel(primaryFromDefaults)
       if (Array.isArray(list) && list.length > 0) {
+        // v0.9.31: Telegram badge — agents auto-created together with a Telegram
+        // bot carry a Telegram icon (registry lives in the shell config).
+        let botAgentIds = new Set<string>()
+        try {
+          const shellCfg = await window.electronAPI.shellGetConfig()
+          const links = Array.isArray(
+            (shellCfg as { telegramBots?: Array<{ agentId?: string }> } | undefined)?.telegramBots,
+          )
+            ? ((shellCfg as { telegramBots: Array<{ agentId?: string }> }).telegramBots ?? [])
+            : []
+          botAgentIds = new Set(links.map((l) => l.agentId).filter((v): v is string => Boolean(v)))
+        } catch {
+          // Shell config may be missing on first run — badges are skipped.
+        }
         setAgents(
-          list.map((a) => ({
-            id: String(a.id ?? 'agent'),
-            name: String(a.name ?? a.id ?? 'agent'),
-            model: typeof a.model === 'string' ? a.model : undefined,
-          })),
+          list.map((a) => {
+            const id = String(a.id ?? 'agent')
+            return {
+              id,
+              name: String(a.name ?? a.id ?? 'agent'),
+              model: typeof a.model === 'string' ? a.model : undefined,
+              telegramBot: botAgentIds.has(id),
+            }
+          }),
         )
         list.forEach((a) => {
           ensureAgentTabs(
@@ -1186,7 +1215,14 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
       case 'voice':
         return <VoiceSettingsView onBack={() => handleNavigateToPanel('')} />
       case 'telegram':
-        return <TelegramSettingsView onBack={() => handleNavigateToPanel('')} />
+        return (
+          <TelegramSettingsView
+            onBack={() => {
+              handleNavigateToPanel('')
+              void refreshShellData()
+            }}
+          />
+        )
       case 'gateway':
         return <GatewaySettingsView onBack={() => handleNavigateToPanel('')} />
       case 'agent-settings':
@@ -1336,7 +1372,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                   className="shell-menu-item"
                   onClick={() => openChatForAgent(a.id)}
                 >
-                  <span className="ic">{agentIcon(a.id)}</span>
+                  <span className="ic">{renderAgentBadge(a)}</span>
                   {a.name}
                   <span className="hint">
                     {a.isDefault ? 'default' : shortModel(a.model)}
@@ -1523,7 +1559,16 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                     onClick={() => openChatForAgent(a.id)}
                     title={`Агент ${a.name}`}
                   >
-                    <div className="shell-agent-av">{a.name.charAt(0).toUpperCase()}</div>
+                    <div
+                      className="shell-agent-av"
+                      style={a.telegramBot ? { background: '#229ED9', borderColor: 'transparent' } : undefined}
+                    >
+                      {a.telegramBot ? (
+                        <TelegramGlyph size={17} className="text-white" />
+                      ) : (
+                        a.name.charAt(0).toUpperCase()
+                      )}
+                    </div>
                     <div className="a-body">
                       <div className="a-name">{a.name}</div>
                       <div className="a-sub">

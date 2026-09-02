@@ -176,7 +176,10 @@ export interface ElectronAPI {
     proxy?: string
   }) => Promise<WizardTestTelegramResult>
   telegramGet: () => Promise<TelegramSettingsLoadResult>
-  telegramSave: (payload: { botToken?: string; botName?: string; botUrl?: string }) => Promise<TelegramSettingsSaveResult>
+  /** Add a Telegram bot: probe token, create account + agent + binding, restart the gateway. */
+  telegramAddBot: (payload: { botToken: string }) => Promise<TelegramSettingsSaveResult>
+  /** Remove a Telegram bot account + binding (the linked agent survives). */
+  telegramRemoveBot: (payload: { accountId: string }) => Promise<TelegramSettingsSaveResult>
   wizardCompleteSetup: (state: WizardState) => Promise<WizardCompleteResult>
   shellGetVersions: () => Promise<AppVersionInfo>
   shellResizeForMainInterface: () => Promise<void>
