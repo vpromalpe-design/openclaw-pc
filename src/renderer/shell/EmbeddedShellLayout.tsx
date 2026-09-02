@@ -1067,6 +1067,14 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
       )
       if (!ok) return
       try {
+        // v0.9.33 FIX: switch the chat away from the agent BEFORE removing it —
+        // while the gateway is still up. Otherwise the embedded control UI
+        // survives the gateway restart, restores the deleted agent from its
+        // local state and shows `Unknown agent id "..."` + dead chat.
+        if (activeAgent === a.id) {
+          const rest = agents.filter((x) => x.id !== a.id)
+          openChatForAgent(rest[0]?.id ?? 'main')
+        }
         const res = await window.electronAPI.agentsRemove({ agentId: a.id })
         if (!res.ok) {
           window.alert(res.error ?? 'Не удалось удалить агента')
@@ -1077,10 +1085,6 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
           delete next[a.id]
           return next
         })
-        if (activeAgent === a.id) {
-          const rest = agents.filter((x) => x.id !== a.id)
-          openChatForAgent(rest[0]?.id ?? 'main')
-        }
         void refreshShellData()
       } catch (err) {
         window.alert(`Не удалось удалить агента: ${String(err)}`)
