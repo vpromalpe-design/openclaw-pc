@@ -39,6 +39,13 @@ export function LocalModelPicker({
   const [runtime, setRuntime] = useState<LocalEngineRuntimeInfo | null>(null)
   const [engineInstall, setEngineInstall] = useState<EngineInstallState>('idle')
   const [engineProgress, setEngineProgress] = useState<number | null>(null)
+  // v0.10.2 (Bug 2): phase of the engine install — build ZIP download, CUDA
+  // runtime ZIP download (second download after the build) or extraction.
+  // Lets the tile show «Installing…» while archives are unpacked instead of
+  // a percent that jumped back to 0 (CUDA) or stuck at 100 (extract).
+  const [enginePhase, setEnginePhase] = useState<
+    'engine-download' | 'cuda-runtime-download' | 'engine-extract' | null
+  >(null)
   const [installingVariant, setInstallingVariant] = useState<EngineVariant | null>(null)
 
   const refreshRuntime = async () => {
@@ -55,11 +62,12 @@ export function LocalModelPicker({
 
   useEffect(() => {
     const unsub = window.electronAPI.onLocalProgress((p) => {
-      if (p.stage === 'engine-download' || p.stage === 'cuda-runtime-download') {
-        // Both stages belong to the engine install; keep the button in the
-        // “installing” state and show progress through the whole sequence
+      if (p.stage === 'engine-download' || p.stage === 'cuda-runtime-download' || p.stage === 'engine-extract') {
+        // Both download stages + extraction belong to the engine install; keep
+        // the button in the “installing” state through the whole sequence
         // (ZIP → extract → CUDA runtime DLLs).
         setEngineInstall('installing')
+        setEnginePhase(p.stage)
         if (typeof p.progress === 'number') {
           setEngineProgress(p.progress)
         }
@@ -70,6 +78,7 @@ export function LocalModelPicker({
         // so “100 %” and the green “Installed” state now coincide.
         setEngineInstall('done')
         setEngineProgress(null)
+        setEnginePhase(null)
         setInstallingVariant(null)
         if (typeof p.variant === 'string') {
           const v = p.variant as EngineVariant
@@ -165,6 +174,7 @@ export function LocalModelPicker({
     if (engineInstall === 'installing') return
     setInstallingVariant(variant)
     setEngineInstall('installing')
+    setEnginePhase('engine-download')
     setEngineProgress(0)
     try {
       const next = (await window.electronAPI.localEngineMode({
@@ -173,11 +183,13 @@ export function LocalModelPicker({
       setRuntime(next)
       setEngineInstall('done')
       setEngineProgress(null)
+      setEnginePhase(null)
       setInstallingVariant(null)
     } catch (e) {
       onError(e instanceof Error ? e.message : t('wizard.model.engineInstallFailed'))
       setEngineInstall('idle')
       setEngineProgress(null)
+      setEnginePhase(null)
       setInstallingVariant(null)
     }
   }
@@ -357,7 +369,7 @@ export function LocalModelPicker({
                       onClick={() => void handleInstallEngine(v.id)}
                       disabled={engineInstall === 'installing'}
                     >
-                      {installing && engineProgress !== null && (
+                      {installing && engineProgress !== null && enginePhase !== 'engine-extract' && (
                         <span
                           className="absolute inset-y-0 left-0 bg-green-600/35 transition-[width] duration-300"
                           style={{ width: `${engineProgressPct}%` }}
@@ -371,7 +383,13 @@ export function LocalModelPicker({
                           <Download className="w-4 h-4 mr-1" aria-hidden />
                         )}
                         {installing
-                          ? `${engineProgressPct}%`
+                          ? enginePhase === 'engine-extract'
+                            ? t('wizard.model.engineExtracting')
+                            : enginePhase === 'cuda-runtime-download'
+                              ? t('wizard.model.engineRuntimeDownloading', {
+                                  percent: engineProgressPct,
+                                })
+                              : `${engineProgressPct}%`
                           : v.id === 'cpu'
                             ? t('wizard.model.downloadCpu')
                             : v.id === 'cuda'

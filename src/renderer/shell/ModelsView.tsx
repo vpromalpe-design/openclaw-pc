@@ -139,6 +139,14 @@ export function ModelsView({ onBack, onChanged }: ModelsViewProps) {
   const [engineBusy, setEngineBusy] = useState(false)
   const [installingVariant, setInstallingVariant] = useState<EngineVariant | null>(null)
   const [engineProgress, setEngineProgress] = useState<number | null>(null)
+  // v0.10.2 (Bug 2): which artifact the engine banner is working on — the
+  // llama.cpp build ZIP, the CUDA runtime DLLs ZIP (a second, separate
+  // download after the engine build) or archive extraction. Without this the
+  // banner kept saying «Downloading…» for every phase and the CUDA install
+  // looked like the download restarted from 0 % at 100 %.
+  const [engineStage, setEngineStage] = useState<
+    'engine-download' | 'cuda-runtime-download' | 'engine-extract' | null
+  >(null)
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null)
   const [drafts, setDrafts] = useState<Record<string, ProviderDraft>>({})
   const [savingProvider, setSavingProvider] = useState<string | null>(null)
@@ -218,12 +226,18 @@ export function ModelsView({ onBack, onChanged }: ModelsViewProps) {
       // Engine binary / CUDA runtime downloads carry no modelId — surface
       // their progress in the engine section banner (v0.8.30).
       if (
-        (p.stage === 'engine-download' || p.stage === 'cuda-runtime-download') &&
-        typeof p.progress === 'number'
+        (p.stage === 'engine-download' ||
+          p.stage === 'cuda-runtime-download' ||
+          p.stage === 'engine-extract') &&
+        (p.stage === 'engine-extract' || typeof p.progress === 'number')
       ) {
-        setEngineProgress(p.progress as number)
+        setEngineStage(p.stage)
+        if (typeof p.progress === 'number') {
+          setEngineProgress(p.progress as number)
+        }
       }
       if (p.stage === 'done' || p.stage === 'error' || p.stage === 'engine-installed') {
+        setEngineStage(null)
         void load()
       }
     })
@@ -299,6 +313,7 @@ export function ModelsView({ onBack, onChanged }: ModelsViewProps) {
   const handleInstallEngine = async (variant: EngineVariant) => {
     if (installingVariant) return
     setInstallingVariant(variant)
+    setEngineStage('engine-download')
     setEngineProgress(0)
     setError(null)
     try {
@@ -307,11 +322,13 @@ export function ModelsView({ onBack, onChanged }: ModelsViewProps) {
       })) as LocalEngineRuntimeInfo
       setData((d) => (d ? { ...d, runtime } : d))
       setEngineProgress(null)
+      setEngineStage(null)
       await load()
     } catch (e) {
       setError(e instanceof Error ? e.message : t('shell.models.engineInstallFailed'))
     } finally {
       setInstallingVariant(null)
+      setEngineStage(null)
       setEngineProgress(null)
     }
   }
@@ -1324,21 +1341,37 @@ export function ModelsView({ onBack, onChanged }: ModelsViewProps) {
             <p className="text-xs text-muted-foreground">
               {t('shell.models.engineDesc')}
             </p>
-            {engineProgress !== null && (
+            {engineStage !== null && (
               <div
                 className="relative overflow-hidden rounded-md border border-green-500/40 px-3 py-2 text-sm text-green-700 dark:text-green-300"
                 role="status"
               >
-                <span
-                  className="absolute inset-y-0 left-0 bg-green-500/25 dark:bg-green-500/30 transition-[width] duration-300"
-                  style={{ width: `${Math.min(100, Math.round(engineProgress * 100))}%` }}
-                  aria-hidden
-                />
+                {engineStage !== 'engine-extract' && engineProgress !== null && (
+                  <span
+                    className="absolute inset-y-0 left-0 bg-green-500/25 dark:bg-green-500/30 transition-[width] duration-300"
+                    style={{
+                      width: `${Math.min(100, Math.round(engineProgress * 100))}%`,
+                    }}
+                    aria-hidden
+                  />
+                )}
                 <span className="relative inline-flex items-center gap-1.5">
                   <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
-                  {t('shell.models.engineDownloading', {
-                    percent: Math.min(100, Math.round(engineProgress * 100)),
-                  })}
+                  {engineStage === 'cuda-runtime-download'
+                    ? t('shell.models.engineRuntimeDownloading', {
+                        percent: Math.min(
+                          100,
+                          Math.round((engineProgress ?? 0) * 100),
+                        ),
+                      })
+                    : engineStage === 'engine-extract'
+                      ? t('shell.models.engineExtracting')
+                      : t('shell.models.engineDownloading', {
+                          percent: Math.min(
+                            100,
+                            Math.round((engineProgress ?? 0) * 100),
+                          ),
+                        })}
                 </span>
               </div>
             )}

@@ -682,6 +682,11 @@ export async function ensureEngineBinary(
       progress: total ? Math.min(1, received / total) : 0,
     })
   })
+  // v0.10.2 (Bug 2): the ZIP is fully downloaded here — announce the
+  // extraction phase so the UI can show «installing/extracting» instead of
+  // a frozen «Downloading 100 %» (or a CUDA runtime download that then
+  // restarts from 0 %).
+  emitProgress({ stage: 'engine-extract', variant })
   await extractZip(zipPath, dir)
   try {
     fs.unlinkSync(zipPath)
@@ -743,6 +748,7 @@ async function ensureCudaRuntime(dir: string): Promise<void> {
       progress: total ? Math.min(1, received / total) : 0,
     })
   })
+  emitProgress({ stage: 'engine-extract', variant: 'cuda' })
   await extractZip(zipPath, dir)
   try {
     fs.unlinkSync(zipPath)
