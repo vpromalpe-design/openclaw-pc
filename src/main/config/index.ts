@@ -4,6 +4,8 @@ export {
   readOpenClawConfig,
   writeOpenClawConfig,
   openclawConfigExists,
+  readBundledOpenClawVersion,
+  isKernelTwoOrNewer,
 } from './openclaw-config.js'
 
 export {

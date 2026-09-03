@@ -137,11 +137,63 @@ function needsLoopbackAllowedOriginsSeed(ctrl: Record<string, unknown>, loopback
   return raw.length === 1 && raw[0] === '*'
 }
 
+let cachedBundledOpenClawVersion: string | null = null
+
+/**
+ * Bundled OpenClaw kernel version (e.g. "2026.8.1"). Pure fs read (no direct
+ * electron APIs) so config code stays testable in plain node. Falls back to
+ * 'unknown' when the bundle package.json / manifest is missing.
+ */
+export function readBundledOpenClawVersion(): string {
+  if (cachedBundledOpenClawVersion) return cachedBundledOpenClawVersion
+  try {
+    // dev bundle: build/openclaw/package.json IS the openclaw package;
+    // packaged (0.9.x layout): resources/openclaw/node_modules/openclaw/package.json
+    const bundleDir = getBundledOpenClawDir()
+    const candidates = [
+      path.join(bundleDir, 'package.json'),
+      path.join(bundleDir, 'node_modules', 'openclaw', 'package.json'),
+    ]
+    for (const pkgPath of candidates) {
+      if (!fs.existsSync(pkgPath)) continue
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8')) as { version?: string }
+      if (pkg.version) {
+        cachedBundledOpenClawVersion = pkg.version
+        return pkg.version
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  cachedBundledOpenClawVersion = 'unknown'
+  return 'unknown'
+}
+
+/**
+ * Kernel 2.0 (2026.8.x): `gateway.controlUi.allowInsecureAuth` became an
+ * unrecognized key and the gateway refuses to boot with it (verified on
+ * staging, 2026.8.1: "Unrecognized key: allowInsecureAuth"). Legacy kernels
+ * (<=2026.7) need it for the embedded iframe.
+ */
+export function isKernelTwoOrNewer(): boolean {
+  const m = /^(\d+)\.(\d+)/.exec(readBundledOpenClawVersion())
+  if (!m) return false
+  const major = Number(m[1])
+  const minor = Number(m[2])
+  return major > 2026 || (major === 2026 && minor >= 8)
+}
+
 /**
  * OpenClaw 2026.3+ hardens Control UI auth (device identity + loopback policy). The desktop embeds
- * Control UI in an Electron iframe; upstream may return 500 or reject WS unless both
- * `allowInsecureAuth` and `dangerouslyDisableDeviceAuth` are set for local gateways.
- * Always normalize to the embedded-safe pair for non-remote mode (overrides user `false`).
+ * Control UI in an Electron iframe; upstream may return 500 or reject WS unless the embedded-safe
+ * flags are set for local gateways. Always normalize for non-remote mode (overrides user `false`).
+ *
+ * Kernel-dependent flag set (version read from the bundled OpenClaw):
+ *  - <=2026.7: `allowInsecureAuth: true` + `dangerouslyDisableDeviceAuth: true`;
+ *  - 2026.8+ (2.0): `allowInsecureAuth` is an unrecognized schema key (gateway will not boot) —
+ *    STRIP it when present, keep `dangerouslyDisableDeviceAuth` (still tolerated) and the
+ *    loopback `allowedOrigins` seed. Embedded iframe auth on 2.0 relies on localhost
+ *    secure-context device identity instead.
  *
  * Configs created outside the desktop wizard (CLI, hand-edited) may omit `gateway` entirely while
  * still using the bundled local gateway — those must get `gateway.controlUi` too or the child reads
@@ -170,7 +222,10 @@ function mergeEmbeddedControlUiFlagsIfNeeded(config: OpenClawConfig): {
       : {}
   const loopbackBind = usesLoopbackOnlyGatewayBind(gw)
   const needOriginsSeed = needsLoopbackAllowedOriginsSeed(base, loopbackBind)
-  const flagsOk = base.allowInsecureAuth === true && base.dangerouslyDisableDeviceAuth === true
+  const kernelV2 = isKernelTwoOrNewer()
+  const flagsOk = kernelV2
+    ? base.dangerouslyDisableDeviceAuth === true && base.allowInsecureAuth === undefined
+    : base.allowInsecureAuth === true && base.dangerouslyDisableDeviceAuth === true
   if (flagsOk && !needOriginsSeed) {
     return { config, changed: false }
   }
@@ -184,11 +239,16 @@ function mergeEmbeddedControlUiFlagsIfNeeded(config: OpenClawConfig): {
     existingCtrl && typeof existingCtrl === 'object' && !Array.isArray(existingCtrl)
       ? (existingCtrl as Record<string, unknown>)
       : {}
-  const mergedCtrl: Record<string, unknown> = {
-    ...ctrlBase,
-    allowInsecureAuth: true,
-    dangerouslyDisableDeviceAuth: true,
+  const mergedCtrl: Record<string, unknown> = { ...ctrlBase }
+  if (kernelV2) {
+    // 2026.8+ (2.0): allowInsecureAuth is an unrecognized schema key — the
+    // gateway refuses to boot with it ("Unrecognized key"). Strip it (also
+    // migrates v0.9.x-written configs on read so the child gateway can boot).
+    delete mergedCtrl.allowInsecureAuth
+  } else {
+    mergedCtrl.allowInsecureAuth = true
   }
+  mergedCtrl.dangerouslyDisableDeviceAuth = true
   if (needOriginsSeed) {
     const gwPort =
       next.gateway && typeof next.gateway === 'object' && !Array.isArray(next.gateway)
@@ -571,7 +631,10 @@ export function readOpenClawConfig(): OpenClawConfig {
           }
           if (migratedControlUi.changed) {
             console.info(
-              '[config] Normalized gateway.controlUi for embedded Control UI (OpenClaw 2026.3+): allowInsecureAuth, dangerouslyDisableDeviceAuth, and on loopback bind allowedOrigins=["*"] when allowedOrigins was unset or [] (Electron iframe / WebSocket Origin).',
+              '[config] Normalized gateway.controlUi for embedded Control UI ' +
+                (isKernelTwoOrNewer()
+                  ? '(2026.8+): stripped legacy allowInsecureAuth, kept dangerouslyDisableDeviceAuth + loopback allowedOrigins'
+                  : '(2026.3+): allowInsecureAuth, dangerouslyDisableDeviceAuth, and on loopback bind concrete allowedOrigins when unset/[]/* (Electron iframe / WebSocket Origin)'),
             )
           }
           if (migratedAuthNone.changed) {

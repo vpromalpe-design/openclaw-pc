@@ -15,7 +15,7 @@ import type {
 } from '../../shared/types.js'
 import type { GatewayProcessManager } from '../gateway/index.js'
 import { writeAuthProfile, writeAuthProfileToken } from './auth-profile-writer.js'
-import { runConfigValidate, readOpenClawConfig } from '../config/index.js'
+import { runConfigValidate, readOpenClawConfig, isKernelTwoOrNewer } from '../config/index.js'
 import { getUserDataDir } from '../utils/paths.js'
 import path from 'node:path'
 import fs from 'node:fs'
@@ -584,10 +584,16 @@ function buildOpenClawConfig(state: WizardState): OpenClawConfig {
         mode: 'token',
         token: state.gatewayConfig.authToken,
       },
-      // Upstream 2026.3+: Control UI device-identity + loopback policy; embedded iframe needs both flags.
-      // WebSocket origin checks: loopback bind also seeds allowedOrigins so Electron iframe passes checkBrowserOrigin.
+      // Upstream 2026.3+: Control UI device-identity + loopback policy; embedded iframe needs the flags.
+      // Kernel-dependent: <=2026.7 requires allowInsecureAuth (embedded iframe auth); 2026.8+ (2.0)
+      // schema REJECTS allowInsecureAuth ("Unrecognized key" -> gateway refuses to boot; verified on
+      // staging 2026.8.1) — embedded auth there relies on localhost secure-context device identity.
       controlUi: {
-        allowInsecureAuth: true,
+        ...(isKernelTwoOrNewer()
+          ? {}
+          : {
+              allowInsecureAuth: true,
+            }),
         dangerouslyDisableDeviceAuth: true,
         ...(state.gatewayConfig.bind === 'loopback' ? { allowedOrigins: ['*'] } : {}),
       },
