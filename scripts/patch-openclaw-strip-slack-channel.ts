@@ -97,9 +97,14 @@ export async function patchOpenClawStripSlackChannel(openclawRoot: string): Prom
       if (slackEntryNoComma.test(raw)) {
         raw = raw.replace(slackEntryNoComma, '\n]')
       } else {
-        console.warn(
-          `  [patch-slack] ${basename(filePath)}: CHAT_CHANNEL_ORDER "slack" entry not found — layout may have changed`,
-        )
+        // 2026.8+ (2.0): CHAT_CHANNEL_ORDER is derived from the bundled channel
+        // catalog (no hardcoded "slack") and Slack ships as an external plugin —
+        // silence the warning unless the file actually still mentions slack.
+        if (/slack/i.test(raw)) {
+          console.warn(
+            `  [patch-slack] ${basename(filePath)}: CHAT_CHANNEL_ORDER "slack" entry not found — layout may have changed`,
+          )
+        }
         continue
       }
     } else {

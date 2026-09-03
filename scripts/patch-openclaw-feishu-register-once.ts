@@ -88,9 +88,19 @@ export async function patchOpenClawFeishuRegisterOnce(openclawRoot: string): Pro
         '  [patch-feishu] registerFull+registerFeishuSubagentHooks pattern still present but patch did not apply',
       )
     } else if (!hasGuard) {
-      console.warn(
-        '  [patch-feishu] Feishu chunks present but registerFull+registerFeishuSubagentHooks pattern not found — upstream layout may have changed',
+      // 2026.8+ (2.0): Feishu is an external channel plugin (@openclaw/feishu), not a
+      // bundled dist chunk — silence the warning unless a candidate really is feishu code.
+      const anyFeishuCode = await Promise.all(
+        candidatePaths.map(async (filePath) => {
+          const raw = await readFile(filePath, 'utf8')
+          return raw.toLowerCase().includes('feishu')
+        }),
       )
+      if (anyFeishuCode.some(Boolean)) {
+        console.warn(
+          '  [patch-feishu] Feishu chunks present but registerFull+registerFeishuSubagentHooks pattern not found — upstream layout may have changed',
+        )
+      }
     }
   }
 }
