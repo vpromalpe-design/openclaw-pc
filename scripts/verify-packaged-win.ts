@@ -11,6 +11,7 @@ import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { verifyControlUiBundle } from './lib/control-ui-verify.ts'
 import { getOpenClawFeishuSdkPackageJsonPath } from './ensure-openclaw-feishu-sdk.ts'
+import { CONTROL_UI_ELECTRON_LIT_MARKER } from './ensure-openclaw-control-ui.ts'
 
 const require = createRequire(import.meta.url)
 const { extractFile } = require('@electron/asar') as {
@@ -148,14 +149,27 @@ async function main(): Promise<void> {
   await verifyControlUiBundle(controlUiRoot)
   console.log('  [ok] control-ui bundle (refs + JS syntax)')
 
+  // Desktop UI patches (voice-input etc.) only exist when Control UI is rebuilt from GitHub
+  // sources (marker content '1'). Variant C keeps npm-prepackaged Control UI as-is
+  // (marker content 'npm-prepackaged') — desktop patch sentinels are not required there.
+  const markerPath = join(controlUiRoot, CONTROL_UI_ELECTRON_LIT_MARKER)
+  let controlUiMode = ''
+  if (await exists(markerPath)) {
+    controlUiMode = (await readFile(markerPath, 'utf8')).trim()
+  }
   const voiceSentinel = 'openclaw-pc-voice-input'
-  if (!(await scanSentinel(controlUiRoot, voiceSentinel))) {
+  if (controlUiMode === 'npm-prepackaged') {
+    console.log(
+      '  [skip] control-ui is npm-prepackaged (variant C) — desktop voice-input patch sentinel not required',
+    )
+  } else if (!(await scanSentinel(controlUiRoot, voiceSentinel))) {
     throw new Error(
       `control-ui missing OpenClaw PC voice-input patch (${voiceSentinel} not found in assets). ` +
         'Rebuild control-ui: delete dist/control-ui marker under build/openclaw and re-run download-openclaw.',
     )
+  } else {
+    console.log('  [ok] control-ui voice-input patch present')
   }
-  console.log('  [ok] control-ui voice-input patch present')
 
   console.log('\n  OK: packaged win-unpacked consistency check passed\n')
 }
