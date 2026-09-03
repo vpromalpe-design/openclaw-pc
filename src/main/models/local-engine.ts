@@ -28,6 +28,7 @@ import {
   readShellConfig,
   writeShellConfig,
 } from '../config/shell-config.js'
+import { isKernelTwoOrNewer } from '../config/openclaw-config.js'
 import { IPC_LOCAL_PROGRESS } from '../../shared/ipc-channels.js'
 
 export const LOCAL_ENGINE_PORT = 18788
@@ -1619,25 +1620,31 @@ async function startLocalEngineInner(
   const next = JSON.parse(JSON.stringify(currentConfig)) as OpenClawConfig
   next.models = next.models ?? { providers: {} }
   next.models.providers = next.models.providers ?? {}
-  // Small local models cannot afford the default compaction reserve (half the
-  // context window): a 16k window would leave ~6k tokens for the prompt and
-  // overflow as soon as the chat history grows. Cap the reserve explicitly.
+  // Ensure the defaults object exists for the provider registration below.
   next.agents = next.agents ?? { defaults: {} }
   next.agents.defaults = next.agents.defaults ?? {}
-  next.agents.defaults.compaction = next.agents.defaults.compaction ?? {}
-  if (
-    typeof next.agents.defaults.compaction.reserveTokens !== 'number' &&
-    typeof next.agents.defaults.compaction.reserveTokensFloor !== 'number'
-  ) {
-    // Exact reserve: the gateway's default is 50% of the context window,
-    // which for a 64k window would reserve 32k tokens for output that will
-    // never come. 4096 is plenty (maxTokens is 2048 + tool results).
-    next.agents.defaults.compaction.reserveTokens = 4096
-  }
-  if (
-    typeof next.agents.defaults.compaction.reserveTokensFloor !== 'number'
-  ) {
-    next.agents.defaults.compaction.reserveTokensFloor = 3072
+  // Kernel 2.0 dropped reserveTokens/reserveTokensFloor from the schema
+  // (unknown keys make the config invalid) — the compaction tuning below is
+  // 7.1-only. Skip it entirely on 2.0.
+  if (!isKernelTwoOrNewer()) {
+    // Small local models cannot afford the default compaction reserve (half the
+    // context window): a 16k window would leave ~6k tokens for the prompt and
+    // overflow as soon as the chat history grows. Cap the reserve explicitly.
+    next.agents.defaults.compaction = next.agents.defaults.compaction ?? {}
+    if (
+      typeof next.agents.defaults.compaction.reserveTokens !== 'number' &&
+      typeof next.agents.defaults.compaction.reserveTokensFloor !== 'number'
+    ) {
+      // Exact reserve: the gateway's default is 50% of the context window,
+      // which for a 64k window would reserve 32k tokens for output that will
+      // never come. 4096 is plenty (maxTokens is 2048 + tool results).
+      next.agents.defaults.compaction.reserveTokens = 4096
+    }
+    if (
+      typeof next.agents.defaults.compaction.reserveTokensFloor !== 'number'
+    ) {
+      next.agents.defaults.compaction.reserveTokensFloor = 3072
+    }
   }
   const existing = next.models.providers.local
   const existingModel =
