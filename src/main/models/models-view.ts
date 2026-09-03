@@ -14,6 +14,7 @@ import {
   getUserDataDir,
 } from '../utils/paths.js'
 import { PROVIDER_LABELS, PROVIDER_ALIASES } from '../../shared/provider-catalog.js'
+import { addModelsToAllowlist } from '../providers/provider-config.js'
 
 /** Providers shown in the table even when not yet configured (cloud, in wizard order). */
 const KNOWN_CLOUD_PROVIDERS = [
@@ -179,20 +180,11 @@ export function applyModelsPriority(
 
   // Allowlist sync (v0.9.24, фикс «кнопка Подключить нажата, но не работает»):
   // ядро показывает в models.list и РАЗРЕШАЕТ агенту только модели из
-  // allowlist agents.defaults.models (если он не пуст). Без этого primary/
-  // fallbacks вне allowlist отклоняются gateway — модель не меняется, хотя
-  // конфиг записан. Дописываем выбранные модели в allowlist (alias = id).
+  // allowlist (2.0: modelPolicy.allow + legacy defaults.models). Без этого
+  // primary/fallbacks вне allowlist отклоняются gateway — модель не меняется,
+  // хотя конфиг записан. Дописываем выбранные модели в allowlist (alias = id).
   const refs = [...(primary ? [primary] : []), ...fallbacks]
-  if (refs.length > 0) {
-    next.agents.defaults.models = { ...(next.agents.defaults.models ?? {}) }
-    for (const ref of refs) {
-      const slash = ref.indexOf('/')
-      const modelPart = slash >= 0 ? ref.slice(slash + 1) : ref
-      if (!next.agents.defaults.models[ref]) {
-        next.agents.defaults.models[ref] = { alias: modelPart }
-      }
-    }
-  }
+  if (refs.length > 0) addModelsToAllowlist(next, refs)
   return { config: next, backupPath }
 }
 

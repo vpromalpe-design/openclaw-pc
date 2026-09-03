@@ -88,13 +88,80 @@ export function getProvidersSummary(
 const PROVIDER_ENDPOINT_DEFAULTS = PROVIDER_ENDPOINTS
 
 /**
+ * Ensure model refs are present in the agent allowlist.
+ *
+ * v0.10.0 (OpenClaw 2.0): canonical allowlist = `agents.defaults.modelPolicy.allow`
+ * (array of `provider/model` refs). Legacy `agents.defaults.models` map is still
+ * read by the 2.0 kernel (migration source) and by our own readers, so we keep
+ * BOTH in sync: every ref goes to `modelPolicy.allow` AND to `defaults.models`
+ * (alias = short model id). Exact `provider/model` refs are valid in both.
+ */
+export function addModelsToAllowlist(
+  next: OpenClawConfig,
+  refs: Iterable<string>,
+): void {
+  // Copy-on-write at each level we modify (callers may pass a shallow copy).
+  next.agents = { ...(next.agents ?? {}) }
+  next.agents.defaults = { ...(next.agents.defaults ?? ({} as AgentDefaultsConfig)) }
+  const defaults = next.agents.defaults
+
+  const allow = Array.isArray(defaults.modelPolicy?.allow)
+    ? [...defaults.modelPolicy.allow]
+    : []
+  const seen = new Set(allow.map((r) => r.trim()).filter(Boolean))
+  const mapAdditions: Record<string, { alias: string }> = {}
+
+  for (const raw of refs) {
+    const ref = typeof raw === 'string' ? raw.trim() : ''
+    if (!ref || seen.has(ref)) continue
+    seen.add(ref)
+    allow.push(ref)
+    if (defaults.models?.[ref]) continue
+    const slash = ref.indexOf('/')
+    mapAdditions[ref] = { alias: slash >= 0 ? ref.slice(slash + 1) : ref }
+  }
+
+  if (allow.length > 0) defaults.modelPolicy = { allow }
+  if (Object.keys(mapAdditions).length > 0) {
+    defaults.models = { ...(defaults.models ?? {}), ...mapAdditions }
+  }
+}
+
+/**
+ * All allowlisted model refs: 2.0 `modelPolicy.allow` union legacy
+ * `defaults.models` keys (a fresh 2.0 config may still carry the legacy map
+ * until doctor persists the migration).
+ */
+export function getAllowlistedModelRefs(config: OpenClawConfig): string[] {
+  const defaults = config?.agents?.defaults
+  if (!defaults) return []
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const ref of defaults.modelPolicy?.allow ?? []) {
+    const t = typeof ref === 'string' ? ref.trim() : ''
+    if (t && !seen.has(t)) {
+      seen.add(t)
+      out.push(t)
+    }
+  }
+  for (const ref of Object.keys(defaults.models ?? {})) {
+    if (!seen.has(ref)) {
+      seen.add(ref)
+      out.push(ref)
+    }
+  }
+  return out
+}
+
+/**
  * Save one models.providers entry.
  *
  * Синхронизация видимости (v0.9.23, фикс «подключил провайдера — он не
  * виден в меню агентов / селекторе»): ядро показывает в `models.list` только
- * модели из allowlist `agents.defaults.models` (если он не пуст). Поэтому при
- * сохранении провайдера мы автоматически дописываем его модели в allowlist —
- * и модель сразу появляется в Control UI селекторе, меню агентов и таблице.
+ * модели из allowlist (2.0: `agents.defaults.modelPolicy.allow`; legacy:
+ * `agents.defaults.models`). Поэтому при сохранении провайдера мы
+ * автоматически дописываем его модели в allowlist — и модель сразу появляется
+ * в Control UI селекторе, меню агентов и таблице.
  */
 export function saveProviderConfig(
   currentConfig: OpenClawConfig,
@@ -122,17 +189,13 @@ export function saveProviderConfig(
   // Allowlist sync: make every model of this provider visible everywhere.
   const modelList = Array.isArray(merged.models) ? merged.models : []
   if (modelList.length > 0) {
-    next.agents = next.agents ?? {}
-    next.agents.defaults = next.agents.defaults ?? ({} as AgentDefaultsConfig)
-    next.agents.defaults.models = { ...(next.agents.defaults.models ?? {}) }
+    const refs: string[] = []
     for (const m of modelList) {
       const id = typeof m?.id === 'string' && m.id.trim() ? m.id.trim() : ''
       if (!id) continue
-      const ref = `${providerId}/${id}`
-      if (!next.agents.defaults.models[ref]) {
-        next.agents.defaults.models[ref] = { alias: id }
-      }
+      refs.push(`${providerId}/${id}`)
     }
+    if (refs.length > 0) addModelsToAllowlist(next, refs)
     // v0.9.24 (Damir): НЕ назначаем первого провайдера primary автоматически.
     // Провайдер просто добавляется в allowlist (виден в меню агентов/селекторе)
     // «наряду со всеми»; основная модель меняется только явным выбором

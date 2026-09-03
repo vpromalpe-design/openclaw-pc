@@ -170,6 +170,14 @@ export interface AgentDefaultsConfig {
   model?: AgentModelDefaults | string
   /** Optional model alias map (e.g. moonshot/kimi-k2.5) */
   models?: Record<string, AgentModelAlias>
+  /**
+   * OpenClaw 2.0 (v2026.8.1) allowlist: canonical `modelPolicy.allow`
+   * (array of `provider/model` refs; wildcards `provider/*` allowed).
+   * When present it replaces the legacy `models` map as the allowlist source.
+   */
+  modelPolicy?: {
+    allow?: string[]
+  }
   workspace?: string
   /** Default thinking level for reasoning-capable models (off | minimal | low | medium | high | xhigh | adaptive | max) */
   thinkingDefault?: string

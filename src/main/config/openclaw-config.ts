@@ -11,7 +11,10 @@ import JSON5 from 'json5'
 import type { OpenClawConfig } from '../../shared/types.js'
 import { getBundledOpenClawDir, getUserDataDir } from '../utils/paths.js'
 import { OPENCLAW_CONFIG_FILE, DEFAULT_GATEWAY_PORT } from '../../shared/constants.js'
-import { normalizeAuthOrderEntry } from '../providers/provider-config.js'
+import {
+  getAllowlistedModelRefs,
+  normalizeAuthOrderEntry,
+} from '../providers/provider-config.js'
 import { saveAuthProfile } from '../providers/auth-profile-store.js'
 
 function getOpenClawConfigPath(): string {
@@ -47,13 +50,12 @@ function inferModelIdFromConfig(config: OpenClawConfig, providerId: string): str
     if (id) return id
   }
 
-  const aliases = config?.agents?.defaults?.models
-  if (aliases && typeof aliases === 'object') {
-    for (const modelRef of Object.keys(aliases)) {
-      if (!modelRef.startsWith(`${providerId}/`)) continue
-      const id = modelRef.slice(providerId.length + 1).trim()
-      if (id) return id
-    }
+  // Allowlist refs (2.0 modelPolicy.allow + legacy defaults.models map).
+  const allowlisted = getAllowlistedModelRefs(config)
+  for (const modelRef of allowlisted) {
+    if (!modelRef.startsWith(`${providerId}/`)) continue
+    const id = modelRef.slice(providerId.length + 1).trim()
+    if (id) return id
   }
 
   return undefined

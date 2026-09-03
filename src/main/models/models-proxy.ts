@@ -4,6 +4,7 @@
 
 import { createGatewayRpcClientFromConfig } from '../gateway/rpc-client.js'
 import { GatewayRpcError } from '../gateway/rpc-client.js'
+import { getAllowlistedModelRefs } from '../providers/provider-config.js'
 import type { OpenClawConfig } from '../../shared/types.js'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -44,11 +45,10 @@ function extractModelsFromConfig(config: OpenClawConfig): ModelListItem[] {
     for (const m of models) push(m.id ?? '', providerId, m.name)
   }
 
-  // Allowlist entries (agents.defaults.models): catches models that live only
-  // in the allowlist (e.g. local/<model> from the wizard) without a
-  // models.providers record.
-  const allowlist = config?.agents?.defaults?.models ?? {}
-  for (const ref of Object.keys(allowlist)) {
+  // Allowlist entries (2.0 modelPolicy.allow + legacy agents.defaults.models):
+  // catches models that live only in the allowlist (e.g. local/<model> from the
+  // wizard) without a models.providers record.
+  for (const ref of getAllowlistedModelRefs(config)) {
     const slash = ref.indexOf('/')
     if (slash <= 0) continue
     const providerId = ref.slice(0, slash)

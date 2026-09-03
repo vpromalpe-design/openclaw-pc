@@ -20,7 +20,10 @@ import { getUserDataDir } from '../utils/paths.js'
 import path from 'node:path'
 import fs from 'node:fs'
 import { OPENCLAW_CONFIG_FILE } from '../../shared/constants.js'
-import { addProfileToAuthOrder } from '../providers/provider-config.js'
+import {
+  addProfileToAuthOrder,
+  addModelsToAllowlist,
+} from '../providers/provider-config.js'
 import { startLocalEngine } from '../models/local-engine.js'
 
 export interface WizardCompleteResult {
@@ -405,12 +408,7 @@ function ensureProviderSeedConfig(config: OpenClawConfig, state: WizardState): v
     if (typeof config.agents.defaults.compaction.reserveTokensFloor !== 'number') {
       config.agents.defaults.compaction.reserveTokensFloor = 3072
     }
-    config.agents.defaults.models = {
-      ...(config.agents.defaults.models ?? {}),
-      [modelRef]: {
-        alias: modelId,
-      },
-    }
+    addModelsToAllowlist(config, [modelRef])
     config.models = config.models ?? {}
     config.models.mode = config.models.mode ?? 'merge'
     config.models.providers = config.models.providers ?? {}
@@ -433,12 +431,7 @@ function ensureProviderSeedConfig(config: OpenClawConfig, state: WizardState): v
     const modelRef = `cloudflare-ai-gateway/${modelId}`
     config.agents = config.agents ?? {}
     config.agents.defaults = config.agents.defaults ?? {}
-    config.agents.defaults.models = {
-      ...(config.agents.defaults.models ?? {}),
-      [modelRef]: {
-        alias: modelId,
-      },
-    }
+    addModelsToAllowlist(config, [modelRef])
     config.models = config.models ?? {}
     config.models.mode = config.models.mode ?? 'merge'
     config.models.providers = config.models.providers ?? {}
@@ -466,12 +459,7 @@ function ensureProviderSeedConfig(config: OpenClawConfig, state: WizardState): v
   const modelRef = `${seed.providerId}/${modelId}`
   config.agents = config.agents ?? {}
   config.agents.defaults = config.agents.defaults ?? {}
-  config.agents.defaults.models = {
-    ...(config.agents.defaults.models ?? {}),
-    [modelRef]: {
-      alias: modelId,
-    },
-  }
+  addModelsToAllowlist(config, [modelRef])
 
   config.models = config.models ?? {}
   config.models.mode = config.models.mode ?? 'merge'
@@ -660,12 +648,7 @@ function buildOpenClawConfig(state: WizardState): OpenClawConfig {
       const customModelRef = `${providerId}/${modelId}`
       config.agents = config.agents ?? {}
       config.agents.defaults = config.agents.defaults ?? {}
-      config.agents.defaults.models = {
-        ...(config.agents.defaults.models ?? {}),
-        [customModelRef]: {
-          alias: modelId,
-        },
-      }
+      addModelsToAllowlist(config, [customModelRef])
       config.models = {
         mode: 'merge',
         providers: {
@@ -891,12 +874,7 @@ export function mergeModelIntoOpenClawConfig(
       const customModelRef = `${providerId}/${modelId}`
       config.agents = config.agents ?? {}
       config.agents.defaults = config.agents.defaults ?? {}
-      config.agents.defaults.models = {
-        ...(config.agents.defaults.models ?? {}),
-        [customModelRef]: {
-          alias: modelId,
-        },
-      }
+      addModelsToAllowlist(config, [customModelRef])
       config.models = config.models ?? {}
       config.models.mode = config.models.mode ?? 'merge'
       config.models.providers = config.models.providers ?? {}
