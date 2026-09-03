@@ -261,6 +261,7 @@ const DESKTOP_NAV_ITEMS: { id: EmbeddedPanel; label: string; icon: React.ReactNo
   { id: 'updates', label: 'Updates', icon: <RefreshCw className="w-4 h-4" />, description: 'Check for updates' },
   { id: 'voice', label: 'Voice', icon: <Mic className="w-4 h-4" />, description: 'Voice provider & API key' },
   { id: 'telegram', label: 'Telegram', icon: <Send className="w-4 h-4" />, description: 'Telegram bot settings' },
+  { id: 'gateway', label: 'Gateway', icon: <Globe className="w-4 h-4" />, description: 'Gateway port, bind & token' },
   { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" />, description: 'Appearance & startup' },
   { id: 'about', label: 'About', icon: <Info className="w-4 h-4" />, description: 'Version info' },
 ]

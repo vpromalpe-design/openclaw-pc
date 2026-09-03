@@ -21,6 +21,7 @@ const VALID_HASH_PANELS = new Set<string>([
   'updates',
   'agent-settings',
   'tasks',
+  'gateway',
 ])
 
 /** Map legacy hashes and drop unknown fragments (e.g. pasted gateway #token=…) so we don't open a bogus “panel”. */
@@ -266,7 +267,8 @@ function App() {
       route === 'updates' ||
       route === 'telegram' ||
       route === 'agent-settings' ||
-      route === 'tasks'
+      route === 'tasks' ||
+      route === 'gateway'
         ? route
         : ''
     return <EmbeddedShellLayout activePanel={panel} onPanelChange={handlePanelChange} />
