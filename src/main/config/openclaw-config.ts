@@ -270,6 +270,97 @@ function migrateDesktopControlUiAllowInsecureAuth(
 }
 
 /**
+ * OpenClaw 2.0 (2026.8+) schema is strict — keys the 7.1-era kernel/desktop wrote are now
+ * unrecognized (`openclaw config validate` fails, and boot-time doctor can auto-restore a
+ * skeleton config, clobbering the original). Verified against a real 0.9.x config on the 2.0
+ * stand: `gateway.controlUi.allowInsecureAuth` (handled above), `logging.redactSensitive`
+ * (2.0 has `logging.redactPatterns` instead), plus audit findings `meta.lastTouchedAt`,
+ * `agents.defaults.memorySearch`, `gateway.tailscale.resetOnExit`. Strip only when the bundled
+ * kernel is 2.0 (no-op on older kernels). Multi-agent configs (list/entries) get explicit
+ * ownership — the 2.0-recommended shape for rosters.
+ */
+function migrateKernelTwoUnknownKeys(config: OpenClawConfig): {
+  config: OpenClawConfig
+  changed: boolean
+} {
+  if (!isKernelTwoOrNewer()) return { config, changed: false }
+  const next = JSON.parse(JSON.stringify(config)) as OpenClawConfig
+  const root = next as unknown as Record<string, unknown>
+  let changed = false
+
+  const meta = root.meta
+  if (
+    meta &&
+    typeof meta === 'object' &&
+    !Array.isArray(meta) &&
+    'lastTouchedAt' in (meta as Record<string, unknown>)
+  ) {
+    delete (meta as Record<string, unknown>).lastTouchedAt
+    changed = true
+  }
+
+  const agents = root.agents
+  if (agents && typeof agents === 'object' && !Array.isArray(agents)) {
+    const agentsObj = agents as Record<string, unknown>
+    const defaults = agentsObj.defaults
+    if (
+      defaults &&
+      typeof defaults === 'object' &&
+      !Array.isArray(defaults) &&
+      'memorySearch' in (defaults as Record<string, unknown>)
+    ) {
+      delete (defaults as Record<string, unknown>).memorySearch
+      changed = true
+    }
+  }
+
+  const gw = root.gateway
+  if (gw && typeof gw === 'object' && !Array.isArray(gw)) {
+    const gwObj = gw as Record<string, unknown>
+    const ts = gwObj.tailscale
+    if (ts && typeof ts === 'object' && !Array.isArray(ts)) {
+      const tsObj = ts as Record<string, unknown>
+      if ('resetOnExit' in tsObj) {
+        delete tsObj.resetOnExit
+        changed = true
+      }
+      if (Object.keys(tsObj).length === 0) {
+        delete gwObj.tailscale
+      }
+    }
+  }
+
+  const logging = root.logging
+  if (
+    logging &&
+    typeof logging === 'object' &&
+    !Array.isArray(logging) &&
+    'redactSensitive' in (logging as Record<string, unknown>)
+  ) {
+    delete (logging as Record<string, unknown>).redactSensitive
+    changed = true
+  }
+
+  if (agents && typeof agents === 'object' && !Array.isArray(agents)) {
+    const agentsObj = agents as Record<string, unknown>
+    const rosterCount = Array.isArray(agentsObj.list) ? (agentsObj.list as unknown[]).length : 0
+    const entries =
+      agentsObj.entries && typeof agentsObj.entries === 'object' && !Array.isArray(agentsObj.entries)
+        ? Object.keys(agentsObj.entries as Record<string, unknown>).length
+        : 0
+    if (rosterCount > 0 || entries > 0) {
+      const ownership = agentsObj.ownership
+      if (ownership === undefined || ownership === null) {
+        agentsObj.ownership = 'explicit'
+        changed = true
+      }
+    }
+  }
+
+  return changed ? { config: next, changed: true } : { config, changed: false }
+}
+
+/**
  * Working MiniMax configs use `auth.order.minimax: ["global"]` (shorthand). Normalize to that
  * when every entry resolves to the same profile as `minimax:global`.
  */
@@ -599,6 +690,8 @@ export function readOpenClawConfig(): OpenClawConfig {
       cfg = migratedControlUiRoot.config
       const migratedControlUi = migrateDesktopControlUiAllowInsecureAuth(cfg)
       cfg = migratedControlUi.config
+      const migratedKernelTwo = migrateKernelTwoUnknownKeys(cfg)
+      cfg = migratedKernelTwo.config
       const migratedAuthNone = migrateGatewayAuthModeNoneRemoved(cfg)
       cfg = migratedAuthNone.config
       const migratedAuthOrder = migrateAuthOrderFullProfileIds(cfg)
@@ -613,6 +706,7 @@ export function readOpenClawConfig(): OpenClawConfig {
         migratedProviders.changed ||
         migratedControlUiRoot.changed ||
         migratedControlUi.changed ||
+        migratedKernelTwo.changed ||
         migratedAuthNone.changed ||
         migratedAuthOrder.changed ||
         migratedAuthHeader.changed ||
@@ -635,6 +729,11 @@ export function readOpenClawConfig(): OpenClawConfig {
                 (isKernelTwoOrNewer()
                   ? '(2026.8+): stripped legacy allowInsecureAuth, kept dangerouslyDisableDeviceAuth + loopback allowedOrigins'
                   : '(2026.3+): allowInsecureAuth, dangerouslyDisableDeviceAuth, and on loopback bind concrete allowedOrigins when unset/[]/* (Electron iframe / WebSocket Origin)'),
+            )
+          }
+          if (migratedKernelTwo.changed) {
+            console.info(
+              '[config] Kernel 2.0 (2026.8+): stripped legacy config keys (meta.lastTouchedAt, agents.defaults.memorySearch, gateway.tailscale.resetOnExit, logging.redactSensitive) and set agents.ownership=explicit',
             )
           }
           if (migratedAuthNone.changed) {
