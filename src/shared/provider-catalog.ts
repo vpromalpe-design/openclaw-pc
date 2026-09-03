@@ -116,6 +116,9 @@ export const PROVIDER_ENDPOINTS: Record<string, ProviderEndpoint> = {
  * Провайдеры-дубли: конфиг под «реальным» id (deepseek-direct — кастомный
  * OpenAI-совместимый, чтобы не требовать плагин @openclaw/deepseek-provider)
  * скрывает «каноническую» пустую строку (deepseek) в таблице «Модели».
+ * VERIFIED ON 2.0 (2026.8.1): `deepseek` в конфиге → gateway отказывается ready
+ * (плагин не в бандле, нужен capability consent) — deepseek-direct остаётся
+ * рабочим id для v0.10.0 и дальше.
  */
 export const PROVIDER_ALIASES: Record<string, string> = {
   'deepseek-direct': 'deepseek',

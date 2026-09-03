@@ -92,9 +92,12 @@ type ProviderSeed = {
 
 const PROVIDER_SEEDS: Partial<Record<ModelProvider, ProviderSeed>> = {
   /** First-party / common API-key providers (wizard must emit `models.providers` + model aliases).
-   * NOTE: Desktop bundles map provider id `deepseek` → plugin @openclaw/deepseek-provider, which is NOT
-   * bundled and cannot be auto-installed (no npm on end-user machines). Emit it as a custom OpenAI-compatible
-   * provider id (`deepseek-direct`) with the apiKey inline in `models.providers` — schema-valid and plugin-free. */
+   * NOTE: Provider id `deepseek` is claimed by plugin @openclaw/deepseek-provider, which is NOT bundled and
+   * cannot be auto-installed (no npm on end-user machines). Verified on 2.0 (2026.8.1): a config referencing
+   * `deepseek` makes the gateway REFUSE to start ("Plugin deepseek requires capability consent") — the
+   * deepseek-native bits in core are plugin support, not a replacement. Emit DeepSeek as a custom
+   * OpenAI-compatible provider id (`deepseek-direct`) with the apiKey inline in `models.providers` —
+   * schema-valid and plugin-free (works on 2026.7.1 AND 2026.8.1). */
   deepseek: {
     providerId: 'deepseek-direct',
     authProviderId: 'deepseek-direct',
@@ -543,7 +546,8 @@ function ensureProviderSeedConfig(config: OpenClawConfig, state: WizardState): v
   }
   // Match working openclaw.json: keep apiKey in models.providers.deepseek-direct alongside auth-profiles.
   // DeepSeek is emitted as a custom provider id so the desktop bundle never resolves the plugin-backed
-  // `deepseek` catalog id (plugin not bundled; npm unavailable on end-user machines).
+  // `deepseek` catalog id (plugin not bundled; npm unavailable on end-user machines). Verified on 2.0
+  // (2026.8.1): `deepseek` in config → gateway refuses ready (plugin capability consent); `deepseek-direct` → OK.
   // v0.9.15 (Damir): do the same for EVERY API-key provider. The bundled runtime does not pick up
   // portable static auth-profiles.json for agent auth (subagent looks in its own sqlite auth store →
   // "No API key found for provider X"), so the wizard must persist the key in

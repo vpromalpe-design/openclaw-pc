@@ -107,7 +107,8 @@ export function inferModelConfigFromOpenClaw(config: OpenClawConfig): ModelConfi
     provider = 'moonshot-cn'
   } else if (providerPart === 'deepseek-direct') {
     // Wizard emits DeepSeek as custom provider id `deepseek-direct` (desktop bundles have no
-    // @openclaw/deepseek-provider plugin); map back to the UI provider.
+    // @openclaw/deepseek-provider plugin; verified still required on 2.0/2026.8.1 — native `deepseek`
+    // id makes the gateway refuse to start); map back to the UI provider.
     provider = 'deepseek'
   } else if (KNOWN_PROVIDERS.has(providerPart as ModelProvider)) {
     provider = providerPart as ModelProvider
