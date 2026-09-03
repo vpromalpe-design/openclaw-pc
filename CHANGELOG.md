@@ -2,6 +2,20 @@
 
 OpenClaw PC — Windows-приложение и установщик для OpenClaw: агенты, модели, голос и Telegram в одном месте.
 
+## 0.10.0 (2026-09-03) — ядро OpenClaw 2.0 (v2026.8.1)
+
+Апгрейд встроенного ядра на OpenClaw 2.0 (v2026.8.1). Ветка `v0.10.0+openclaw.2026.8.1`, база — стабильная v0.9.33 (откат в любой момент).
+
+- **Ядро 2026.7.1 → 2026.8.1** (npm-бандл, `@openclaw/ai` — прямая npm-зависимость: больше не junction-проблема 0.9.18). Control UI из npm-пакета, esbuild-transpile для Electron (маркер `CONTROL_UI_ELECTRON_LIT_MARKER`).
+- **Allowlist моделей** переведён на schema 2.0: `agents.defaults.models` → `agents.defaults.modelPolicy.allow` (пишем в оба пути, читатели делают union, миграция с `meta.migrations.modelPolicyAllowlist`).
+- **deepseek**: остаётся на обходном `deepseek-direct` — в npm-бандле 2026.8.1 нет физической реализации `deepseek` (плагин требуется отдельно, вне v0.10.0).
+- **RPC-клиент**: не шлёт браузерный `Origin` на gateway 2.0 (2.0 молча срезал operator-скопы при browser-origin); повтор с Origin только при быстром отказе рукопожатия — версионно-агностично.
+- **Wizard/конфиг**: ключ `gateway.controlUi.allowInsecureAuth` больше НЕ пишется на ядре 2.0 (schema 2.0 его не знает — boot fail); легаси-конфиги чистятся при чтении. `readBundledOpenClawVersion()` + `isKernelTwoOrNewer()`.
+- **Патчи ядра**: `silent-reply-local` адаптирован под 2.0-сборщик системного промпта (push переехал в `buildAgentSystemPrompt`, `runtimeInfo?.model`); feishu-канал в 2.0 бандлится по-новому (register-онce не подтверждён), slack — внешний плагин → легаси-патчи тихо no-op на 2.0 (варн только при реальном коде).
+- **Фаза 3 — стенд-прогон на VPS закрыт**: pre-migration конфига под 2.0 (doctor 2.0 на сыром 0.9.x-конфиге разрушителен — нужна наша миграция ДО первого boot: `meta.lastTouchedAt`/`agents.defaults.memorySearch`/`allowInsecureAuth`/`tailscale.resetOnExit` снять, `agents.ownership=explicit`); внешние плагины `@openclaw/deepseek-provider|duckduckgo-plugin|llama-cpp-provider` (install с consent) — для прода; prod-шейп RPC (client.id=`gateway-client`/backend): models.list по агентам, cron/tasks/logs живы.
+- **Визуал и механики не меняются**: по решению Дамира переносится ВСЁ кроме тумблера CPU/GPU (local-engine) — реестр задач, мульти-боты, «Просто текст», офлайн-голос, визард — на ядре 2.0.
+- Watch на релиз: после апгрейда проверить порт 18789 (на стенде gateway слушал 19001 при конфиге 18999 — аномалия); deepseek/duckduckgo/llama-cpp = внешние плагины для прода.
+
 ## 0.9.30 (2026-09-01)
 - **🔴 ФИКС КОРНЯ «Созданных файлов» и ссылок в ответе** (разведка по живой задаче `lt-1788300515051-7vo0nr`):
   - **Проблема**: в tasks.json записывалось ПЕРВОЕ assistant-сообщение (рассуждение «I need to handle BOOTSTRAP.md…»), а не финальный ответ («Готово 🔥 Файл `fire.txt` создан…») → парсер не находил файлы → блок «Созданные файлы» пуст и ссылок нет.
