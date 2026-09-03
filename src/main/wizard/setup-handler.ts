@@ -680,7 +680,14 @@ function buildOpenClawConfig(state: WizardState): OpenClawConfig {
 
   const authProviderId = resolveAuthProviderId(state.modelConfig.provider)
   const providerForAuth = state.modelConfig.provider
+  // Kernel 2.0 (2026.8+, v0.10.0+): do NOT write a top-level auth block.
+  // 2.0 resolves credentials from models.providers[*].apiKey (materialized to
+  // its sqlite auth store); a declarative auth.profiles/auth.order block breaks
+  // 2.0 resolution ("Explicit auth order for <provider> has no usable
+  // profiles" — prod incident 2026-09-03). The 7.1-era pattern below (profile
+  // stub in config + key in auth-profiles.json) is kept only for <=2026.7.
   if (
+    !isKernelTwoOrNewer() &&
     state.modelConfig.provider !== 'custom' &&
     (API_KEY_PROVIDER_SET.has(providerForAuth) || providerForAuth === 'moonshot-cn') &&
     state.modelConfig.apiKey.trim()
@@ -714,7 +721,10 @@ function buildOpenClawConfig(state: WizardState): OpenClawConfig {
       },
     }
   }
-  if (providerForAuth === 'copilot-proxy') {
+  if (
+    !isKernelTwoOrNewer() &&
+    providerForAuth === 'copilot-proxy'
+  ) {
     config.auth = {
       ...(config.auth ?? {}),
       profiles: {
@@ -806,6 +816,12 @@ export function writeAuthCredentialsForModelState(sanitized: WizardState): {
   ok: false
   error: string
 } {
+  // Kernel 2.0 (2026.8+, v0.10.0+): auth-profiles.json is a LEGACY credential
+  // source — writing it makes the next boot demand "legacy credential
+  // migration; run openclaw doctor --fix" (prod incident 2026-09-03). On 2.0
+  // the key already lives in models.providers[*].apiKey (written above), which
+  // the kernel materializes into its sqlite auth store. Skip the file entirely.
+  if (isKernelTwoOrNewer()) return { ok: true }
   if (
     sanitized.modelConfig.provider !== 'custom' &&
     (API_KEY_PROVIDER_SET.has(sanitized.modelConfig.provider) ||
@@ -945,7 +961,10 @@ export function mergeModelIntoOpenClawConfig(
   }
 
   const providerForAuth = sanitized.modelConfig.provider
+  // Kernel 2.0 (2026.8+): skip the 7.1 declarative auth block entirely — key is
+  // already persisted via models.providers[*].apiKey (see comment in buildOpenClawConfig).
   if (
+    !isKernelTwoOrNewer() &&
     sanitized.modelConfig.provider !== 'custom' &&
     (API_KEY_PROVIDER_SET.has(providerForAuth) || providerForAuth === 'moonshot-cn') &&
     sanitized.modelConfig.apiKey.trim()
@@ -966,7 +985,10 @@ export function mergeModelIntoOpenClawConfig(
     }
     config = addProfileToAuthOrder(config, authProviderId, profileId)
   }
-  if (providerForAuth === 'copilot-proxy') {
+  if (
+    !isKernelTwoOrNewer() &&
+    providerForAuth === 'copilot-proxy'
+  ) {
     config.auth = {
       ...(config.auth ?? {}),
       profiles: {

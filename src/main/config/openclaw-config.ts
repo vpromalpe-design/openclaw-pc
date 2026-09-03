@@ -505,6 +505,11 @@ function migrateMinimaxAuthHeaderToXApiKey(
 function migrateMinimaxInlineApiKeyToAuthProfile(
   config: OpenClawConfig,
 ): { config: OpenClawConfig; changed: boolean } {
+  // Kernel 2.0 (2026.8+): inline apiKey in models.providers is the canonical
+  // credential location — do NOT re-create the legacy auth block for it.
+  if (isKernelTwoOrNewer()) {
+    return { config, changed: false }
+  }
   const providers = config.models?.providers
   if (!providers || typeof providers !== 'object') {
     return { config, changed: false }

@@ -202,7 +202,7 @@ import { logError, logWarn } from '../utils/logger.js'
 import { getLogAggregator } from '../diagnostics/log-aggregator.js'
 import { runBackupCreateCli, runBackupVerifyCli } from '../backup/index.js'
 import { syncLoginItemToSystem } from '../login-item/index.js'
-import { runConfigValidate, readOpenClawConfig } from '../config/index.js'
+import { runConfigValidate, readOpenClawConfig, isKernelTwoOrNewer } from '../config/index.js'
 import {
   buildModelsView,
   applyModelsPriority,
@@ -1505,7 +1505,6 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
       if (credType === 'token') {
         const token = String(raw.token ?? '')
         if (!token) throw new Error('token is required for type: token')
-        saveAuthProfileToken(canonicalProfileId, provider, token)
         secret = token
         mode = 'token'
       } else {
@@ -1513,11 +1512,34 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
         if (!apiKey) throw new Error('apiKey is required for type: api_key')
         // Must match OpenClaw auth.order (full ids like openai:default); shorthand "default" alone
         // would leave credentials under the wrong key while order points at provider:default → HTTP 401.
-        saveAuthProfile(canonicalProfileId, provider, apiKey)
         secret = apiKey
         mode = 'api_key'
       }
+      // Kernel 2.0 (2026.8+): auth.profiles/auth.order + auth-profiles.json are legacy
+      // 7.1 mechanisms — a declarative block breaks 2.0 credential resolution and a
+      // static auth-profiles.json triggers the boot-time "legacy credential migration"
+      // block (prod incidents 2026-09-03). On 2.0 the key belongs inline in
+      // models.providers[provider].apiKey (kernel materializes it into sqlite).
       const config = deps.readOpenClawConfig()
+      if (isKernelTwoOrNewer()) {
+        if (mode === 'api_key') {
+          const next = { ...config }
+          next.models = next.models ?? { providers: {} }
+          next.models.providers = next.models.providers ?? {}
+          next.models.providers[provider] = {
+            ...(next.models.providers[provider] ?? {}),
+            apiKey: secret,
+          }
+          deps.writeOpenClawConfig(next)
+        }
+        // token profiles need the 7.1 plugin stack; nothing to persist on 2.0
+        return
+      }
+      if (mode === 'token') {
+        saveAuthProfileToken(canonicalProfileId, provider, secret)
+      } else {
+        saveAuthProfile(canonicalProfileId, provider, secret)
+      }
       const next = addProfileToAuthOrder(config, provider, canonicalProfileId)
       // Persist the secret in the static profile (openclaw.json) as well:
       // subagents only inherit portable static auth profiles from the main agentDir;
