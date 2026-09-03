@@ -152,10 +152,10 @@ async function main(): Promise<void> {
   // Desktop UI patches (voice-input etc.) only exist when Control UI is rebuilt from GitHub
   // sources (marker content '1'). Variant C keeps npm-prepackaged Control UI as-is
   // (marker content 'npm-prepackaged') — desktop patch sentinels are not required there.
-  const markerPath = join(controlUiRoot, CONTROL_UI_ELECTRON_LIT_MARKER)
+  const controlUiMarkerPath = join(controlUiRoot, CONTROL_UI_ELECTRON_LIT_MARKER)
   let controlUiMode = ''
-  if (await exists(markerPath)) {
-    controlUiMode = (await readFile(markerPath, 'utf8')).trim()
+  if (await exists(controlUiMarkerPath)) {
+    controlUiMode = (await readFile(controlUiMarkerPath, 'utf8')).trim()
   }
   const voiceSentinel = 'openclaw-pc-voice-input'
   if (controlUiMode === 'npm-prepackaged') {
