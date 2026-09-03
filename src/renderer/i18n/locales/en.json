@@ -749,7 +749,8 @@
       "sending": "Model is thinking…",
       "textError": "Request failed",
       "textModeTitle": "Plain text",
-      "historyClear": "Clear"
+      "historyClear": "Clear",
+      "localEngineDown": "The local engine is not running. Open Models and start the model."
     },
     "telegram": {
       "title": "Telegram bots",

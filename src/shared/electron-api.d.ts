@@ -316,7 +316,14 @@ export interface ElectronAPI {
   textChatSend: (payload: {
     text: string
     history?: { role: 'user' | 'assistant'; content: string }[]
-  }) => Promise<{ ok: boolean; text?: string; message?: string; model?: string; provider?: string }>
+  }) => Promise<{
+    ok: boolean
+    text?: string
+    message?: string
+    code?: 'LOCAL_ENGINE_NOT_RUNNING' | 'LOCAL_ENGINE_UNREACHABLE' | string
+    model?: string
+    provider?: string
+  }>
   localFirstRequestStatus: () => Promise<{ pending: boolean }>
   onLocalProgress: (callback: (payload: LocalProgressPayload) => void) => Unsubscribe
 

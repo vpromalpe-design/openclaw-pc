@@ -26,6 +26,8 @@ export interface TextChatResponse {
   ok: boolean
   text?: string
   message?: string
+  /** Machine-readable error code so the UI can localize instead of showing raw fetch errors. */
+  code?: 'LOCAL_ENGINE_NOT_RUNNING' | 'LOCAL_ENGINE_UNREACHABLE' | string
   model?: string
   provider?: string
 }
@@ -173,6 +175,35 @@ export async function sendTextChat(req: TextChatRequest): Promise<TextChatRespon
     { role: 'user', content: text },
   ]
 
+  // Local engine (primary `local/<model>`): before spending 180s on a request
+  // that can never succeed, check that something actually listens on the
+  // engine port. The engine is only up while the desktop app runs it — after
+  // an interrupted install, a failed auto-start or a stop from the Models
+  // panel the port is dark and every send would otherwise fail with a raw
+  // “fetch failed”/ECONNREFUSED. (Damir 2026-09-03: «gemma выбрана, а
+  // сообщения не отправляются» — root cause was an engine that was not
+  // actually running; the UI gave no hint why.)
+  if (target.provider === 'local') {
+    try {
+      const health = await fetch(`${target.baseUrl.replace(/\/+$/, '')}/models`, {
+        signal: AbortSignal.timeout(2000),
+      })
+      if (!health.ok) {
+        return {
+          ok: false,
+          code: 'LOCAL_ENGINE_NOT_RUNNING',
+          message: 'Local engine is not responding — start it in Models first',
+        }
+      }
+    } catch {
+      return {
+        ok: false,
+        code: 'LOCAL_ENGINE_NOT_RUNNING',
+        message: 'Local engine is not running — start it in Models first',
+      }
+    }
+  }
+
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
@@ -246,6 +277,15 @@ export async function sendTextChat(req: TextChatRequest): Promise<TextChatRespon
     }
   } catch (err) {
     const aborted = err instanceof Error && err.name === 'AbortError'
+    if (!aborted && target.provider === 'local') {
+      // Engine died between the health check and the request (or the check
+      // above was bypassed) — same user-facing diagnosis as above.
+      return {
+        ok: false,
+        code: 'LOCAL_ENGINE_UNREACHABLE',
+        message: 'Local engine is not running — start it in Models first',
+      }
+    }
     return {
       ok: false,
       message: aborted ? 'Model timed out (180s)' : err instanceof Error ? err.message : String(err),

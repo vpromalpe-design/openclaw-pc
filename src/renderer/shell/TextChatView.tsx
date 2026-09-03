@@ -105,9 +105,21 @@ export function TextChatView({ history, onHistoryChange }: TextChatViewProps) {
           { role: 'assistant', content: res.text ?? '' },
         ])
       } else {
+        // v0.10.2: local-engine failures carry a machine-readable code so the
+        // user sees a real hint («start the engine in Models») instead of a raw
+        // fetch/ECONNREFUSED message. Damir 2026-09-03: «gemma выбрана, а
+        // сообщения не отправляются» — the engine was not actually running.
+        const known =
+          res.code === 'LOCAL_ENGINE_NOT_RUNNING' || res.code === 'LOCAL_ENGINE_UNREACHABLE'
+            ? t('shell.chat.localEngineDown')
+            : null
         onHistoryChange((current) => [
           ...current,
-          { role: 'assistant', content: res.message ?? t('shell.chat.textError'), error: true },
+          {
+            role: 'assistant',
+            content: known ?? res.message ?? t('shell.chat.textError'),
+            error: true,
+          },
         ])
       }
     } catch {
