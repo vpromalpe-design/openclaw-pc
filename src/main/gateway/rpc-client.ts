@@ -17,6 +17,13 @@ const PROTOCOL_VERSION = 4
 // identity ("control ui requires device identity"). Local loopback manager
 // clients must present as 'gateway-client' + mode 'backend' to keep full
 // operator scopes (skipLocalBackendSelfPairing path). Verified on staging.
+// NOTE (2026.8.1, verified on staging 18999): the skip path additionally
+// requires the connection to have NO browser-style Origin header — with
+// Origin set, the 2.0 gateway treats the client as browser-origin, refuses
+// skipLocalBackendSelfPairing, and silently cuts operator scopes (connect
+// succeeds, every operator.read/admin RPC then fails FORBIDDEN). doConnect()
+// therefore tries without Origin first and falls back to Origin once for
+// legacy gateways (<=2026.7) that validated Origin against allowedOrigins.
 const CLIENT_ID = 'gateway-client'
 const CLIENT_VERSION = '0.1.2'
 
@@ -151,6 +158,20 @@ export class GatewayRpcClient {
   }
 
   private doConnect(url: string): Promise<void> {
+    // Try the 2.0-correct shape first (loopback backend WITHOUT browser
+    // Origin); legacy kernels that enforce allowedOrigins reject that
+    // handshake, so fall back to the legacy Origin-mirroring shape once.
+    return this.attemptConnect(url, false).catch((err: Error) => {
+      const e = err as GatewayRpcError
+      // Legacy kernels that enforce allowedOrigins reject the no-Origin
+      // handshake fast (close/error), not via timeout. Skip the Origin
+      // fallback for auth failures and timeouts to keep latency bounded.
+      if (e.code === 'GATEWAY_AUTH_FAILED' || e.code === 'GATEWAY_TIMEOUT') throw err
+      return this.attemptConnect(url, true)
+    })
+  }
+
+  private attemptConnect(url: string, withOrigin: boolean): Promise<void> {
     return new Promise((resolve, reject) => {
       let connectResolved = false
       const controller = new AbortController()
@@ -163,14 +184,21 @@ export class GatewayRpcClient {
         }
       }, this.defaultTimeoutMs)
 
-      const ws = new WebSocket(url, {
-        handshakeTimeout: 10_000,
-        headers: {
-          // The gateway validates the WebSocket Origin against the Control UI
-          // host (gateway.controlUi.allowedOrigins). Mirror the browser origin.
-          Origin: `http://127.0.0.1:${this.port}`,
-        },
-      })
+      const ws = new WebSocket(
+        url,
+        withOrigin
+          ? {
+              handshakeTimeout: 10_000,
+              headers: {
+                // Legacy gateways (<=2026.7) validate the WebSocket Origin
+                // against the Control UI host (gateway.controlUi.allowedOrigins).
+                // Mirror the browser origin only for that fallback path — on
+                // 2.0 (2026.8.x) this header marks the connection as
+                // browser-origin and cuts operator scopes (see CLIENT_ID note).
+                Origin: `http://127.0.0.1:${this.port}`,
+              },
+            }
+          : { handshakeTimeout: 10_000 })
 
       ws.on('error', (err: Error) => {
         if (!controller.signal.aborted && !connectResolved) {
