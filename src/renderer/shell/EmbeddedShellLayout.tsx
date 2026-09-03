@@ -109,21 +109,23 @@ interface SectionItem {
   panel?: EmbeddedPanel
 }
 
-/** v0.9.16: primary sections — always visible as sidebar buttons (Чат · Модели · Телеграм · Голос). */
+/** v0.9.16: primary sections — always visible as sidebar buttons (Чат · Модели · Телеграм · Голос).
+ *  v0.10.2 (Damir): «Навыки» добавлен в основное левое меню сразу под «Модели». */
 const SECTIONS: SectionItem[] = [
   { id: 'chat', icon: <MessageCircle size={15} strokeWidth={1.8} />, label: 'Чат', route: '/chat' },
   { id: 'models', icon: <Cpu size={15} strokeWidth={1.8} />, label: 'Модели', panel: 'models' },
+  { id: 'skills', icon: <Puzzle size={15} strokeWidth={1.8} />, label: 'Навыки', route: '/skills' },
   { id: 'telegram', icon: <Send size={15} strokeWidth={1.8} />, label: 'Телеграм', panel: 'telegram' },
   { id: 'voice', icon: <Mic size={15} strokeWidth={1.8} />, label: 'Голос', panel: 'voice' },
 ]
 
-/** v0.9.16: secondary sections — hidden behind the ⋯ (Ещё) menu in the top bar. */
+/** v0.9.16: secondary sections — hidden behind the ⋯ (Ещё) menu in the top bar.
+ *  v0.10.2: «Навыки» переехал отсюда в основное левое меню (SECTIONS, под «Модели»). */
 const MORE_SECTIONS: SectionItem[] = [
   { id: 'overview', icon: <Compass size={15} strokeWidth={1.8} />, label: 'Обзор', route: '/overview' },
   { id: 'activity', icon: <Activity size={15} strokeWidth={1.8} />, label: 'Активность', route: '/activity' },
   { id: 'sessions', icon: <Monitor size={15} strokeWidth={1.8} />, label: 'Сеансы', route: '/sessions' },
   { id: 'cron', icon: <Clock size={15} strokeWidth={1.8} />, label: 'Задания Cron', route: '/cron' },
-  { id: 'skills', icon: <Puzzle size={15} strokeWidth={1.8} />, label: 'Навыки', route: '/skills' },
 ]
 
 const AGENT_ICONS: Record<string, string> = {
