@@ -50,6 +50,13 @@ import { cn } from '@/lib/utils'
 import { providerLabel } from '../../shared/provider-catalog'
 import { installShellSounds } from '@/lib/sounds'
 import { playTtsAudio } from '@/lib/tts-playback'
+/* v0.9.34: рой (группы агентов) */
+import { RoyGroupsList, RoyDisk } from '../roy/SidebarRoy'
+import { RoyArenaView, RoyRightPanel } from '../roy/ArenaRoy'
+import type { RoyAgentRef } from '../roy/ArenaRoy'
+import { RoyCreateModal, RoyFileViewer } from '../roy/RoyUi'
+import { loadGroups, saveGroups, newGroup, renameGroup, buildDiskTree, diskFileContent } from '../roy/data'
+import type { RoyGroup, RoyDiskNode } from '../roy/types'
 
 const TIMEOUT_MS = 300_000
 
@@ -352,6 +359,15 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
 
   const [sessions, setSessions] = useState<ShellSessionRow[]>([])
   const [activeSection, setActiveSection] = useState('chat')
+  // v0.9.34: рой — группы агентов, открытая арена, файл Диска, создание группы
+  const [royGroups, setRoyGroups] = useState<RoyGroup[]>(() => loadGroups())
+  const [royOpenId, setRoyOpenId] = useState<string | null>(null)
+  const [royFileNode, setRoyFileNode] = useState<RoyDiskNode | null>(null)
+  const [royCreateOpen, setRoyCreateOpen] = useState(false)
+  // v0.9.34: рой-группы сохраняются в localStorage.
+  useEffect(() => {
+    saveGroups(royGroups)
+  }, [royGroups])
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null)
   const [primaryModel, setPrimaryModel] = useState<string | null>(null)
   const [engineModel, setEngineModel] = useState<string | null>(null)
@@ -946,6 +962,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   }, [])
 
   const handleNavigateToPanel = (panel: EmbeddedPanel) => {
+    setRoyOpenId(null)
     onPanelChange(panel)
     if (panel === '') {
       setActiveSection('chat')
@@ -965,6 +982,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   }
 
   const openSection = (section: SectionItem) => {
+    setRoyOpenId(null)
     setOpenMenu(null)
     setActiveSection(section.id)
     if (section.panel) {
@@ -981,6 +999,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   }
 
   const openChatForAgent = useCallback((agentId: string) => {
+    setRoyOpenId(null)
     setActiveAgent(agentId)
     setActiveSection('chat')
     onPanelChange('')
@@ -1195,6 +1214,42 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   const activeAgentModel = agents.find((a) => a.id === activeAgent)?.model ?? primaryModel
   const activeTab = activeTabs.find((tb) => tb.id === activeTabId) ?? activeTabs[0]
   const activeTabHistory = activeTab?.kind === 'text' ? activeTab.history : []
+
+    /* ══════════ v0.9.34: РОЙ — производные и операции ══════════ */
+  const royOpenGroup = royOpenId ? (royGroups.find((g) => g.id === royOpenId) ?? null) : null
+  const royPatch = useCallback(
+    (fn: (g: RoyGroup) => RoyGroup) => {
+      setRoyGroups((gs) => gs.map((g) => (g.id === royOpenId ? fn(g) : g)))
+    },
+    [royOpenId],
+  )
+  const royRemoveAgentRef = useCallback(
+    (agent: RoyAgentRef) => {
+      const full = agents.find((a) => a.id === agent.id)
+      if (full && !full.isDefault) void handleRemoveAgent(full)
+      // Вычистить агента из участников/связей всех групп.
+      setRoyGroups((gs) =>
+        gs.map((g) => ({
+          ...g,
+          members: g.members.filter((m) => m !== agent.id),
+          files: g.files.map((f) => ({ ...f, to: f.to.filter((t) => t !== agent.id) })),
+        })),
+      )
+    },
+    [agents, handleRemoveAgent],
+  )
+  const royCreate = useCallback(
+    (name: string, emoji: string, grad: string) => {
+      const g = newGroup(name, emoji, grad)
+      setRoyGroups((gs) => [g, ...gs])
+      setRoyCreateOpen(false)
+      setRoyOpenId(g.id)
+      onPanelChange('')
+      setActiveSection('chat')
+    },
+    [onPanelChange],
+  )
+
 
   if (gatewayView === 'error' && errorInfo) {
     return (
@@ -1635,6 +1690,25 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
               ))}
             </div>
 
+            {/* v0.9.34: «Группы» (рои) — между агентами и задачами */}
+            <RoyGroupsList
+              groups={royGroups}
+              activeId={royOpenId}
+              onOpen={(id) => {
+                setRoyOpenId(id)
+                onPanelChange('')
+                setActiveSection('chat')
+              }}
+              onCreate={() => setRoyCreateOpen(true)}
+              onRename={(id, name) =>
+                setRoyGroups((gs) => gs.map((g) => (g.id === id ? renameGroup(g, name) : g)))
+              }
+              onRemove={(id) => {
+                setRoyGroups((gs) => gs.filter((g) => g.id !== id))
+                setRoyOpenId((cur) => (cur === id ? null : cur))
+              }}
+            />
+
             {/* v0.9.16: акцентный пункт «Задачи» — между агентами и разделами */}
             <button
               type="button"
@@ -1695,6 +1769,23 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
               )}
             </div>
 
+            {/* v0.9.34: «Диск» — виртуальное дерево данных (всегда виден) */}
+            <RoyDisk
+              roots={buildDiskTree(
+                royGroups,
+                agents.length,
+                royGroups.reduce((n, g) => n + g.tasks.length, 0),
+              )}
+              onOpenFile={(node) => setRoyFileNode(node)}
+              onDragFile={(e, node) => {
+                e.dataTransfer.effectAllowed = 'copy'
+                e.dataTransfer.setData(
+                  'application/x-roy-file',
+                  JSON.stringify({ fileId: node.id, label: node.label, emoji: node.emoji }),
+                )
+              }}
+            />
+
             <div className="shell-side-foot">
               <div className="shell-disk">
                 <span>Модели · {diskLabel}</span>
@@ -1708,6 +1799,22 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
           {/* ── Center: embedded Control UI / panels ── */}
           <section className="shell-chat-area">
             <div className="shell-chat-canvas">
+              {/* v0.9.34: рой открыт → центральная область = арена */}
+              {royOpenGroup && (
+                <div className="roy-arena-slot">
+                  <RoyArenaView
+                    group={royOpenGroup}
+                    agents={agents}
+                    onPatch={royPatch}
+                    onChat={(agentId) => {
+                      setRoyOpenId(null)
+                      openChatForAgent(agentId)
+                    }}
+                    onRemoveAgent={royRemoveAgentRef}
+                    onClose={() => setRoyOpenId(null)}
+                  />
+                </div>
+              )}
               {showControlUIIframe ? (
                 <iframe
                 key={`openclaw-control-ui-${controlUiReloadKey}`}
@@ -1801,7 +1908,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
             {/* v0.9.11: mode switch — «Агентская задача | Просто текст» lives in
                 its own strip BELOW the chat frame (was floating over the chat
                 text / Control UI composer — Damir bug report). */}
-            {showControlUIIframe && !hasActivePanel && inChat && (
+            {!royOpenGroup && showControlUIIframe && !hasActivePanel && inChat && (
               <div className="shell-mode-strip">
                 <div className="shell-mode-switch">
                   <button
@@ -1829,7 +1936,13 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
 
           {/* ── Right bento panel ── */}
           <aside className="shell-glass shell-status-panel">
-            {activePanel === 'tasks' ? (
+            {royOpenGroup ? (
+              <RoyRightPanel
+                group={royOpenGroup}
+                agents={agents}
+                onPatch={royPatch}
+              />
+            ) : activePanel === 'tasks' ? (
               <TasksDetailPanel
                 data={tasksData}
                 selected={tasksSelected}
@@ -1991,6 +2104,18 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
             <span className="lat">{clock} UTC</span>
           </span>
         </footer>
+
+        {/* v0.9.34: рой-оверлеи — создание группы и просмотр файла Диска */}
+        {royCreateOpen && (
+          <RoyCreateModal onCreate={royCreate} onClose={() => setRoyCreateOpen(false)} />
+        )}
+        {royFileNode && (
+          <RoyFileViewer
+            node={royFileNode}
+            content={diskFileContent(royFileNode, royGroups)}
+            onClose={() => setRoyFileNode(null)}
+          />
+        )}
       </div>
     </main>
   )
