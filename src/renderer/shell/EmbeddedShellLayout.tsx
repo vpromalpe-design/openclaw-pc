@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -51,7 +51,7 @@ import { providerLabel } from '../../shared/provider-catalog'
 import { installShellSounds } from '@/lib/sounds'
 import { playTtsAudio } from '@/lib/tts-playback'
 /* v0.9.34: рой (группы агентов) */
-import { RoyGroupsList, RoyDisk } from '../roy/SidebarRoy'
+import { RoyGroupsList, RoyDiskButton, RoyDiskDrawer } from '../roy/SidebarRoy'
 import { RoyArenaView, RoyRightPanel } from '../roy/ArenaRoy'
 import type { RoyAgentRef } from '../roy/ArenaRoy'
 import { RoyCreateModal, RoyFileViewer } from '../roy/RoyUi'
@@ -364,6 +364,37 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   const [royOpenId, setRoyOpenId] = useState<string | null>(null)
   const [royFileNode, setRoyFileNode] = useState<RoyDiskNode | null>(null)
   const [royCreateOpen, setRoyCreateOpen] = useState(false)
+  // v0.9.36: диск — кнопка + дровер
+  const [royDiskOpen, setRoyDiskOpen] = useState(false)
+  useEffect(() => {
+    if (!royDiskOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setRoyDiskOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [royDiskOpen])
+  const royDiskRoots = useMemo(
+    () =>
+      buildDiskTree(
+        royGroups,
+        agents.length,
+        royGroups.reduce((n, g) => n + g.tasks.length, 0),
+      ),
+    [royGroups, agents.length],
+  )
+  const royDiskFileCount = useMemo(() => {
+    const cnt = (ns: RoyDiskNode[]): number =>
+      ns.reduce((n, x) => n + (x.kind === 'file' ? 1 : x.children ? cnt(x.children) : 0), 0)
+    return cnt(royDiskRoots)
+  }, [royDiskRoots])
+  const royDiskDrag = (e: React.DragEvent, node: RoyDiskNode) => {
+    e.dataTransfer.effectAllowed = 'copy'
+    e.dataTransfer.setData(
+      'application/x-roy-file',
+      JSON.stringify({ fileId: node.id, label: node.label, emoji: node.emoji }),
+    )
+  }
   // v0.9.34: рой-группы сохраняются в localStorage.
   useEffect(() => {
     saveGroups(royGroups)
@@ -1608,6 +1639,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                   ＋
                 </span>
               </div>
+              <div className="shell-agent-list">
               {agents.map((a) => (
                 <div
                   key={a.id}
@@ -1688,6 +1720,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                     )}
                 </div>
               ))}
+              </div>
             </div>
 
             {/* v0.9.34: «Группы» (рои) — между агентами и задачами */}
@@ -1738,18 +1771,16 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
             </div>
 
             <div className="shell-side-group">
-              <div className="shell-g-title">
-                Сессии
+              <div className="shell-g-title">Сессии
                 <span className="plus" title="Все сеансы" onClick={() => openSection(MORE_SECTIONS[2])}>
                   ＋
                 </span>
               </div>
               {sessions.length === 0 ? (
-                <div style={{ padding: '8px 10px', fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>
-                  нет активных сессий
-                </div>
+                <div className="shell-sessions-none">нет активных сессий</div>
               ) : (
-                sessions.map((s) => (
+                <div className="shell-session-list">
+                {sessions.map((s) => (
                   <button
                     key={s.key}
                     type="button"
@@ -1765,25 +1796,16 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                     <span className="t">{sessionLabel(s)}</span>
                     <span className="tm">{formatSessionTime(s.updatedAt)}</span>
                   </button>
-                ))
+                ))}
+                </div>
               )}
             </div>
 
-            {/* v0.9.34: «Диск» — виртуальное дерево данных (всегда виден) */}
-            <RoyDisk
-              roots={buildDiskTree(
-                royGroups,
-                agents.length,
-                royGroups.reduce((n, g) => n + g.tasks.length, 0),
-              )}
-              onOpenFile={(node) => setRoyFileNode(node)}
-              onDragFile={(e, node) => {
-                e.dataTransfer.effectAllowed = 'copy'
-                e.dataTransfer.setData(
-                  'application/x-roy-file',
-                  JSON.stringify({ fileId: node.id, label: node.label, emoji: node.emoji }),
-                )
-              }}
+            {/* v0.9.36: «Диск» — кнопка, открывает дровер с деревом (файлы — на арену) */}
+            <RoyDiskButton
+              fileCount={royDiskFileCount}
+              open={royDiskOpen}
+              onToggle={() => setRoyDiskOpen((o) => !o)}
             />
 
             <div className="shell-side-foot">
@@ -1795,6 +1817,18 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
               </div>
             </div>
           </aside>
+
+          {/* v0.9.36: дровер «Диск» — поверх левой части, файлы тянутся на арену */}
+          <RoyDiskDrawer
+            open={royDiskOpen}
+            roots={royDiskRoots}
+            onOpenFile={(node) => {
+              setRoyDiskOpen(false)
+              setRoyFileNode(node)
+            }}
+            onDragFile={royDiskDrag}
+            onClose={() => setRoyDiskOpen(false)}
+          />
 
           {/* ── Center: embedded Control UI / panels ── */}
           <section className="shell-chat-area">

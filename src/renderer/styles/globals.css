@@ -501,6 +501,7 @@ body {
   grid-template-columns: 300px minmax(0, 1fr) 300px;
   gap: 12px;
   min-height: 0;
+  position: relative;
 }
 .shell-main.no-panel {
   grid-template-columns: 300px minmax(0, 1fr);
@@ -512,9 +513,25 @@ body {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
   min-height: 0;
 }
+/* v0.9.36: каждый список сайдбара — свой скролл (левая панель не «плывёт») */
+.shell-agent-list {
+  display: flex; flex-direction: column; gap: 3px;
+  overflow-y: auto; min-height: 0;
+  max-height: min(330px, 36vh);
+  margin-bottom: 2px; padding-right: 2px;
+}
+.shell-agent-list::-webkit-scrollbar { width: 4px; }
+.shell-session-list {
+  display: flex; flex-direction: column; gap: 2px;
+  overflow-y: auto; min-height: 0;
+  max-height: min(180px, 20vh);
+  padding-right: 2px;
+}
+.shell-session-list::-webkit-scrollbar { width: 4px; }
+.shell-sessions-none { padding: 4px 10px; font-size: 11.5px; color: var(--text-3); }
 .shell-side-group .shell-g-title {
   font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
   font-size: 9.5px;
@@ -960,19 +977,9 @@ body {
 }
 .shell-side-foot {
   margin-top: auto;
-  padding: 12px 8px 0;
+  padding: 10px 8px 2px;
   border-top: 1px solid var(--glass-sep);
-  position: sticky;
-  bottom: -16px;
-  z-index: 6;
-  background: linear-gradient(180deg, rgba(13, 18, 34, 0.92), rgba(13, 18, 34, 0.98));
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  margin-left: -12px;
-  margin-right: -12px;
-  padding-left: 20px;
-  padding-right: 20px;
-  border-radius: 0 0 22px 22px;
+  flex: none;
 }
 .shell-disk {
   display: flex;
@@ -1564,13 +1571,13 @@ body {
 
 /* ── Sidebar: «Группы» ─────────────────────────────────────────────────── */
 .roy-groups {
-  display: flex; flex-direction: column; min-height: 0;
+  display: flex; flex-direction: column; min-height: 0; flex: none;
   border-bottom: 1px solid var(--glass-sep);
-  padding-bottom: 14px;
+  padding-bottom: 12px;
 }
 .roy-groups-scroll {
   display: flex; flex-direction: column; gap: 1px;
-  overflow-y: auto; min-height: 0; max-height: 258px;
+  overflow-y: auto; min-height: 0; max-height: min(230px, 26vh);
   padding-right: 2px;
 }
 .roy-groups-scroll::-webkit-scrollbar { width: 4px; }
@@ -1628,23 +1635,81 @@ body {
 .roy-groups-empty {
   width: 100%; border: 1px dashed rgba(255, 255, 255, 0.18);
   background: rgba(255, 255, 255, 0.03);
-  border-radius: 14px; padding: 10px 12px; margin: 2px 0;
-  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
-  cursor: pointer; color: var(--text);
+  border-radius: 12px; padding: 7px 10px; margin: 2px 0;
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; color: var(--text); flex: none;
+  font-family: inherit; text-align: left;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
-.roy-groups-empty:hover { background: rgba(10, 132, 255, 0.1); border-color: rgba(10, 132, 255, 0.4); }
-.roy-groups-empty .rg-ic { font-size: 18px; display: inline-flex; color: #7cc0ff; }
-.roy-groups-empty .rg-t { font-size: 12.5px; font-weight: 600; }
-.roy-groups-empty .rg-s { font-size: 10.5px; color: var(--text-3); text-align: left; }
+.roy-groups-empty:hover { background: rgba(10, 132, 255, 0.12); border-color: rgba(10, 132, 255, 0.5); }
+.roy-groups-empty .rg-ic { display: inline-flex; color: #7cc0ff; flex: none; }
+.roy-groups-empty .rg-t { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.roy-groups-empty .rg-go { margin-left: auto; color: var(--text-3); flex: none; }
 .roy-inline-name {
   flex: 1; min-width: 0; background: rgba(0, 0, 0, 0.3);
   border: 1px solid rgba(10, 132, 255, 0.5); border-radius: 8px;
   color: var(--text); font-size: 12.5px; padding: 3px 7px; outline: none;
 }
 
-/* ── Sidebar: «Диск» ───────────────────────────────────────────────────── */
-.roy-disk { min-height: 0; flex: 1 1 auto; display: flex; flex-direction: column; }
-.roy-disk-tree { display: flex; flex-direction: column; margin-top: 2px; overflow-y: auto; min-height: 0; flex: 1; }
+/* ── Sidebar: «Диск» (кнопка) + дровер ────────────────────────────────── */
+.roy-disk-btn {
+  display: flex; align-items: center; gap: 9px;
+  width: 100%; padding: 8px 10px; border-radius: 13px;
+  background: linear-gradient(135deg, rgba(10, 132, 255, 0.13), rgba(94, 92, 230, 0.1));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text); cursor: pointer; font-family: inherit;
+  font-size: 12.5px; text-align: left; flex: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.roy-disk-btn:hover { background: linear-gradient(135deg, rgba(10, 132, 255, 0.22), rgba(94, 92, 230, 0.17)); border-color: rgba(10, 132, 255, 0.5); }
+.roy-disk-btn.open { background: linear-gradient(135deg, rgba(10, 132, 255, 0.3), rgba(94, 92, 230, 0.24)); border-color: rgba(10, 132, 255, 0.65); }
+.roy-disk-btn-ic { display: inline-flex; color: #6db7ff; flex: none; }
+.roy-disk-btn-t { flex: 1; font-weight: 600; }
+.roy-disk-btn-cnt {
+  font-size: 10px; font-weight: 700; min-width: 18px; height: 18px; padding: 0 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 999px; background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18); color: var(--text-2);
+}
+.roy-disk-btn-ch { color: var(--text-3); font-size: 10px; flex: none; }
+
+.roy-disk-drawer {
+  position: absolute; left: 0; top: 0; bottom: 0; z-index: 70;
+  width: min(340px, calc(100vw - 24px));
+  display: flex; flex-direction: column; min-height: 0;
+  background: linear-gradient(180deg, rgba(16, 22, 40, 0.92), rgba(10, 14, 28, 0.96));
+  backdrop-filter: blur(30px) saturate(160%);
+  -webkit-backdrop-filter: blur(30px) saturate(160%);
+  border: 1px solid var(--glass-border);
+  border-radius: 22px;
+  box-shadow: 24px 0 60px rgba(2, 6, 18, 0.55), inset 0 1px 0 var(--glass-hi);
+  padding: 12px 10px;
+  animation: roy-drawer-in 0.18s ease;
+}
+@keyframes roy-drawer-in {
+  from { transform: translateX(-18px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.roy-disk-drawer-head {
+  display: flex; align-items: center; gap: 8px; flex: none;
+  padding: 2px 4px 10px;
+}
+.roy-disk-drawer-title {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
+  font-size: 11px; letter-spacing: 1.3px; text-transform: uppercase;
+  color: var(--text); font-weight: 700;
+}
+.roy-disk-drawer-title svg { color: #6db7ff; }
+.roy-disk-drawer-sub { font-size: 10px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.roy-disk-drawer-x {
+  margin-left: auto; flex: none; width: 26px; height: 26px; border-radius: 9px;
+  border: 0; background: rgba(255, 255, 255, 0.07); color: var(--text-2);
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.roy-disk-drawer-x:hover { background: rgba(255, 69, 58, 0.25); color: #fff; }
+.roy-disk-tree { display: flex; flex-direction: column; overflow-y: auto; min-height: 0; flex: 1; padding-right: 2px; }
 .roy-disk-tree::-webkit-scrollbar { width: 4px; }
 .roy-drow {
   display: flex; align-items: center; gap: 6px;

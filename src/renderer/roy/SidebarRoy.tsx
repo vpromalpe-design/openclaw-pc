@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Pencil, Plus, Rocket, Trash2, Users } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { ChevronRight, HardDrive, Pencil, Plus, Rocket, Trash2, Users, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { RoyGroup, RoyDiskNode } from './types'
 import { GRADS } from './data'
@@ -48,10 +48,10 @@ export function RoyGroupsList({ groups, activeId, onOpen, onCreate, onRename, on
       </div>
 
       {groups.length === 0 && (
-        <button type="button" className="roy-groups-empty" onClick={onCreate}>
-          <span className="rg-ic"><Users size={18} /></span>
+        <button type="button" className="roy-groups-empty" onClick={onCreate} title="Создать группу (рой)">
+          <span className="rg-ic"><Users size={14} /></span>
           <span className="rg-t">Создай первый рой</span>
-          <span className="rg-s">агенты будут работать вместе</span>
+          <ChevronRight size={14} className="rg-go" />
         </button>
       )}
 
@@ -117,7 +117,7 @@ export function RoyGroupsList({ groups, activeId, onOpen, onCreate, onRename, on
   )
 }
 
-/* ── Sidebar: «Диск» — always-visible virtual tree ────────────────────── */
+/* ── Sidebar: «Диск» — кнопка + выезжающий дровер с деревом ─────────── */
 
 export interface RoyDiskProps {
   roots: RoyDiskNode[]
@@ -163,30 +163,49 @@ function DiskNodeRow({ node, depth, onOpenFile, onDragFile }: { node: RoyDiskNod
   )
 }
 
-export function RoyDisk({ roots, onOpenFile, onDragFile }: RoyDiskProps) {
-  const [open, setOpen] = useState(true)
+/** Кнопка-переключатель «Диск» в сайдбаре (вместо всегда-открытого дерева). */
+export function RoyDiskButton({ fileCount, open, onToggle }: { fileCount: number; open: boolean; onToggle: () => void }) {
   return (
-    <div className="shell-side-group roy-disk">
-      <div className="shell-g-title">
-        Диск
-        <span
-          className="plus"
-          title={open ? 'Свернуть' : 'Развернуть'}
-          onClick={() => setOpen((o) => !o)}
-        >
-          {open ? '▾' : '▸'}
-        </span>
+    <button
+      type="button"
+      className={cn('roy-disk-btn', open && 'open')}
+      onClick={onToggle}
+      title={open ? 'Закрыть диск' : 'Открыть диск — файлы для агентов (перетаскивай на арену)'}
+    >
+      <span className="roy-disk-btn-ic"><HardDrive size={15} strokeWidth={1.9} /></span>
+      <span className="roy-disk-btn-t">Диск</span>
+      <span className="roy-disk-btn-cnt">{fileCount}</span>
+      <span className="roy-disk-btn-ch">{open ? '▾' : '▸'}</span>
+    </button>
+  )
+}
+
+/** Дровер-панель с деревом диска: закрывается крестиком, кликом по кнопке, Escape. */
+export function RoyDiskDrawer({ open, roots, onOpenFile, onDragFile, onClose }: RoyDiskProps & { open: boolean; onClose: () => void }) {
+  const fileCount = useMemo(() => {
+    const count = (ns: RoyDiskNode[]): number =>
+      ns.reduce((n, x) => n + (x.kind === 'file' ? 1 : x.children ? count(x.children) : 0), 0)
+    return count(roots)
+  }, [roots])
+
+  if (!open) return null
+  return (
+    <div className="roy-disk-drawer">
+      <div className="roy-disk-drawer-head">
+        <span className="roy-disk-drawer-title"><HardDrive size={14} /> Диск</span>
+        <span className="roy-disk-drawer-sub">{fileCount} файлов — тяни на арену</span>
+        <button type="button" className="roy-disk-drawer-x" title="Закрыть диск" onClick={onClose}>
+          <X size={16} />
+        </button>
       </div>
-      {open && (
-        <div className="roy-disk-tree">
-          {roots.map((r) => (
-            <DiskNodeRow key={r.id} node={r} depth={0} onOpenFile={onOpenFile} onDragFile={onDragFile} />
-          ))}
-          <div className="roy-disk-note">
-            💡 файлы — на арену (раздать агентам) · dblclick — открыть
-          </div>
-        </div>
-      )}
+      <div className="roy-disk-tree">
+        {roots.map((r) => (
+          <DiskNodeRow key={r.id} node={r} depth={0} onOpenFile={onOpenFile} onDragFile={onDragFile} />
+        ))}
+      </div>
+      <div className="roy-disk-note">
+        💡 тяни файл на арену, чтобы раздать агентам · двойной клик — открыть
+      </div>
     </div>
   )
 }
