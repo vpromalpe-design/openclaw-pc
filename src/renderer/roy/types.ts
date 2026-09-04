@@ -1,5 +1,22 @@
 /** Рой (группа агентов) — типы данных (v0.9.34, встраивание макета). */
 
+/** Реальный запуск задачи у агента (v0.9.37): привязка к shell-реестру задач. */
+export interface RoyTaskRun {
+  /** кому ушла задача (agent id) */
+  agentId: string
+  /** имя на момент запуска — для отчёта */
+  agentName?: string
+  /** id записи в локальном реестре задач (tasksDispatch → localTaskId) */
+  localId?: string
+  runId?: string
+  status: 'run' | 'done' | 'fail'
+  /** финальный ответ агента */
+  report?: string
+  error?: string
+  startedAt: number
+  endedAt?: number
+}
+
 export interface RoyTask {
   id: string
   /** Кому дана задача: agent id или 'group' (всему рою) */
@@ -7,6 +24,10 @@ export interface RoyTask {
   title: string
   state: 'wait' | 'run' | 'done'
   ts: number
+  /** v0.9.37: реальные запуски по агентам (если есть — задача «живая») */
+  runs?: RoyTaskRun[]
+  /** v0.9.37: принято главным/Дамиром («Сделано») */
+  accepted?: boolean
 }
 
 export interface RoyLogRow {

@@ -3,6 +3,7 @@ import {
   Bot,
   Check,
   ChevronRight,
+  FileText,
   MessageSquare,
   MoreHorizontal,
   Paperclip,
@@ -19,7 +20,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { RoyGroup, RoyTask, RoyLogRow, RoyFileCard } from './types'
-import { activeTasks, nextTaskState, TASK_STATE } from './data'
+import { activeTasks, nextTaskState, TASK_STATE, finishedRuns, hasReport, isLeaderTask } from './data'
 
 /* ── Small shared bits ─────────────────────────────────────────────────── */
 
@@ -149,9 +150,11 @@ export interface RoyArenaProps {
   /** пункты меню «сменить модель» (из списка агентов шелла) */
   modelOptions?: Array<{ id: string; label: string }>
   onSetModel?: (agentId: string, model: string) => void
+  /** v0.9.37: реальный запуск задачи у агентов (живой диспатч) */
+  onRunTask?: (taskId: string) => void
 }
 
-export function RoyArenaView({ group, agents, onPatch, onChat, onRemoveAgent, onClose, modelOptions, onSetModel }: RoyArenaProps) {
+export function RoyArenaView({ group, agents, onPatch, onChat, onRemoveAgent, onClose, modelOptions, onSetModel, onRunTask }: RoyArenaProps) {
   const [modal, setModal] = useState<RoyModalKind>(null)
   const [missionText, setMissionText] = useState('')
   const [broadcastText, setBroadcastText] = useState('')
@@ -566,6 +569,7 @@ export function RoyArenaView({ group, agents, onPatch, onChat, onRemoveAgent, on
             onRemoveAgent={onRemoveAgent}
             modelOptions={modelOptions}
             onSetModel={onSetModel}
+            onRunTask={onRunTask}
             onClose={() => setModal(null)}
           />
         )
@@ -584,6 +588,7 @@ function AgentCardModal({
   onRemoveAgent,
   modelOptions,
   onSetModel,
+  onRunTask,
   onClose,
 }: {
   agent: RoyAgentRef
@@ -593,11 +598,13 @@ function AgentCardModal({
   onRemoveAgent: (agent: RoyAgentRef) => void
   modelOptions?: Array<{ id: string; label: string }>
   onSetModel?: (agentId: string, model: string) => void
+  onRunTask?: (taskId: string) => void
   onClose: () => void
 }) {
   const [cmd, setCmd] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const [selId, setSelId] = useState<string | null>(null)
+  const [reportTask, setReportTask] = useState<RoyTask | null>(null)
 
   const inGroup = group.members.includes(a.id)
   const own = group.tasks.filter((t) => t.who === a.id)
@@ -733,7 +740,11 @@ function AgentCardModal({
           <button key={t.id} type="button" className={cn('rac-task-row', `st-${t.state}`, sel?.id === t.id && 'sel')} onClick={() => setSelId(sel?.id === t.id ? null : t.id)}>
             <span className={cn('rac-t-dot', t.state)} />
             <span className="rac-t-title">{t.title}</span>
+            {t.runs && t.runs.length > 0 && (
+              <span className="rac-t-run" title="реальный запуск у агентов">{finishedRuns(t)}/{t.runs.length}</span>
+            )}
             <span className="rac-t-st">{TASK_STATE[t.state].label}</span>
+            {t.state === 'done' && hasReport(t) && <FileText size={12} className="rac-t-report" />}
             <ChevronRight size={13} className="rac-t-chev" />
           </button>
         ))}
@@ -746,10 +757,25 @@ function AgentCardModal({
             <span className="rac-detail-ts">создана {timeHhMm(sel.ts)}</span>
           </div>
           <div className="rac-detail-t">{sel.title}</div>
+          {sel.runs && sel.runs.length > 0 && (
+            <div className="rac-detail-runs">
+              {sel.runs.map((r) => (
+                <span key={r.localId ?? r.agentId} className={cn('rac-run-chip', r.status)}>
+                  {royAgentEmoji(r.agentId)} {r.agentId === 'user' ? 'вы' : r.agentName ?? r.agentId}
+                  {r.status === 'done' ? ' ✓' : r.status === 'fail' ? ' ⚠' : ' …'}
+                </span>
+              ))}
+            </div>
+          )}
           <div className="rac-detail-a">
             {sel.state === 'wait' && (
-              <button type="button" className="roy-btn primary" onClick={() => advance(sel)}>
-                <Send size={12} /> В работу
+              <button
+                type="button"
+                className="roy-btn primary"
+                title={onRunTask ? 'Реально запустить у агента (в его сессии задач)' : 'Ручной прогон (демо)'}
+                onClick={() => { setSelId(null); if (onRunTask) onRunTask(sel.id); else advance(sel) }}
+              >
+                <Send size={12} /> {onRunTask ? 'Запустить' : 'В работу'}
               </button>
             )}
             {sel.state === 'run' && (
@@ -760,6 +786,30 @@ function AgentCardModal({
             {sel.state === 'done' && (
               <button type="button" className="roy-btn ghost" onClick={() => backToQueue(sel)}>
                 <RotateCcw size={12} /> Вернуть в очередь
+              </button>
+            )}
+            {sel.state === 'done' && hasReport(sel) && (
+              <button type="button" className="roy-btn" onClick={() => setReportTask(sel)}>
+                <FileText size={12} /> Посмотреть отчёт
+              </button>
+            )}
+            {sel.state === 'done' && isLeaderTask(sel) && !sel.accepted && (
+              <button
+                type="button"
+                className="roy-btn primary"
+                onClick={() => {
+                  onPatch((g) => ({
+                    ...g,
+                    tasks: g.tasks.map((x) => (x.id === sel.id ? { ...x, accepted: true } : x)),
+                    log: [
+                      { id: `l${Date.now().toString(36)}`, ico: '🤝', text: `отчёт принят: ${sel.title}`, ts: Date.now() },
+                      ...g.log,
+                    ].slice(0, 60),
+                  }))
+                  setSelId(null)
+                }}
+              >
+                <Check size={12} /> Сделано
               </button>
             )}
             <button type="button" className="roy-btn danger ghost" onClick={() => delTask(sel)}>
@@ -799,6 +849,8 @@ function AgentCardModal({
           )
         })}
       </div>
+
+      {reportTask && <RoyReportModal task={reportTask} onClose={() => setReportTask(null)} />}
     </RoyModal>
   )
 }
@@ -825,12 +877,15 @@ export interface RoyRightProps {
   group: RoyGroup
   agents: RoyAgentRef[]
   onPatch: (fn: (g: RoyGroup) => RoyGroup) => void
+  /** v0.9.37: реальный запуск задачи у агентов */
+  onRunTask?: (taskId: string) => void
 }
 
-export function RoyRightPanel({ group, agents, onPatch }: RoyRightProps) {
+export function RoyRightPanel({ group, agents, onPatch, onRunTask }: RoyRightProps) {
   const [showAll, setShowAll] = useState(false)
   const [logExpanded, setLogExpanded] = useState(true)
   const [newTask, setNewTask] = useState('')
+  const [reportTask, setReportTask] = useState<RoyTask | null>(null)
   const running = activeTasks(group)
   const done = group.tasks.filter((t) => t.state === 'done').length
   const waiting = group.tasks.filter((t) => t.state === 'wait').length
@@ -910,21 +965,59 @@ export function RoyRightPanel({ group, agents, onPatch }: RoyRightProps) {
         <div className="roy-tasklist">
           {(showAll ? group.tasks : group.tasks.slice(0, 5)).map((t) => {
             const next = nextTaskState(t.state)
+            const rep = hasReport(t)
             return (
               <div key={t.id} className={cn('roy-task-row', t.state)}>
                 <span className={cn('rt-dot', t.state)} title={TASK_STATE[t.state].label} />
                 <div className="rt-body">
                   <div className="rt-title">{t.title}</div>
-                  <div className="rt-who">→ {t.who === 'group' ? 'РОЙ' : t.who} · {TASK_STATE[t.state].label}</div>
+                  <div className="rt-who">
+                    → {t.who === 'group' ? 'РОЙ' : t.who} · {TASK_STATE[t.state].label}
+                    {t.runs && t.runs.length > 0 && <i className="rt-prog">{finishedRuns(t)}/{t.runs.length} ответили</i>}
+                  </div>
                 </div>
-                {next && (
+                {t.state === 'wait' && onRunTask && (
                   <button
                     type="button"
                     className="rt-act"
-                    title={next === 'run' ? 'В работу' : 'Готово'}
-                    onClick={() => advanceTask(t)}
+                    title={t.who === 'group' ? 'Разослать всем участникам' : 'Реально запустить у агента'}
+                    onClick={() => onRunTask(t.id)}
                   >
-                    {next === 'run' ? <Play size={12} /> : <Check size={12} />}
+                    <Play size={12} />
+                  </button>
+                )}
+                {t.state === 'wait' && !onRunTask && next && (
+                  <button type="button" className="rt-act" title="В работу" onClick={() => advanceTask(t)}>
+                    <Play size={12} />
+                  </button>
+                )}
+                {t.state === 'run' && next && (
+                  <button type="button" className="rt-act" title="Готово (вручную)" onClick={() => advanceTask(t)}>
+                    <Check size={12} />
+                  </button>
+                )}
+                {t.state === 'done' && rep && (
+                  <button type="button" className="rt-act" title="Посмотреть отчёт" onClick={() => setReportTask(t)}>
+                    <FileText size={12} />
+                  </button>
+                )}
+                {t.state === 'done' && isLeaderTask(t) && !t.accepted && (
+                  <button
+                    type="button"
+                    className="rt-act ok"
+                    title="Принять: задача главного сделана"
+                    onClick={() =>
+                      onPatch((g) => ({
+                        ...g,
+                        tasks: g.tasks.map((x) => (x.id === t.id ? { ...x, accepted: true } : x)),
+                        log: [
+                          { id: `l${Date.now().toString(36)}`, ico: '🤝', text: `отчёт принят: ${t.title}`, ts: Date.now() },
+                          ...g.log,
+                        ].slice(0, 60),
+                      }))
+                    }
+                  >
+                    <Check size={12} />
                   </button>
                 )}
                 <button type="button" className="rt-del" title="Удалить задачу" onClick={() => onPatch((g) => ({ ...g, tasks: g.tasks.filter((x) => x.id !== t.id) }))}>
@@ -970,6 +1063,52 @@ export function RoyRightPanel({ group, agents, onPatch }: RoyRightProps) {
             </span>
           )
         })}
+      </div>
+
+      {reportTask && <RoyReportModal task={reportTask} onClose={() => setReportTask(null)} />}
+    </div>
+  )
+}
+
+/* ── Отчёт задачи (ответы агентов реального запуска, v0.9.37) ────────── */
+
+function RoyReportModal({ task, onClose }: { task: RoyTask; onClose: () => void }) {
+  const runs = task.runs ?? []
+  const answered = runs.filter((r) => r.report || r.error)
+  return (
+    <div className="roy-modal-back" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="roy-modal roy-rep" style={{ width: 'min(680px, 94vw)' }}>
+        <div className="rm-head">
+          <div className="rm-title">
+            <FileText size={14} /> Отчёт: {task.title}
+          </div>
+          <button type="button" className="rm-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="roy-rep-who">
+          задача → {task.who === 'group' ? 'РОЙ' : task.who} ·{' '}
+          {runs.length === 0 ? 'без реального запуска' : `${answered.length}/${runs.length} ответили`}
+        </div>
+        <div className="roy-rep-list">
+          {runs.length === 0 && (
+            <div className="rm-none-links">задача отмечена вручную — реального ответа агентов нет.</div>
+          )}
+          {runs.map((r) => (
+            <div key={r.localId ?? r.agentId} className={cn('roy-rep-item', r.status)}>
+              <div className="roy-rep-h">
+                <span className="roy-rep-av">{royAgentEmoji(r.agentId)}</span>
+                <b>{r.agentName ?? r.agentId}</b>
+                <span className={cn('roy-rep-st', r.status)}>
+                  {r.status === 'done' ? '✓ ответил' : r.status === 'fail' ? '⚠ ошибка' : '… работает'}
+                </span>
+                {r.endedAt && <i>{timeHhMm(r.endedAt)}</i>}
+              </div>
+              <pre className="roy-rep-text">{(r.report || r.error || '—').trim()}</pre>
+            </div>
+          ))}
+        </div>
+        <div className="rm-foot">
+          <button type="button" className="roy-btn primary" onClick={onClose}>Закрыть</button>
+        </div>
       </div>
     </div>
   )

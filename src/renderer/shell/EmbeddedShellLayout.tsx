@@ -55,8 +55,8 @@ import { RoyGroupsList, RoyDiskButton, RoyDiskDrawer } from '../roy/SidebarRoy'
 import { RoyArenaView, RoyRightPanel } from '../roy/ArenaRoy'
 import type { RoyAgentRef } from '../roy/ArenaRoy'
 import { RoyCreateModal, RoyFileViewer } from '../roy/RoyUi'
-import { loadGroups, saveGroups, newGroup, renameGroup, buildDiskTree, diskFileContent } from '../roy/data'
-import type { RoyGroup, RoyDiskNode } from '../roy/types'
+import { loadGroups, saveGroups, newGroup, renameGroup, buildDiskTree, diskFileContent, attachTaskRuns, applyRunResult } from '../roy/data'
+import type { RoyGroup, RoyTaskRun, RoyDiskNode } from '../roy/types'
 
 const TIMEOUT_MS = 300_000
 
@@ -1254,6 +1254,90 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     },
     [royOpenId],
   )
+
+  // v0.9.37: реальный запуск задачи роя — каждому адресату в его сессию задач
+  // (`agent:<id>:tasks` через IPC tasksDispatch mode:'now') + привязка runs.
+  const royRunTask = useCallback(
+    async (groupId: string, taskId: string) => {
+      const g = royGroups.find((x) => x.id === groupId)
+      const t = g?.tasks.find((x) => x.id === taskId)
+      if (!g || !t) return
+      if (t.state !== 'wait') return
+      const targets = t.who === 'group' ? g.members : [t.who]
+      const real = targets.filter((w) => w !== 'user')
+      if (real.length === 0) return
+      const nameOf = new Map(agents.map((a) => [a.id, a.name]))
+      const settled = await Promise.allSettled(
+        real.map(async (agentId) => {
+          const res = await window.electronAPI.tasksDispatch({
+            text: t.title,
+            agentId,
+            mode: 'now',
+            freq: 'once',
+          })
+          return { agentId, res }
+        }),
+      )
+      const runs: RoyTaskRun[] = settled.map((r) => {
+        if (r.status === 'rejected') {
+          return { agentId: '?', status: 'fail' as const, error: String(r.reason), startedAt: Date.now() }
+        }
+        const { agentId, res } = r.value
+        if (res?.ok) {
+          return {
+            agentId,
+            agentName: nameOf.get(agentId) ?? agentId,
+            localId: res.localTaskId,
+            runId: res.runId,
+            status: 'run' as const,
+            startedAt: Date.now(),
+          }
+        }
+        return {
+          agentId,
+          agentName: nameOf.get(agentId) ?? agentId,
+          status: 'fail' as const,
+          error: res?.error ?? 'dispatch failed',
+          startedAt: Date.now(),
+        }
+      })
+      setRoyGroups((gs) => gs.map((gr) => (gr.id === groupId ? attachTaskRuns(gr, taskId, runs) : gr)))
+    },
+    [royGroups, agents],
+  )
+
+  // Мониторинг: ответы агентов из локального реестра задач → runs роя.
+  // Срабатывает при каждом обновлении реестра (onTasksLocalChanged → load).
+  useEffect(() => {
+    const locals = tasksData.tasks
+    if (!locals || locals.length === 0) return
+    setRoyGroups((gs) => {
+      let any = false
+      const next = gs.map((g) => {
+        let g2 = g
+        for (const t of g2.tasks) {
+          if (!t.runs) continue
+          for (const rn of t.runs) {
+            if (!rn.localId || rn.status !== 'run') continue
+            const loc = locals.find((l) => l.id === rn.localId)
+            if (!loc) continue
+            const upd =
+              loc.status === 'succeeded'
+                ? { status: 'done' as const, report: loc.answer }
+                : loc.status === 'failed' || loc.status === 'cancelled' || loc.status === 'timed_out'
+                  ? { status: 'fail' as const, error: loc.error ?? `задача не выполнена (${loc.status})` }
+                  : null
+            if (!upd) continue
+            const before = g2
+            g2 = applyRunResult(g2, t.id, rn.localId, upd)
+            if (g2 !== before) any = true
+          }
+        }
+        return g2
+      })
+      return any ? next : gs
+    })
+  }, [tasksData.tasks])
   const royRemoveAgentRef = useCallback(
     (agent: RoyAgentRef) => {
       const full = agents.find((a) => a.id === agent.id)
@@ -1840,6 +1924,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                     group={royOpenGroup}
                     agents={agents}
                     onPatch={royPatch}
+                    onRunTask={(taskId) => void royRunTask(royOpenGroup.id, taskId)}
                     onChat={(agentId) => {
                       setRoyOpenId(null)
                       openChatForAgent(agentId)
@@ -1977,6 +2062,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                 group={royOpenGroup}
                 agents={agents}
                 onPatch={royPatch}
+                onRunTask={(taskId) => void royRunTask(royOpenGroup.id, taskId)}
               />
             ) : activePanel === 'tasks' ? (
               <TasksDetailPanel

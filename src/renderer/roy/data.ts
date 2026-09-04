@@ -1,6 +1,6 @@
 /** Механика роя (v0.9.34): группы, задачи, лог, диск. */
 
-import type { RoyGroup, RoyTask, RoyFileCard, RoyDiskNode } from './types'
+import type { RoyGroup, RoyTask, RoyTaskRun, RoyLogRow, RoyFileCard, RoyDiskNode } from './types'
 
 const LS_KEY = 'openclaw-pc:roy-groups:v1'
 
@@ -96,6 +96,97 @@ export function removeTask(g: RoyGroup, taskId: string): RoyGroup {
     '🗑',
     `задача удалена${t ? `: ${t.title}` : ''}`,
   )
+}
+
+/* ═══ v0.9.37: живые запуски (runs) — привязка к реальному слою задач ═══ */
+
+/** Сколько запусков уже дали финальный результат (done|fail). */
+export function finishedRuns(t: RoyTask): number {
+  if (!t.runs) return 0
+  return t.runs.filter((r) => r.status === 'done' || r.status === 'fail').length
+}
+
+/** Есть ли у задачи хоть один отчёт/ошибка для показа. */
+export function hasReport(t: RoyTask): boolean {
+  return !!t.runs && t.runs.some((r) => (r.report && r.report.trim()) || (r.error && r.error.trim()))
+}
+
+/** Задача считается задачей «главного» (её результат отчитывают Дамиру). */
+export function isLeaderTask(t: RoyTask): boolean {
+  return t.who === 'main' || t.who === 'group'
+}
+
+/**
+ * Прикрепить результаты запусков к задаче (после реального диспатча).
+ * Если все запуски сразу упали — задача становится done (с ошибками),
+ * иначе — run («работает у N агентов»).
+ */
+export function attachTaskRuns(g: RoyGroup, taskId: string, runs: RoyTaskRun[]): RoyGroup {
+  const t = g.tasks.find((x) => x.id === taskId)
+  if (!t) return g
+  const allFail = runs.length > 0 && runs.every((r) => r.status === 'fail')
+  const nextState: RoyTask['state'] = allFail ? 'done' : 'run'
+  const okN = runs.filter((r) => r.status !== 'fail').length
+  const logText =
+    runs.length === 0
+      ? `запуск пуст: ${t.title}`
+      : allFail
+        ? `не удалось запустить ни у кого: ${t.title}`
+        : `🚀 запущено у ${okN}/${runs.length}: ${t.title}`
+  return {
+    ...g,
+    tasks: g.tasks.map((x) => (x.id === taskId ? { ...x, runs, state: nextState, accepted: false } : x)),
+    log: [{ id: uid('log'), ico: allFail ? '⚠️' : '🚀', text: logText, ts: Date.now() }, ...g.log].slice(0, 80),
+  }
+}
+
+/**
+ * Применить результат реального запуска (мониторинг shell-реестра).
+ * Когда все запуски терминальны — задача становится done (лог пишется один раз).
+ */
+export function applyRunResult(
+  g: RoyGroup,
+  taskId: string,
+  localId: string,
+  upd: { status: 'done' | 'fail'; report?: string; error?: string },
+): RoyGroup {
+  const t = g.tasks.find((x) => x.id === taskId)
+  if (!t || !t.runs) return g
+  const runs = t.runs.map((r) =>
+    r.localId === localId
+      ? {
+          ...r,
+          status: upd.status,
+          report: upd.report,
+          error: upd.error,
+          endedAt: Date.now(),
+        }
+      : r,
+  )
+  const changed = t.runs.some((r) => r.localId === localId && r.status !== upd.status)
+  if (!changed) return g
+  const terminal = runs.every((r) => r.status === 'done' || r.status === 'fail')
+  const prevState = t.state
+  const nextState: RoyTask['state'] = terminal ? 'done' : prevState === 'wait' ? 'run' : prevState
+  const doneN = runs.filter((r) => r.status === 'done').length
+  const failN = runs.filter((r) => r.status === 'fail').length
+  const newLogs: RoyLogRow[] = []
+  if (terminal && prevState !== 'done') {
+    newLogs.push({
+      id: uid('log'),
+      ico: failN > 0 && doneN === 0 ? '⚠️' : '✅',
+      text:
+        failN > 0
+          ? `задача завершена с ошибками (${doneN} ок / ${failN} ошибок): ${t.title}`
+          : `выполнено (${doneN}/${runs.length}): ${t.title}`,
+      ts: Date.now(),
+    })
+  }
+  return {
+    ...g,
+    tasks: g.tasks.map((x) => (x.id === taskId ? { ...x, runs, state: nextState } : x)),
+    log: [...newLogs, ...g.log].slice(0, 80),
+  }
 }
 
 export function setHead(g: RoyGroup, head: 'main' | 'user'): RoyGroup {
