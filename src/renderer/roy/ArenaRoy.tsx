@@ -19,6 +19,7 @@ import {
   X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { visibleAssistantText } from '../../shared/visible-text'
 import type { RoyGroup, RoyTask, RoyLogRow, RoyFileCard } from './types'
 import { activeTasks, nextTaskState, TASK_STATE, finishedRuns, hasReport, isLeaderTask } from './data'
 
@@ -1102,7 +1103,7 @@ function RoyReportModal({ task, onClose }: { task: RoyTask; onClose: () => void 
                 </span>
                 {r.endedAt && <i>{timeHhMm(r.endedAt)}</i>}
               </div>
-              <pre className="roy-rep-text">{(r.report || r.error || '—').trim()}</pre>
+              <pre className="roy-rep-text">{(visibleAssistantText(r.report || r.error) || '—').trim()}</pre>
             </div>
           ))}
         </div>

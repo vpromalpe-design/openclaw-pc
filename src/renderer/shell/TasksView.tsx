@@ -23,6 +23,7 @@ import {
   Mic,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { visibleAssistantText } from '../../shared/visible-text'
 import { Textarea } from '@/components/ui/textarea'
 import { recordMic } from '@/utils/mic-recorder'
 
@@ -805,7 +806,7 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
       task.status === 'waiting' && task.question ? (
         <div className="mt-1.5 flex items-start gap-2 rounded-lg border border-amber-400/25 bg-amber-500/10 px-2.5 py-1.5">
           <Bell className="mt-0.5 h-3 w-3 shrink-0 text-amber-300" aria-hidden />
-          <span className="line-clamp-2 min-w-0 flex-1 text-[11px] text-amber-100/90">{task.question}</span>
+          <span className="line-clamp-2 min-w-0 flex-1 text-[11px] text-amber-100/90">{visibleAssistantText(task.question)}</span>
         </div>
       ) : null
     const scheduledLine =
@@ -1602,9 +1603,11 @@ export function TasksDetailPanel({ data, selected, tab = 'output', onTabChange, 
     return base || ref.path
   }, [])
 
-  // v0.9.28→v0.9.30: заменить полные пути (и резолвнутые имена) в тексте ответа на ссылки
+  // v0.9.28→v0.9.30: заменить полные пути (и резолвнутые имена) в тексте ответа на ссылки;
+  // v0.9.38: сначала снять <think>/<final>-обёртку (для старых сырых записей реестра).
   const renderAnswerText = useCallback(
-    (text: string): React.ReactNode => {
+    (rawText: string): React.ReactNode => {
+      const text = visibleAssistantText(rawText)
       const entries: { match: string; ref: FileRef }[] = []
       for (const ref of fileRefs) {
         if (!ref.relative) entries.push({ match: ref.path, ref })
@@ -1727,7 +1730,7 @@ export function TasksDetailPanel({ data, selected, tab = 'output', onTabChange, 
                 <Bell className="h-3 w-3" aria-hidden />
                 Агент ждёт вашего решения
               </div>
-              <p className="whitespace-pre-wrap text-[11px] leading-relaxed text-white/90">{task.question}</p>
+              <p className="whitespace-pre-wrap text-[11px] leading-relaxed text-white/90">{visibleAssistantText(task.question)}</p>
             </div>
           )}
           {task.answer && (
@@ -1885,7 +1888,7 @@ export function TasksDetailPanel({ data, selected, tab = 'output', onTabChange, 
                 <Bell className="h-3 w-3" aria-hidden />
                 Агент ждёт вашего решения
               </div>
-              <p className="whitespace-pre-wrap text-[11px] leading-relaxed text-white/85">{task.question}</p>
+              <p className="whitespace-pre-wrap text-[11px] leading-relaxed text-white/85">{visibleAssistantText(task.question)}</p>
             </div>
             <Textarea
               value={replyText}

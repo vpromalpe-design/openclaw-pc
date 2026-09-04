@@ -26,6 +26,7 @@
  */
 
 import { findAwaitingTaskForSession, getLocalTask, updateLocalTask } from './store.js'
+import { isRunFailureText, visibleAssistantText } from '../../shared/visible-text.js'
 
 const FINALIZE_DEBOUNCE_MS = 4000
 
@@ -60,8 +61,11 @@ export function looksLikeQuestion(text: string): boolean {
   return /подтверд|одобр|разреш|жд[еу]т\s+ваш|жду\s+ваш|нужн[оа]\s+(тво|ваш)|ожидаю\s+(от\s+вас|ваш)|соглас(уй|ование|уете)|продолж(ить|ать)\?|показать\s+результат|делать\?|ок\?|да\?/i.test(t)
 }
 
-function finalize(sessionKey: string, text: string): void {
-  if (!text.trim()) return
+function finalize(sessionKey: string, raw: string): void {
+  // v0.9.38: транскрипт хранит сырой ответ модели в <think>/<final>-обёртке;
+  // в реестр/отчёты сохраняем только видимый текст.
+  const text = visibleAssistantText(raw)
+  if (!text) return
   const s = stateFor(sessionKey)
   // Prefer a task that is still running (awaiting its answer).
   const running = findAwaitingTaskForSession(sessionKey)
@@ -74,11 +78,15 @@ function finalize(sessionKey: string, text: string): void {
   }
   if (!task) return
   s.taskId = task.id
-  const isQuestion = looksLikeQuestion(text)
+  // v0.9.38: «The agent run failed before producing a reply.» — это НЕ успех,
+  // а оборванный запуск (rate limit и т.п.): статус failed + error.
+  const runFailed = isRunFailureText(text)
+  const isQuestion = !runFailed && looksLikeQuestion(text)
   updateLocalTask(task.id, {
-    status: isQuestion ? 'waiting' : 'succeeded',
-    answer: isQuestion ? undefined : text,
+    status: runFailed ? 'failed' : isQuestion ? 'waiting' : 'succeeded',
+    answer: runFailed || isQuestion ? undefined : text,
     question: isQuestion ? text : undefined,
+    error: runFailed ? text : undefined,
     endedAt: Date.now(),
     runId: task.runId, // keep for history
   })
