@@ -58,12 +58,32 @@ export function addTask(g: RoyGroup, who: string, title: string): RoyGroup {
   )
 }
 
+/** Подписи и css-классы трёх статусов задачи (в очереди → работает → готово). */
+export const TASK_STATE: Record<RoyTask['state'], { label: string; cls: string }> = {
+  wait: { label: 'в очереди', cls: 'wait' },
+  run: { label: 'работает', cls: 'run' },
+  done: { label: 'готово', cls: 'done' },
+}
+
+/** Следующее состояние по «честному» пути вперёд; done не зацикливается. */
+export function nextTaskState(state: RoyTask['state']): RoyTask['state'] | null {
+  if (state === 'wait') return 'run'
+  if (state === 'run') return 'done'
+  return null
+}
+
 export function setTaskState(g: RoyGroup, taskId: string, state: RoyTask['state']): RoyGroup {
+  const prev = g.tasks.find((t) => t.id === taskId)
   return {
     ...g,
     tasks: g.tasks.map((t) => (t.id === taskId ? { ...t, state } : t)),
     log: [
-      { id: uid('log'), ico: state === 'run' ? '▶️' : state === 'done' ? '✅' : '⏸️', text: `задача: ${state === 'run' ? 'в работу' : state === 'done' ? 'выполнена' : 'пауза'}`, ts: Date.now() },
+      {
+        id: uid('log'),
+        ico: state === 'run' ? '▶️' : state === 'done' ? '✅' : '⏳',
+        text: `задача ${state === 'run' ? 'в работу' : state === 'done' ? 'выполнена' : 'в очередь'}${prev ? `: ${prev.title}` : ''}`,
+        ts: Date.now(),
+      },
       ...g.log,
     ].slice(0, 80),
   }

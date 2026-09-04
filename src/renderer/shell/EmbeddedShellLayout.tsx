@@ -1812,6 +1812,8 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                     }}
                     onRemoveAgent={royRemoveAgentRef}
                     onClose={() => setRoyOpenId(null)}
+                    modelOptions={modelOptions}
+                    onSetModel={(agentId, model) => void setAgentModel(agentId, model)}
                   />
                 </div>
               )}

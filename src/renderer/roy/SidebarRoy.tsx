@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Pencil, Plus, Rocket, Trash2, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { RoyGroup, RoyDiskNode } from './types'
 import { GRADS } from './data'
@@ -42,68 +43,76 @@ export function RoyGroupsList({ groups, activeId, onOpen, onCreate, onRename, on
       <div className="shell-g-title">
         Группы
         <span className="plus" title="Новая группа (рой)" onClick={onCreate}>
-          ＋
+          <Plus size={13} />
         </span>
       </div>
 
       {groups.length === 0 && (
         <button type="button" className="roy-groups-empty" onClick={onCreate}>
-          <span className="rg-ic">🐝</span>
+          <span className="rg-ic"><Users size={18} /></span>
           <span className="rg-t">Создай первый рой</span>
           <span className="rg-s">агенты будут работать вместе</span>
         </button>
       )}
 
-      {groups.map((g) => (
-        <div
-          key={g.id}
-          className={cn('roy-group-row', activeId === g.id && 'active')}
-          onClick={() => onOpen(g.id)}
-          onDoubleClick={(e) => {
-            e.stopPropagation()
-            setEditingId(g.id)
-          }}
-          title="Открыть арену (двойной клик — переименовать)"
-        >
-          <span className={cn('rg-av', g.grad)}>{g.emoji}</span>
-          {editingId === g.id ? (
-            <InlineName g={g} onDone={(name) => { setEditingId(null); onRename(g.id, name) }} />
-          ) : (
-            <>
-              <span className="rg-body">
-                <span className="rg-name">{g.name}</span>
-                <span className="rg-sub">
-                  {membersOf(g)} уч. · лидер {g.head === 'main' ? 'main' : 'вы'}
-                </span>
-              </span>
-              <button
-                type="button"
-                className="rg-more"
-                title="Меню группы"
-                onClick={(e) => { e.stopPropagation(); setMenuId(menuId === g.id ? null : g.id) }}
-              >
-                ⋯
-              </button>
-              {menuId === g.id && (
-                <div className="rg-menu" onClick={(e) => e.stopPropagation()}>
-                  <button type="button" onClick={() => { setMenuId(null); setEditingId(g.id) }}>✏️ Переименовать</button>
-                  <button type="button" onClick={() => { setMenuId(null); onOpen(g.id) }}>🛰 Открыть арену</button>
+      {groups.length > 0 && (
+        <div className="roy-groups-scroll">
+          {groups.map((g) => (
+            <div
+              key={g.id}
+              className={cn('roy-group-row', activeId === g.id && 'active')}
+              onClick={() => onOpen(g.id)}
+              onDoubleClick={(e) => {
+                e.stopPropagation()
+                setEditingId(g.id)
+              }}
+              title="Открыть арену (двойной клик — переименовать)"
+            >
+              <span className={cn('rg-av', g.grad)}>{g.emoji}</span>
+              {editingId === g.id ? (
+                <InlineName g={g} onDone={(name) => { setEditingId(null); onRename(g.id, name) }} />
+              ) : (
+                <>
+                  <span className="rg-body">
+                    <span className="rg-name">{g.name}</span>
+                    <span className="rg-sub">
+                      {membersOf(g)} уч. · лидер {g.head === 'main' ? 'main' : 'вы'}
+                    </span>
+                  </span>
                   <button
                     type="button"
-                    className="danger"
-                    onClick={() => {
-                      setMenuId(null)
-                      if (window.confirm(`Удалить группу «${g.name}»? Участники-агенты останутся.`)) onRemove(g.id)
-                    }}
+                    className="rg-more"
+                    title="Меню группы"
+                    onClick={(e) => { e.stopPropagation(); setMenuId(menuId === g.id ? null : g.id) }}
                   >
-                    🗑 Удалить группу
+                    ⋯
                   </button>
-                </div>
+                  {menuId === g.id && (
+                    <div className="rg-menu" onClick={(e) => e.stopPropagation()}>
+                      <button type="button" onClick={() => { setMenuId(null); setEditingId(g.id) }}>
+                        <Pencil size={13} /> Переименовать
+                      </button>
+                      <button type="button" onClick={() => { setMenuId(null); onOpen(g.id) }}>
+                        <Rocket size={13} /> Открыть арену
+                      </button>
+                      <button
+                        type="button"
+                        className="danger"
+                        onClick={() => {
+                          setMenuId(null)
+                          if (window.confirm(`Удалить группу «${g.name}»? Участники-агенты останутся.`)) onRemove(g.id)
+                        }}
+                      >
+                        <Trash2 size={13} /> Удалить группу
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
-            </>
-          )}
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   )
 }
