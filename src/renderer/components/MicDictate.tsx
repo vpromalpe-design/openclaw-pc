@@ -16,6 +16,8 @@ export interface MicDictateProps {
   disabled?: boolean
   compact?: boolean
   title?: string
+  /** v0.9.45: показывать кнопку только когда true (появление при вводе текста) */
+  appear?: boolean
 }
 
 type ReadyState = 'unknown' | 'yes' | 'no'
@@ -39,7 +41,7 @@ async function sttAvailable(): Promise<boolean> {
   }
 }
 
-export function MicDictate({ onText, onRecording, disabled, compact, title }: MicDictateProps) {
+export function MicDictate({ onText, onRecording, disabled, compact, title, appear }: MicDictateProps) {
   const [ready, setReady] = useState<ReadyState>('unknown')
   const [dictating, setDictating] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -57,9 +59,18 @@ export function MicDictate({ onText, onRecording, disabled, compact, title }: Mi
     }
   }, [])
 
-  if (ready !== 'yes') return null
+  // v0.9.45: кнопка видна при вводе текста (appear) — даже если STT выключен,
+  // чтобы было понятно, что голосовой ввод есть (клик покажет, как включить).
+  const sttOk = ready === 'yes'
+  const show = appear === undefined ? sttOk : appear && ready !== 'unknown'
+  if (!show) return null
 
   const toggle = async () => {
+    if (!sttOk) {
+      setError('Голосовой ввод выключен: открой ⚙️ → Голос и включи STT (нужен whisper)')
+      window.setTimeout(() => setError(null), 4000)
+      return
+    }
     if (dictating) {
       stopRef.current?.()
       return
@@ -93,7 +104,7 @@ export function MicDictate({ onText, onRecording, disabled, compact, title }: Mi
     }
   }
 
-  const cls = ['roy-mic', dictating && 'rec', busy && 'busy', error && 'err', compact && 'compact']
+  const cls = ['roy-mic', !sttOk && 'no', dictating && 'rec', busy && 'busy', error && 'err', compact && 'compact']
     .filter(Boolean)
     .join(' ')
 
@@ -101,13 +112,13 @@ export function MicDictate({ onText, onRecording, disabled, compact, title }: Mi
     <button
       type="button"
       className={cls}
-      title={title ?? (dictating ? 'Стоп — закончить запись' : 'Голосовой ввод — нажмите, говорите, нажмите ещё раз')}
+      title={title ?? (!sttOk ? 'Голосовой ввод выключен — включи в ⚙️ → Голос (STT + whisper)' : dictating ? 'Стоп — закончить запись' : 'Голосовой ввод — нажмите, говорите, нажмите ещё раз')}
       aria-label="Голосовой ввод"
       onClick={() => void toggle()}
       disabled={disabled || busy}
     >
       {dictating ? <Square size={compact ? 11 : 13} /> : <Mic size={compact ? 11 : 13} />}
-      {!compact && <span className="roy-mic-l">{dictating ? 'Стоп' : busy ? '…' : ''}</span>}
+      {!compact && <span className="roy-mic-l">{!sttOk ? '' : dictating ? 'Стоп' : busy ? '…' : ''}</span>}
     </button>
   )
 }

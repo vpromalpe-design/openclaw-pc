@@ -1617,17 +1617,25 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
 
   ipcMain.handle(
     IPC_ROY_AVATAR_SAVE,
-    wrapHandler('ROY_AVATAR_SAVE', async (payload: unknown): Promise<{ ok: boolean; path?: string; error?: string }> => {
+    wrapHandler('ROY_AVATAR_SAVE', async (payload: unknown): Promise<{ ok: boolean; path?: string; picked?: string; error?: string }> => {
       const raw = validatePlainObject(payload, 'roy:avatarSave')
       const id = typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim().replace(/[^\w-]/g, '_').slice(0, 60) : ''
-      if (!id) return { ok: false, error: 'id required' }
-      const picked = await dialog.showOpenDialog({
-        title: 'Аватар — выбери картинку',
-        properties: ['openFile'],
-        filters: [{ name: 'Изображения', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }],
-      })
-      const src = picked.canceled || picked.filePaths.length === 0 ? '' : picked.filePaths[0]
-      if (!src) return { ok: false, error: 'отменено' }
+      // v0.9.45: два режима —
+      // 1) { id } — диалог выбора + копирование в userData/avatars/<id><ext>
+      // 2) { id, src } — без диалога: копировать уже выбранный файл (создание группы/агента)
+      // 3) {} — pick-only: только диалог, вернуть путь без копирования (превью до создания)
+      const preset = typeof raw.src === 'string' && raw.src.trim() ? raw.src.trim() : ''
+      let src = preset
+      if (!src) {
+        const picked = await dialog.showOpenDialog({
+          title: 'Аватар — выбери картинку',
+          properties: ['openFile'],
+          filters: [{ name: 'Изображения', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }],
+        })
+        src = picked.canceled || picked.filePaths.length === 0 ? '' : picked.filePaths[0]
+        if (!src) return { ok: false, error: 'отменено' }
+      }
+      if (!id) return { ok: true, picked: src }
       try {
         const ext = (path.extname(src) || '.png').toLowerCase().slice(0, 6)
         const avDir = path.join(deps.getUserDataDir(), 'avatars')

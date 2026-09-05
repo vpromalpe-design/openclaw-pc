@@ -4,6 +4,7 @@
  * (agent id или group id). Мини-стор с подпиской — без прокидывания пропсов.
  */
 import { useSyncExternalStore } from 'react'
+import { EmblemIcon, isEmblemKey } from './emblems'
 
 const LS_KEY = 'openclaw-roy-avatars:v1'
 
@@ -88,6 +89,14 @@ export function AvatarImg({
     return (
       <span className={`roy-avimg ${grad ?? ''} ${className ?? ''}`}>
         <img src={avatarPath} alt={alt ?? ''} draggable={false} />
+      </span>
+    )
+  }
+  if (isEmblemKey(emoji)) {
+    // v0.9.45: SVG-эмблема в стиле Liquid Glass (вместо эмодзи)
+    return (
+      <span className={`roy-avemoji ${grad ?? ''} ${className ?? ''}`}>
+        <EmblemIcon k={emoji} size={17} strokeWidth={1.9} />
       </span>
     )
   }

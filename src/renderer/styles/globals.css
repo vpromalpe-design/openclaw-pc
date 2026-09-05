@@ -811,7 +811,28 @@ body {
   background: rgba(255, 69, 58, 0.14);
   color: #ff6b60;
 }
+/* v0.9.45: обычный пункт меню агента (не красный, как remove) */
+.a-model-menu-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  color: #dfe9f7;
+  font-size: 12px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.a-model-menu-action:hover { background: rgba(255, 255, 255, 0.06); }
+.a-model-menu-action .a-model-menu-remove-ic { color: #7cc0ff; }
 .a-model-menu-remove-ic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
   font-size: 13px;
   line-height: 1;
 }
@@ -1755,6 +1776,7 @@ body {
   width: 40px; height: 40px; border-radius: 14px; flex: none;
   display: flex; align-items: center; justify-content: center; font-size: 20px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  position: relative;
 }
 .rh-title { font-size: 10px; letter-spacing: 1.6px; color: var(--text-3); font-weight: 700; }
 .rh-title small { font-weight: 500; letter-spacing: 0; }
@@ -1852,6 +1874,7 @@ body {
   width: 46px; height: 46px; border-radius: 15px; flex: none;
   display: flex; align-items: center; justify-content: center; font-size: 23px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  position: relative;
 }
 .rl-av.user { background: linear-gradient(135deg, #0a84ff, #30d158); color: #fff; }
 .rl-body { min-width: 0; flex: 1 1 220px; display: flex; flex-direction: column; gap: 2px; }
@@ -1864,6 +1887,17 @@ body {
 .rl-state.wait .rl-st-dot { background: #ff9f0a; }
 .rl-state.done .rl-st-dot { background: #30d158; }
 .rl-acts { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+
+/* v0.9.45: бейдж «сменить аватар» на кружке главного/группы */
+.av-edit {
+  position: absolute; right: -4px; bottom: -4px; width: 19px; height: 19px;
+  border-radius: 50%; border: 0; padding: 0; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #fff; background: linear-gradient(135deg, #0a84ff, #5e5ce6);
+  box-shadow: 0 2px 8px rgba(2, 6, 18, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+.av-edit:hover { transform: scale(1.12); filter: brightness(1.15); }
 
 /* member cells — grid по центру (макет v5) */
 .roy-cells {
@@ -2208,9 +2242,24 @@ body {
   width: 38px; height: 38px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.05); font-size: 18px; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
+  color: #cfe0f5;
+  transition: color 0.12s ease, background 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
 }
-.rcy-emoji:hover { background: rgba(255, 255, 255, 0.12); }
-.rcy-emoji.sel { border-color: #0a84ff; background: rgba(10, 132, 255, 0.2); box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.35); }
+.rcy-emoji svg { display: block; }
+.rcy-emoji:hover { background: rgba(255, 255, 255, 0.12); color: #fff; transform: translateY(-1px); }
+.rcy-emoji.sel { border-color: #0a84ff; background: rgba(10, 132, 255, 0.2); box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.35); color: #7cc0ff; }
+/* v0.9.45: аватар при создании группы */
+.rcy-avatar { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.rcy-avatar-prev {
+  width: 46px; height: 46px; border-radius: 15px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  color: #eaf2fd; overflow: hidden;
+}
+.rcy-avatar-prev img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block; }
+.roy-emb-preview-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 16px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.09); }
+.roy-emb-preview { width: 52px; height: 52px; border-radius: 17px; font-size: 26px; }
+.roy-emb-preview-note { font-size: 11.5px; color: var(--text-3); line-height: 1.4; }
 .rcy-grads { display: flex; gap: 8px; align-items: center; }
 .rcy-grad { border: 0; background: transparent; cursor: pointer; padding: 3px; border-radius: 50%; }
 .rcy-grad.sel { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8); border-radius: 50%; }
@@ -2277,6 +2326,17 @@ body {
 .roy-rep-sec { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-3); padding: 8px 2px 6px; }
 .roy-rep-leader { margin-bottom: 2px; }
 .roy-rep-leader .roy-rep-text { max-height: 180px; border: 1px dashed rgba(191, 90, 242, 0.35); }
+/* v0.9.45-фикс: кнопки окна отчёта/доработки больше не залезают за рамки —
+   стеклянный подвал прилипает ко дну окна (sticky внутри скролла модалки) */
+.roy-rep { padding-bottom: 0; }
+.roy-rep .rm-foot {
+  position: sticky; bottom: 0; z-index: 6;
+  margin: 4px -18px -1px;
+  padding: 10px 18px 14px;
+  background: linear-gradient(180deg, rgba(13, 18, 34, 0.5), rgba(13, 18, 34, 0.98) 40%);
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  border-bottom-left-radius: 24px; border-bottom-right-radius: 24px;
+}
 .roy-rep-sub { font-size: 9.5px; color: var(--text-3); margin-left: 2px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .roy-rep-files { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
 .roy-rep-file {
@@ -2292,14 +2352,17 @@ body {
 
 /* ── v0.9.42–44: аватары, меню группы, голос, доработка, telegram ── */
 
-/* Аватар-картинка/эмодзи в кружке (AvatarImg) */
+/* Аватар-картинка/эмодзи (AvatarImg): размеры задаёт контекст (.rg-av/.rh-av/...).
+   v0.9.45-фикс: убраны width/height:100% — они (позже в файле, та же специфичность,
+   что .rg-av 30×30) раздували аватар на всю строку и задавливали название группы. */
 .roy-avimg,
 .roy-avemoji {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 100%; height: 100%; border-radius: inherit; overflow: hidden; flex: none;
+  border-radius: inherit; overflow: hidden; flex: none;
 }
 .roy-avimg img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block; }
-.roy-avemoji { font-size: 20px; }
+.roy-avemoji { font-size: 20px; line-height: 1; }
+.roy-avemoji svg { display: block; }
 
 /* RoyFace: картинка / telegram-глиф / эмодзи (кружки по месту) */
 .roy-face-img {
@@ -2381,10 +2444,72 @@ body {
   background: rgba(255, 255, 255, 0.06); color: var(--text-2); cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
   transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+  animation: roy-mic-in 0.16s ease;
+}
+@keyframes roy-mic-in {
+  from { opacity: 0; transform: scale(0.5); }
+  to { opacity: 1; transform: scale(1); }
 }
 .roy-mic:hover { border-color: rgba(10, 132, 255, 0.6); color: var(--text); }
+/* v0.9.45: STT выключен — кнопка видна, но «спит»; клик подскажет, как включить */
+.roy-mic.no { opacity: 0.55; }
+.roy-mic.no:hover { border-color: rgba(255, 159, 10, 0.65); color: #ff9f0a; opacity: 1; }
+.roy-mic.no.err { opacity: 1; border-color: rgba(255, 69, 58, 0.7); color: #ff453a; }
 .roy-mic.rec { border-color: rgba(255, 69, 58, 0.7); color: #ff453a; animation: roy-blink 1.1s ease-in-out infinite; }
 .roy-mic.busy { border-color: rgba(255, 159, 10, 0.7); color: #ff9f0a; }
 .roy-mic.err { border-color: rgba(255, 69, 58, 0.7); color: #ff453a; }
 .roy-mic.compact { width: 27px; height: 27px; border-radius: 9px; }
 .roy-mic.compact svg { width: 14px; height: 14px; }
+
+/* v0.9.45: окно «Роль агента» — промт-роль в рое */
+.roy-role-id { font-size: 10px; color: var(--text-3); margin-left: 6px; font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace; font-weight: 500; }
+.roy-role-form { display: flex; flex-direction: column; gap: 8px; }
+.roy-role-hint {
+  font-size: 11.5px; color: var(--text-3); line-height: 1.5;
+  background: rgba(10, 132, 255, 0.08); border: 1px solid rgba(10, 132, 255, 0.2);
+  border-radius: 12px; padding: 8px 11px;
+}
+.roy-role-ta {
+  flex: 1; min-width: 0; width: 100%; box-sizing: border-box; resize: vertical;
+  background: rgba(0, 0, 0, 0.32); border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px; color: var(--text); padding: 10px 12px;
+  font-size: 12.5px; line-height: 1.55; outline: none;
+}
+.roy-role-ta:focus { border-color: rgba(10, 132, 255, 0.6); }
+.roy-micwrap { display: flex; align-items: flex-end; gap: 8px; }
+
+/* v0.9.45: роли агентов в карточках арены */
+.roy-role-card {
+  background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 16px; padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.roy-role-card-head { display: flex; gap: 9px; align-items: flex-start; }
+.roy-role-card-ic { font-size: 17px; line-height: 1.3; flex: none; }
+.roy-role-card-txt { flex: 1; min-width: 0; }
+.roy-role-card-title { font-size: 12.5px; font-weight: 700; color: var(--text); }
+.roy-role-card-title small { font-weight: 500; font-size: 10px; color: var(--text-3); margin-left: 6px; }
+.roy-role-card-text {
+  white-space: pre-wrap; word-break: break-word; font-size: 11.5px; line-height: 1.5;
+  color: var(--text-2); margin-top: 3px; max-height: 130px; overflow-y: auto;
+  background: rgba(0, 0, 0, 0.22); border-radius: 10px; padding: 7px 9px;
+}
+.roy-role-card-text.empty { font-style: italic; color: var(--text-3); background: none; padding: 2px 0; }
+.roy-rlb { display: flex; flex-direction: column; gap: 6px; }
+.roy-rlb-row { display: flex; flex-direction: column; gap: 6px; }
+.roy-rlb-row.open {
+  background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px; padding: 8px;
+}
+.roy-rlb-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.roy-rlb-av { width: 26px; height: 26px; border-radius: 9px; flex: none; font-size: 13px; }
+.roy-rlb-av .roy-avemoji, .roy-rlb-av .roy-avimg { font-size: 13px; }
+.roy-rlb-id {
+  font-size: 11px; font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
+  color: var(--text-2); flex: none;
+}
+.roy-rlb-role {
+  flex: 1; min-width: 0; font-size: 11.5px; color: #9fd4ff; line-height: 1.4;
+  overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.roy-rlb-role.empty { color: var(--text-3); font-style: italic; }

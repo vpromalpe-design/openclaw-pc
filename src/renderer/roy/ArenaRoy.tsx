@@ -24,6 +24,9 @@ import { visibleAssistantText } from '../../shared/visible-text'
 import type { RoyGroup, RoyTask, RoyTaskRun, RoyLogRow, RoyFileCard } from './types'
 import { activeTasks, nextTaskState, TASK_STATE, finishedRuns, hasReport, isLeaderTask } from './data'
 import { useRoyAvatars } from './avatar'
+import { useRoyRoles } from './roles'
+import { RoyRoleForm } from './RoyUi'
+import { EmblemIcon, isEmblemKey } from './emblems'
 import { MicDictate } from '../components/MicDictate'
 
 /* ── Small shared bits ─────────────────────────────────────────────────── */
@@ -374,7 +377,26 @@ export function RoyArenaView({ group, agents, onPatch, onChat, onRemoveAgent, on
       <div className="roy-head">
         <div className="rh-left">
           <div className={cn('rh-av', group.grad)}>
-            {avatars[group.id] ? <img className="roy-face-img" src={avatars[group.id]} alt="" draggable={false} /> : group.emoji}
+            {avatars[group.id] ? (
+              <img className="roy-face-img" src={avatars[group.id]} alt="" draggable={false} />
+            ) : isEmblemKey(group.emoji) ? (
+              <EmblemIcon k={group.emoji} size={22} strokeWidth={1.9} />
+            ) : (
+              group.emoji
+            )}
+            {onAvatarAgent && (
+              <button
+                type="button"
+                className="av-edit"
+                title="Сменить аватар группы — картинка с диска"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onAvatarAgent(group.id)
+                }}
+              >
+                <ImageIcon size={10} />
+              </button>
+            )}
           </div>
           <div>
             <div className="rh-title">РОЙ <small>· арена</small></div>
@@ -458,6 +480,19 @@ export function RoyArenaView({ group, agents, onPatch, onChat, onRemoveAgent, on
               ) : (
                 <div className={cn('rl-av', 'g0')}>
                   <RoyFace id={head?.id ?? ''} telegramBot={head?.telegramBot} avatarPath={avatars[head?.id ?? '']} />
+                  {!headIsUser && head && onAvatarAgent && (
+                    <button
+                      type="button"
+                      className="av-edit"
+                      title="Сменить аватар главного — картинка с диска"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onAvatarAgent(head.id)
+                      }}
+                    >
+                      <ImageIcon size={10} />
+                    </button>
+                  )}
                 </div>
               )}
               <div className="rl-body">
@@ -621,7 +656,7 @@ export function RoyArenaView({ group, agents, onPatch, onChat, onRemoveAgent, on
           </div>
           <div className="rm-ta-wrap">
             <textarea className="rm-textarea" autoFocus placeholder="Крупная задача: например «Создать сайт v2»…" value={missionText} onChange={(e) => setMissionText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.metaKey || e.ctrlKey) && sendMission()} />
-            <MicDictate onText={(t) => setMissionText((v) => (v ? v + ' ' + t : t))} />
+            <MicDictate appear={missionText.trim().length > 0} onText={(t) => setMissionText((v) => (v ? v + ' ' + t : t))} />
           </div>
           <div className="rm-foot">
             <button type="button" className="roy-btn ghost" onClick={() => setModal(null)}>Отмена</button>
@@ -637,7 +672,7 @@ export function RoyArenaView({ group, agents, onPatch, onChat, onRemoveAgent, on
           <div className="rm-target">Каждый участник получит эту задачу в свою карточку (в очереди).</div>
           <div className="rm-ta-wrap">
             <textarea className="rm-textarea" autoFocus placeholder="Задача для всех…" value={broadcastText} onChange={(e) => setBroadcastText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.metaKey || e.ctrlKey) && sendBroadcast()} />
-            <MicDictate onText={(t) => setBroadcastText((v) => (v ? v + ' ' + t : t))} />
+            <MicDictate appear={broadcastText.trim().length > 0} onText={(t) => setBroadcastText((v) => (v ? v + ' ' + t : t))} />
           </div>
           <div className="rm-foot">
             <button type="button" className="roy-btn ghost" onClick={() => setModal(null)}>Отмена</button>
@@ -806,6 +841,7 @@ function LeaderCardModal({
         )}
       </div>
 
+      <LeaderRolesBlock group={group} />
       <div className="cd-label">Задачи главного <small style={{ opacity: 0.6 }}>миссии · координаторские · личные</small></div>
       <div className="rac-tasks">
         {own.length === 0 && <div className="rm-none-links">задач пока нет — напиши задачу главному ниже</div>}
@@ -887,7 +923,7 @@ function LeaderCardModal({
           onChange={(e) => setCmd(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') giveTask(cmd) }}
         />
-        <MicDictate compact onText={(t) => setCmd((v) => (v ? v + ' ' + t : t))} />
+        <MicDictate compact appear={cmd.trim().length > 0} onText={(t) => setCmd((v) => (v ? v + ' ' + t : t))} />
         <button type="button" className="c-send" title="Отправить задачу (Enter)" disabled={!cmd.trim()} onClick={() => giveTask(cmd)}>
           <Send size={15} />
         </button>
@@ -1060,6 +1096,8 @@ function AgentCardModal({
         </button>
       </div>
 
+      <RoyRoleCard agentId={a.id} />
+
       {/* меню «сменить модель» */}
       {menuOpen && (
         <div className="rac-menu">
@@ -1185,7 +1223,7 @@ function AgentCardModal({
           onChange={(e) => setCmd(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') giveTask(cmd) }}
         />
-        <MicDictate compact onText={(t) => setCmd((v) => (v ? v + ' ' + t : t))} />
+        <MicDictate compact appear={cmd.trim().length > 0} onText={(t) => setCmd((v) => (v ? v + ' ' + t : t))} />
         <button type="button" className="c-send" title="Отправить задачу (Enter)" disabled={!cmd.trim()} onClick={() => giveTask(cmd)}>
           <Send size={15} />
         </button>
@@ -1320,7 +1358,7 @@ export function RoyRightPanel({ group, agents, onPatch, onRunTask, onOpenPath }:
               onChange={(e) => setNewTask(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && quickAdd()}
             />
-            <MicDictate compact onText={(t) => setNewTask((v) => (v.trim() === ' ' ? '' : v) + (v && v.trim() !== ' ' ? ' ' : '') + t)} />
+            <MicDictate compact appear={newTask.trim().length > 0} onText={(t) => setNewTask((v) => (v.trim() === ' ' ? '' : v) + (v && v.trim() !== ' ' ? ' ' : '') + t)} />
           </div>
         )}
         <div className="roy-tasklist">
@@ -1427,6 +1465,66 @@ export function RoyRightPanel({ group, agents, onPatch, onRunTask, onOpenPath }:
       </div>
 
       {reportTask && <RoyReportModal task={reportTask} group={group} onOpenPath={onOpenPath} onClose={() => setReportTask(null)} />}
+    </div>
+  )
+}
+
+/* ── v0.9.45: роли агентов в карточках (промт-роль) ─────────────────── */
+
+/** Блок «Роль агента» в карточке агента на арене: превью + форма. */
+function RoyRoleCard({ agentId }: { agentId: string }) {
+  const roles = useRoyRoles()
+  const [open, setOpen] = useState(false)
+  const role = (roles[agentId] ?? '').trim()
+  return (
+    <div className="roy-role-card">
+      <div className="roy-role-card-head">
+        <span className="roy-role-card-ic">🎭</span>
+        <div className="roy-role-card-txt">
+          <div className="roy-role-card-title">Роль агента{role ? ' · задана' : ''} <small>{role ? 'вшивается в каждую задачу' : 'влияет на ответы агента'}</small></div>
+          {!open && <div className={cn('roy-role-card-text', !role && 'empty')}>{role || 'роль не задана — агент отвечает без роли'}</div>}
+        </div>
+        <button type="button" className="roy-btn ghost" title={open ? 'Свернуть' : role ? 'Изменить промт-роль' : 'Задать промт-роль'} onClick={() => setOpen((o) => !o)}>
+          {open ? '✕ Свернуть' : role ? '✎ Изменить' : '+ Задать'}
+        </button>
+      </div>
+      {open && <RoyRoleForm agentId={agentId} onClose={() => setOpen(false)} />}
+    </div>
+  )
+}
+
+/** Блок «Роли участников» в карточке главного — лидер видит роли всех. */
+function LeaderRolesBlock({ group }: { group: RoyGroup }) {
+  const roles = useRoyRoles()
+  const avatars = useRoyAvatars()
+  const [openId, setOpenId] = useState<string | null>(null)
+  const members = group.members.filter((m) => m !== 'user' && m !== 'main')
+  if (members.length === 0) return null
+  return (
+    <div className="roy-rlb">
+      <div className="cd-label">Роли участников <small>видны главному · план строится с их учётом</small></div>
+      {members.map((m) => {
+        const role = (roles[m] ?? '').trim()
+        const open = openId === m
+        return (
+          <div key={m} className={cn('roy-rlb-row', open && 'open')}>
+            <div className="roy-rlb-head">
+              <span className="roy-rlb-av"><RoyFace id={m} avatarPath={avatars[m]} /></span>
+              <span className="roy-rlb-id">@{m}</span>
+              <span className={cn('roy-rlb-role', !role && 'empty')}>{role || 'роль не задана'}</span>
+              <button
+                type="button"
+                className="roy-btn ghost"
+                title={role ? 'Изменить роль' : 'Задать роль'}
+                onClick={() => setOpenId(open ? null : m)}
+              >
+                {open ? '✕' : role ? '✎' : '+ Задать'}
+              </button>
+            </div>
+            {open && <RoyRoleForm key={m} agentId={m} onClose={() => setOpenId(null)} />}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -1598,7 +1696,7 @@ function RoyReportModal({
                 value={reworkText}
                 onChange={(e) => setReworkText(e.target.value)}
               />
-              <MicDictate onText={(t) => setReworkText((v) => (v ? v + ' ' + t : t))} />
+              <MicDictate appear={reworkText.trim().length > 0} onText={(t) => setReworkText((v) => (v ? v + ' ' + t : t))} />
             </div>
           </>
         )}

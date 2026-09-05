@@ -23,6 +23,8 @@ interface AgentMenuPortalProps {
   onClose: () => void
   onSetModel: (model: string) => void
   onRemove: () => void
+  /** v0.9.45: пункт «Роль агента» — промт-роль в рое. */
+  onRoleEdit: () => void
 }
 
 const GAP = 6
@@ -41,6 +43,7 @@ export function AgentMenuPortal({
   onClose,
   onSetModel,
   onRemove,
+  onRoleEdit,
 }: AgentMenuPortalProps) {
   // v0.9.14+: open to the RIGHT of the agent row. The menu is vertically
   // centered on the row center, but using the menu's MEASURED height — the old
@@ -108,6 +111,11 @@ export function AgentMenuPortal({
         <div className="a-model-menu-sep" />
       ) : (
         <>
+          <div className="a-model-menu-sep" />
+          <button type="button" className="a-model-menu-action" onClick={() => { onRoleEdit(); onClose() }}>
+            <span className="a-model-menu-remove-ic">🎭</span>
+            <span className="a-model-menu-remove-name">Роль агента (промт для роя)</span>
+          </button>
           <div className="a-model-menu-sep" />
           <button type="button" className="a-model-menu-remove" onClick={onRemove}>
             <span className="a-model-menu-remove-ic">✕</span>

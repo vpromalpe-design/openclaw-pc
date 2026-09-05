@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { CheckCircle2, Loader2, AlertTriangle, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { ShellLayout } from './ShellLayout'
+import { setRoyRole } from '../roy/roles'
 
 export interface AgentSettingsViewProps {
   /** Back navigation when embedded in parent layout */
@@ -28,6 +30,8 @@ export function AgentSettingsView({ onBack, onAgentCreated }: AgentSettingsViewP
   const [name, setName] = useState('')
   const [model, setModel] = useState('')
   const [modelOptions, setModelOptions] = useState<string[]>([])
+  const [role, setRole] = useState('')
+  const [avatarSrc, setAvatarSrc] = useState<string | null>(null)
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [saveError, setSaveError] = useState('')
 
@@ -66,6 +70,11 @@ export function AgentSettingsView({ onBack, onAgentCreated }: AgentSettingsViewP
       })
       if (res.ok && res.id) {
         setSaveState('saved')
+        // v0.9.45: роль в рое + аватар — сразу по id нового агента.
+        if (role.trim()) setRoyRole(res.id, role.trim())
+        if (avatarSrc) {
+          void window.electronAPI.royAvatarSave({ id: res.id, src: avatarSrc })
+        }
         // Give the user a moment to see «Создан ✓», then open the new agent.
         setTimeout(() => onAgentCreated?.(res.id!), 700)
       } else {
@@ -76,7 +85,7 @@ export function AgentSettingsView({ onBack, onAgentCreated }: AgentSettingsViewP
       setSaveState('error')
       setSaveError(err instanceof Error ? err.message : String(err))
     }
-  }, [name, model, saveState, onAgentCreated])
+  }, [name, model, role, avatarSrc, saveState, onAgentCreated])
 
   const nameHint =
     name.trim().length === 0
@@ -106,6 +115,45 @@ export function AgentSettingsView({ onBack, onAgentCreated }: AgentSettingsViewP
         </div>
 
         <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium">Аватар</label>
+          <div className="flex items-center gap-3">
+            {avatarSrc ? (
+              <img
+                src={avatarSrc}
+                alt=""
+                className="h-14 w-14 rounded-full border border-border object-cover"
+              />
+            ) : (
+              <div className="flex h-14 w-14 items-center justify-center rounded-full border border-dashed border-border text-lg text-muted-foreground">
+                👤
+              </div>
+            )}
+            <div className="flex flex-col gap-1.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  void window.electronAPI
+                    .royAvatarSave({})
+                    .then((r) => r.ok && r.picked && setAvatarSrc(r.picked))
+                }}
+              >
+                Выбрать картинку…
+              </Button>
+              {avatarSrc && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => setAvatarSrc(null)}>
+                  ✕ Убрать
+                </Button>
+              )}
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Виден в рое на арене и в чатах. Картинка копируется в папку аватаров приложения.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium">Языковая модель</label>
           <select
             className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
@@ -123,6 +171,21 @@ export function AgentSettingsView({ onBack, onAgentCreated }: AgentSettingsViewP
           </select>
           <p className="text-xs text-muted-foreground">
             Используется как модель по умолчанию для этого агента (agents.list[].model).
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium">Роль в рое (промт агента)</label>
+          <Textarea
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            placeholder="Например: ты дизайнер — делаешь макеты, иконки и стили. Отвечай на русском."
+            rows={3}
+            maxLength={2000}
+          />
+          <p className="text-xs text-muted-foreground">
+            Необязательно. Роль видна лидеру роя — он строит план миссии с учётом ролей участников.
+            Поменять можно позже: меню агента → «Роль агента» или карточка агента на арене.
           </p>
         </div>
 

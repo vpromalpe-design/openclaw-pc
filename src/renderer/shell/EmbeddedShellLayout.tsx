@@ -54,8 +54,9 @@ import { playTtsAudio } from '@/lib/tts-playback'
 import { RoyGroupsList, RoyDiskButton, RoyDiskDrawer } from '../roy/SidebarRoy'
 import { RoyArenaView, RoyRightPanel } from '../roy/ArenaRoy'
 import type { RoyAgentRef } from '../roy/ArenaRoy'
-import { RoyCreateModal, RoyFileViewer, RoyEmblemModal } from '../roy/RoyUi'
+import { RoyCreateModal, RoyFileViewer, RoyEmblemModal, RoyRoleForm } from '../roy/RoyUi'
 import { setAvatar } from '../roy/avatar'
+import { royRoleNote, royRolesSummary } from '../roy/roles'
 import { loadGroups, saveGroups, newGroup, renameGroup, attachTaskRuns, applyRunResult, parsePlanReport, addLog, uid, attachRunsToTask } from '../roy/data'
 import type { RoyGroup, RoyTask, RoyTaskRun, RoyDiskNode } from '../roy/types'
 
@@ -396,6 +397,8 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   const [royOpenId, setRoyOpenId] = useState<string | null>(null)
   const [royFileNode, setRoyFileNode] = useState<RoyDiskNode | null>(null)
   const [royCreateOpen, setRoyCreateOpen] = useState(false)
+  // v0.9.45: окно «Роль агента» (промт-роль в рое) из меню ⋯ агента
+  const [royRoleModal, setRoyRoleModal] = useState<{ id: string; name: string } | null>(null)
   // v0.9.42: эмблема-модалка для существующей группы (⋯ → Эмблема и цвет)
   const [royEmblemG, setRoyEmblemG] = useState<RoyGroup | null>(null)
   // v0.9.36: диск — кнопка + дровер
@@ -1418,6 +1421,8 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
             `📋 МИССИЯ ДЛЯ КООРДИНАТОРА. Ты — главный агент роя. НЕ создавай файлы и НЕ запускай субагентов — сначала только продумай план.\n\n` +
             `Задача: «${t.title}»\n` +
             `Состав роя (доступны только эти агенты, обращайся по id): ${roster}\n` +
+            royRolesSummary(members, (id) => nameOf.get(id)) +
+            `\n` +
             `${projectDir ? `Папка проекта (файлы создавать в ней): ${projectDir}\n` : ''}` +
             `${royAttachedNote(g, leader, true)}\n` +
             `Подумай: из каких подзадач состоит задача, кому какую поручить по ролям, каких ролей/агентов не хватает.\n` +
@@ -1448,7 +1453,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
           // глава — Дамир или в рое один агент: рассылка всем участникам как раньше
           const runs: RoyTaskRun[] = []
           for (const agentId of members) {
-            const text = `${t.title}${projectDir ? `\n\n📁 Папка проекта (работай там, создавай файлы только в ней): ${projectDir}` : ''}${royAttachedNote(g, agentId)}${dirContextNote(projectDir)}`
+            const text = `${t.title}${royRoleNote(agentId)}${projectDir ? `\n\n📁 Папка проекта (работай там, создавай файлы только в ней): ${projectDir}` : ''}${royAttachedNote(g, agentId)}${dirContextNote(projectDir)}`
             runs.push(await dispatchOne(agentId, text))
           }
           setRoyGroups((gs) => gs.map((gr) => (gr.id === groupId ? attachTaskRuns(gr, taskId, runs) : gr)))
@@ -1471,6 +1476,8 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
           `Задача: «${t.title}»\n` +
           reworkNote +
           `Команда (агенты приложения, обращайся по id): ${roster}\n` +
+          royRolesSummary(coordTeamArr, (id) => nameOf.get(id)) +
+          `\n` +
           `${projectDir ? `Папка проекта (если будут создаваться файлы — только здесь): ${projectDir}\n` : ''}` +
           `${royAttachedNote(g, leader, true)}\n` +
           `Вариант 1 — выполнить самому: просто сделай и верни ОДНО финальное сообщение с результатом и списком созданных файлов.\n` +
@@ -1507,7 +1514,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
         const fileNote = projectDir ? `\n\n📁 Папка проекта (работай там, создавай файлы только в ней): ${projectDir}` : ''
         const answerNote = questionLike ? `\n\nЭто запрос на ответ/анализ: НЕ создавай папки проекта и лишние файлы — просто ответь.` : ''
         const artNote = !questionLike && projectDir ? `\n\nСоздай нужные файлы РЕАЛЬНО инструментами (write/apply_patch/exec) в папке проекта и проверь, что они появились. Не пиши «готово», пока файлы не созданы.` : ''
-        const text = `${t.title}${fileNote}${answerNote}${artNote}${royAttachedNote(g, agentId)}${dirContextNote(projectDir)}`
+        const text = `${t.title}${royRoleNote(agentId)}${fileNote}${answerNote}${artNote}${royAttachedNote(g, agentId)}${dirContextNote(projectDir)}`
         runs.push(await dispatchOne(agentId, text))
       }
       setRoyGroups((gs) =>
@@ -1963,13 +1970,22 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     [agents, handleRemoveAgent],
   )
   const royCreate = useCallback(
-    (name: string, emoji: string, grad: string) => {
+    async (name: string, emoji: string, grad: string, avatarSrc?: string | null) => {
       const g = newGroup(name, emoji, grad)
       setRoyGroups((gs) => [g, ...gs])
       setRoyCreateOpen(false)
       setRoyOpenId(g.id)
       onPanelChange('')
       setActiveSection('chat')
+      // v0.9.45: выбранная в мастере картинка копируется сразу под id группы
+      if (avatarSrc) {
+        try {
+          const res = await window.electronAPI.royAvatarSave({ id: g.id, src: avatarSrc })
+          if (res?.ok && res.path) setAvatar(g.id, res.path)
+        } catch {
+          /* ignore */
+        }
+      }
     },
     [onPanelChange],
   )
@@ -2408,6 +2424,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                         onClose={() => setAgentModelMenu(null)}
                         onSetModel={(m) => void setAgentModel(a.id, m)}
                         onRemove={() => void handleRemoveAgent(a)}
+                        onRoleEdit={() => setRoyRoleModal({ id: a.id, name: a.name })}
                       />,
                       document.body,
                     )}
@@ -2853,6 +2870,22 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
             }}
             onClose={() => setRoyEmblemG(null)}
           />
+        )}
+        {/* v0.9.45: окно «Роль агента» — промт-роль, влияет на ответы в рое */}
+        {royRoleModal && (
+          <div className="roy-modal-back" onMouseDown={(e) => e.target === e.currentTarget && setRoyRoleModal(null)}>
+            <div className="roy-modal roy-role-modal" style={{ width: 'min(520px, 94vw)' }}>
+              <div className="rm-head">
+                <div className="rm-title">🎭 Роль агента · {royRoleModal.name} <small className="roy-role-id">@{royRoleModal.id}</small></div>
+                <button type="button" className="rm-close" onClick={() => setRoyRoleModal(null)}>✕</button>
+              </div>
+              <RoyRoleForm
+                key={royRoleModal.id}
+                agentId={royRoleModal.id}
+                onClose={() => setRoyRoleModal(null)}
+              />
+            </div>
+          </div>
         )}
         {royFileNode && (
           <RoyFileViewer

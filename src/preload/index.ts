@@ -241,7 +241,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   royRead: (opts: { path: string }) => invoke(IPC_ROY_READ, opts),
   royProjectCreate: (opts: { title: string }) => invoke(IPC_ROY_PROJECT_CREATE, opts),
   royShowInFolder: (path: string) => invoke(IPC_ROY_SHOW_IN_FOLDER, path),
-  royAvatarSave: (opts: { id: string }) => invoke(IPC_ROY_AVATAR_SAVE, opts),
+  royAvatarSave: (opts: { id?: string; src?: string }) => invoke(IPC_ROY_AVATAR_SAVE, opts),
   royTelegramReport: (opts: { agentId: string; text: string; files?: string[] }) => invoke(IPC_ROY_TELEGRAM_REPORT, opts),
   onTasksLocalChanged: (callback: () => void) => on(IPC_TASKS_LOCAL_CHANGED, callback),
   cronList: () => invoke<{ jobs: Array<Record<string, unknown>> }>(IPC_CRON_LIST),
