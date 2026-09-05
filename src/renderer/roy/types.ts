@@ -46,7 +46,11 @@ export interface RoyTask {
     dispatched?: boolean
     /** v0.9.41: финальный запрос-сводка координатору отправлен (localId его run) */
     finalLocalId?: string
+    /** v0.9.44: финальный отчёт уже отправлен в Telegram (защита от повторов) */
+    telegramSent?: boolean
   }
+  /** v0.9.43: доработка по итогам отчёта (новое задание главному с файлами) */
+  rework?: { files: string[]; comment: string }
 }
 
 export interface RoyLogRow {
@@ -67,6 +71,8 @@ export interface RoyFileCard {
   to: string[]
   /** реальный путь файла на диске (v0.9.39: передаётся агенту в задании) */
   path?: string
+  /** v0.9.42: папка с диска (карточка-папка: клик → проводник, агенту уходит путь папки) */
+  kind?: 'file' | 'folder'
 }
 
 export interface RoyGroup {
@@ -85,6 +91,8 @@ export interface RoyGroup {
   log: RoyLogRow[]
   files: RoyFileCard[]
   createdAt: number
+  /** v0.9.42: папка группы на диске (workspace/projects/<Группа>) — все задачи группы работают в ней */
+  projectDir?: string
 }
 
 export interface RoyDiskNode {

@@ -31,6 +31,7 @@ import { testVoiceConnection } from '../wizard/voice-tester.js'
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
+import https from 'node:https'
 import type { ModelsViewResult } from '../../shared/types.js'
 import { LOCAL_MODEL_PRESETS, modelsDir, testLocalEngineChat, LOCAL_ENGINE_PORT, type LocalEngineTestResult } from '../models/local-engine.js'
 import { DEFAULT_GATEWAY_PORT } from '../../shared/constants.js'
@@ -86,6 +87,9 @@ import {
   IPC_ROY_TREE,
   IPC_ROY_READ,
   IPC_ROY_PROJECT_CREATE,
+  IPC_ROY_SHOW_IN_FOLDER,
+  IPC_ROY_AVATAR_SAVE,
+  IPC_ROY_TELEGRAM_REPORT,
   IPC_CRON_LIST,
   IPC_CRON_ADD,
   IPC_CRON_RUN,
@@ -398,6 +402,117 @@ function wizardStateForModelConfig(modelConfig: ModelConfig): WizardState {
   }
 }
 
+// ─── v0.9.44: отправка отчёта роя в Telegram (sendMessage / sendDocument) ───
+
+function tgRequest(token: string, method: string, body: unknown): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const url = new URL(`https://api.telegram.org/bot${token}/${method}`)
+    const payload = JSON.stringify(body ?? {})
+    const req = httpsRequest(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
+    }, (res) => {
+      let data = ''
+      res.on('data', (chunk) => {
+        data += chunk
+      })
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data) as { ok?: boolean; description?: string }
+          if (parsed.ok) resolve(parsed)
+          else reject(new Error(parsed.description ?? `telegram ${method}: ${res.statusCode}`))
+        } catch {
+          reject(new Error(`telegram ${method}: bad response (${res.statusCode})`))
+        }
+      })
+    })
+    req.on('error', reject)
+    req.write(payload)
+    req.end()
+  })
+}
+
+function tgMultipart(token: string, method: string, fields: Array<{ name: string; value: string }>, file?: { name: string; path: string }): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const boundary = `----RoyPC${Date.now().toString(16)}`
+    const parts: Buffer[] = []
+    const push = (s: string) => parts.push(Buffer.from(s, 'utf8'))
+    for (const f of fields) {
+      push(`--${boundary}\r\nContent-Disposition: form-data; name="${f.name}"\r\n\r\n${f.value}\r\n`)
+    }
+    let fileBuf: Buffer | null = null
+    if (file) {
+      try {
+        fileBuf = fs.readFileSync(file.path)
+      } catch {
+        fileBuf = null
+      }
+    }
+    if (file && fileBuf) {
+      const fname = path.basename(file.path).replace(/[^\w.\- ]/g, '_')
+      push(`--${boundary}\r\nContent-Disposition: form-data; name="${file.name}"; filename="${fname}"\r\nContent-Type: application/octet-stream\r\n\r\n`)
+      parts.push(fileBuf)
+      push('\r\n')
+    }
+    push(`--${boundary}--\r\n`)
+    const payload = Buffer.concat(parts)
+    const url = new URL(`https://api.telegram.org/bot${token}/${method}`)
+    const req = httpsRequest(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Length': payload.length,
+      },
+    }, (res) => {
+      let data = ''
+      res.on('data', (chunk) => {
+        data += chunk
+      })
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data) as { ok?: boolean; description?: string }
+          if (parsed.ok) resolve(parsed)
+          else reject(new Error(parsed.description ?? `telegram ${method}: ${res.statusCode}`))
+        } catch {
+          reject(new Error(`telegram ${method}: bad response (${res.statusCode})`))
+        }
+      })
+    })
+    req.on('error', reject)
+    req.write(payload)
+    req.end()
+  })
+}
+
+async function telegramSendText(token: string, chatId: string, text: string): Promise<void> {
+  // Telegram: не более 4096 символов на сообщение
+  const MAX = 4000
+  let rest = text
+  let first = true
+  while (rest.length > 0) {
+    const chunk = rest.slice(0, MAX)
+    rest = rest.slice(MAX)
+    await tgRequest(token, 'sendMessage', { chat_id: chatId, text: chunk, disable_web_page_preview: true })
+    first = false
+  }
+  if (first) await tgRequest(token, 'sendMessage', { chat_id: chatId, text: '(пустой отчёт)', disable_web_page_preview: true })
+}
+
+async function telegramSendFile(token: string, chatId: string, filePath: string): Promise<void> {
+  try {
+    const st = fs.statSync(filePath)
+    if (!st.isFile()) return
+    if (st.size > 45 * 1024 * 1024) return // лимит Telegram 50MB — не тянем
+    const res = await tgMultipart(token, 'sendDocument', [{ name: 'chat_id', value: chatId }], { name: 'document', path: filePath })
+    void res
+  } catch {
+    // файл не отправился — игнорируем (текст отчёта уже ушёл)
+  }
+}
+
+function httpsRequest(url: URL, options: https.RequestOptions, onResponse: (res: import('node:http').IncomingMessage) => void): import('node:http').ClientRequest {
+  return https.request(url, options, onResponse)
+}
 export function registerIpcHandlers(deps: IpcHandlerDeps): void {
   const { gatewayManager } = deps
 
@@ -1481,6 +1596,86 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
       try {
         fs.mkdirSync(dir, { recursive: true })
         return { ok: true, dir }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) }
+      }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_ROY_SHOW_IN_FOLDER,
+    wrapHandler('ROY_SHOW_IN_FOLDER', (targetPath: unknown): { ok: boolean; error?: string } => {
+      if (typeof targetPath !== 'string' || targetPath.length === 0) return { ok: false, error: 'path required' }
+      try {
+        shell.showItemInFolder(targetPath)
+        return { ok: true }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) }
+      }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_ROY_AVATAR_SAVE,
+    wrapHandler('ROY_AVATAR_SAVE', async (payload: unknown): Promise<{ ok: boolean; path?: string; error?: string }> => {
+      const raw = validatePlainObject(payload, 'roy:avatarSave')
+      const id = typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim().replace(/[^\w-]/g, '_').slice(0, 60) : ''
+      if (!id) return { ok: false, error: 'id required' }
+      const picked = await dialog.showOpenDialog({
+        title: 'Аватар — выбери картинку',
+        properties: ['openFile'],
+        filters: [{ name: 'Изображения', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }],
+      })
+      const src = picked.canceled || picked.filePaths.length === 0 ? '' : picked.filePaths[0]
+      if (!src) return { ok: false, error: 'отменено' }
+      try {
+        const ext = (path.extname(src) || '.png').toLowerCase().slice(0, 6)
+        const avDir = path.join(deps.getUserDataDir(), 'avatars')
+        fs.mkdirSync(avDir, { recursive: true })
+        const dest = path.join(avDir, `${id}${ext}`)
+        fs.copyFileSync(src, dest)
+        return { ok: true, path: dest }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) }
+      }
+    }),
+  )
+
+  // v0.9.44: отчёт задачи роя в Telegram от имени бота агента-лидера.
+  // Механизм: агент → telegramBots-линк → аккаунт бота → token; получатель —
+  // первый id из allowFrom аккаунта (чат, которому разрешено писать боту).
+  ipcMain.handle(
+    IPC_ROY_TELEGRAM_REPORT,
+    wrapHandler('ROY_TELEGRAM_REPORT', async (payload: unknown): Promise<{ ok: boolean; error?: string }> => {
+      const raw = validatePlainObject(payload, 'roy:telegramReport')
+      const agentId = typeof raw.agentId === 'string' ? raw.agentId.trim() : ''
+      const text = typeof raw.text === 'string' ? raw.text.trim() : ''
+      const files = Array.isArray(raw.files) ? raw.files.filter((f): f is string => typeof f === 'string' && f.length > 0) : []
+      if (!agentId || !text) return { ok: false, error: 'agentId and text required' }
+      const shell = deps.readShellConfig()
+      const link = (shell.telegramBots ?? []).find((l) => l.agentId === agentId && l.linked !== false)
+      if (!link) return { ok: false, error: `агент ${agentId} не связан с Telegram-ботом` }
+      const cfg = deps.readOpenClawConfig()
+      const tg = (cfg.channels?.telegram ?? {}) as Record<string, unknown>
+      const accounts = (tg.accounts ?? {}) as Record<string, Record<string, unknown>>
+      const account = link.accountId === 'default' ? tg : (accounts[link.accountId] ?? {})
+      const token = typeof account.botToken === 'string' && account.botToken.trim() ? account.botToken.trim() : typeof tg.botToken === 'string' && tg.botToken.trim() ? tg.botToken.trim() : ''
+      if (!token) return { ok: false, error: 'botToken не найден для аккаунта бота' }
+      const allow = Array.isArray(account.allowFrom) ? (account.allowFrom as string[]).filter((x) => typeof x === 'string' && /^-?\d+$/.test(x.trim())) : []
+      const chatId = allow.length > 0 ? allow[0].trim() : ''
+      if (!chatId) {
+        return { ok: false, error: 'получатель не настроен — у бота нет allowFrom (чат для отчётов появится в настройке Telegram)' }
+      }
+      try {
+        await telegramSendText(token, chatId, text)
+        for (const f of files) {
+          try {
+            await telegramSendFile(token, chatId, f)
+          } catch {
+            // файл не ушёл — не валим весь отчёт
+          }
+        }
+        return { ok: true }
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) }
       }

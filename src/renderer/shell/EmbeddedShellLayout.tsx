@@ -54,7 +54,8 @@ import { playTtsAudio } from '@/lib/tts-playback'
 import { RoyGroupsList, RoyDiskButton, RoyDiskDrawer } from '../roy/SidebarRoy'
 import { RoyArenaView, RoyRightPanel } from '../roy/ArenaRoy'
 import type { RoyAgentRef } from '../roy/ArenaRoy'
-import { RoyCreateModal, RoyFileViewer } from '../roy/RoyUi'
+import { RoyCreateModal, RoyFileViewer, RoyEmblemModal } from '../roy/RoyUi'
+import { setAvatar } from '../roy/avatar'
 import { loadGroups, saveGroups, newGroup, renameGroup, attachTaskRuns, applyRunResult, parsePlanReport, addLog, uid, attachRunsToTask } from '../roy/data'
 import type { RoyGroup, RoyTask, RoyTaskRun, RoyDiskNode } from '../roy/types'
 
@@ -395,6 +396,8 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   const [royOpenId, setRoyOpenId] = useState<string | null>(null)
   const [royFileNode, setRoyFileNode] = useState<RoyDiskNode | null>(null)
   const [royCreateOpen, setRoyCreateOpen] = useState(false)
+  // v0.9.42: эмблема-модалка для существующей группы (⋯ → Эмблема и цвет)
+  const [royEmblemG, setRoyEmblemG] = useState<RoyGroup | null>(null)
   // v0.9.36: диск — кнопка + дровер
   const [royDiskOpen, setRoyDiskOpen] = useState(false)
   // v0.9.39: «Диск» = реальное дерево workspace/projects из main (IPC roy:tree)
@@ -1305,6 +1308,16 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     [royOpenId],
   )
 
+  // v0.9.42: аватар (агента/группы) — диалог выбора картинки → IPC → localStorage
+  const royAvatarPick = useCallback(async (id: string) => {
+    try {
+      const res = await window.electronAPI.royAvatarSave({ id })
+      if (res?.ok && res.path) setAvatar(id, res.path)
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
   // v0.9.39: «связка файлов» агента — прикреплённые к нему файлы арены (+ общие).
   // Вставляется в промпт задачи, чтобы агент понимал, с каким файлом работает.
   const royAttachedNote = useCallback((g: RoyGroup, agentId: string, shared = false): string => {
@@ -1343,9 +1356,9 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   //    диспатч главному-координатору (вернёт план) → по плану спавнятся подзадачи.
   //  - Обычная/подзадача: диспатч адресату (в его сессию задач) + привязка runs.
   const royRunTask = useCallback(
-    async (groupId: string, taskId: string) => {
-      const g = royGroups.find((x) => x.id === groupId)
-      const t = g?.tasks.find((x) => x.id === taskId)
+    async (groupId: string, taskId: string, preloaded?: { g: RoyGroup; t: RoyTask }) => {
+      const g = preloaded?.g ?? royGroups.find((x) => x.id === groupId)
+      const t = preloaded?.t ?? g?.tasks.find((x) => x.id === taskId)
       if (!g || !t) return
       if (t.state !== 'wait') return
       const nameOf = new Map(agents.map((a) => [a.id, a.name]))
@@ -1361,18 +1374,28 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
       const coordTask = !!who0 && !t.parentId && royIsCoordinator(who0, agents, royGroups)
       const coordTeamArr = coordTask ? royCoordTeam(g, who0, agents) : []
       const needProject = mission || artTask || (coordTask && coordTeamArr.length > 0)
-      // папка проекта для задачи/миссии (на Диске: Проекты/<название>)
+      // v0.9.42: папка ГРУППЫ (workspace/projects/<Группа>) — одна на рой, для всех задач
       let projectDir = t.projectDir
+      let groupDir = g.projectDir
       if (!projectDir && needProject) {
-        try {
-          const pr = await window.electronAPI.royProjectCreate({ title: t.title })
-          if (pr.ok && pr.dir) {
-            projectDir = pr.dir
-            setRoyDiskReload((n) => n + 1)
+        if (!groupDir) {
+          try {
+            const pr = await window.electronAPI.royProjectCreate({ title: g.name || t.title })
+            if (pr.ok && pr.dir) {
+              groupDir = pr.dir
+              projectDir = groupDir
+              setRoyDiskReload((n) => n + 1)
+            }
+          } catch {
+            /* ignore */
           }
-        } catch {
-          /* ignore */
+        } else {
+          projectDir = groupDir
         }
+      }
+      // сохранить папку группы (при первом создании)
+      if (groupDir && g.projectDir !== groupDir) {
+        setRoyGroups((gs) => gs.map((gr) => (gr.id === groupId ? { ...gr, projectDir: groupDir } : gr)))
       }
       const dispatchOne = async (agentId: string, text: string) => {
         try {
@@ -1440,9 +1463,13 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
         // ── ПУТЬ Б: задача лично координатору — он сам решает: выполнить или дать план ──
         const leader = who0
         const roster = coordTeamArr.map((m) => `${m}${nameOf.get(m) ? ` (${nameOf.get(m)})` : ''}`).join(', ')
+        const reworkNote = t.rework
+          ? `\n\n🛠 ДОРАБОТКА по итогам предыдущего выполнения. Комментарий заказчика: «${t.rework.comment || '—'}»${t.rework.files.length > 0 ? `\nФайлы к доработке (найди в папке проекта, открой и исправь по комментарию):\n${t.rework.files.map((f) => `- ${f}`).join('\n')}` : ''}\n`
+          : ''
         const prompt =
           `📋 КООРДИНАТОРСКАЯ ЗАДАЧА. Ты — главный агент (координатор). Реши сам, как её выполнить.\n\n` +
           `Задача: «${t.title}»\n` +
+          reworkNote +
           `Команда (агенты приложения, обращайся по id): ${roster}\n` +
           `${projectDir ? `Папка проекта (если будут создаваться файлы — только здесь): ${projectDir}\n` : ''}` +
           `${royAttachedNote(g, leader, true)}\n` +
@@ -1499,6 +1526,36 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
       )
     },
     [royGroups, agents, dirContextNote, royAttachedNote],
+  )
+
+  // v0.9.43: «Доработать» — по итогам отчёта новое задание ЛИЧНО главному
+  // (координатору) с привязкой файлов и комментария; запускается по «Пути Б».
+  const royRework = useCallback(
+    (groupId: string, taskId: string, files: string[], comment: string) => {
+      const g = royGroups.find((x) => x.id === groupId)
+      const t = g?.tasks.find((x) => x.id === taskId)
+      if (!g || !t) return
+      const members = g.members.filter((w) => w !== 'user' && w !== 'main')
+      const leader = g.head === 'main' ? (g.leaderId && members.includes(g.leaderId) ? g.leaderId : members[0]) : null
+      if (!leader) return
+      const id = `t${Date.now().toString(36)}`
+      const title = `🛠 Доработать: ${t.title}`
+      const task: RoyTask = { id, who: leader, title, state: 'wait', ts: Date.now(), coord: true, rework: { files, comment } }
+      const lg = `l${Date.now().toString(36)}`
+      setRoyGroups((gs) =>
+        gs.map((gr) =>
+          gr.id === groupId
+            ? {
+                ...gr,
+                tasks: [task, ...gr.tasks],
+                log: [{ id: lg, ico: '🛠', text: `задача на доработку → главному: ${title}${files.length > 0 ? ` (${files.length} файл.)` : ''}`, ts: Date.now() }, ...gr.log].slice(0, 60),
+              }
+            : gr,
+        ),
+      )
+      void royRunTask(groupId, id, { g, t: task })
+    },
+    [royGroups, royRunTask],
   )
 
   // Мониторинг: ответы агентов из локального реестра задач → runs роя.
@@ -1753,6 +1810,57 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
             )
           } finally {
             finalizingRoy.current.delete(mission.id)
+          }
+        })()
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [royGroups, tasksData.tasks])
+
+  // v0.9.44: финальный отчёт миссии/координаторской задачи → в Telegram Дамиру.
+  // Срабатывает, когда задача закрыта, финальный ответ координатора получен
+  // и у главного агента настроен telegram-бот. Guard: plan.telegramSent.
+  const telegramRoy = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    for (const g of royGroups) {
+      for (const mission of g.tasks) {
+        if (mission.who !== 'group' && !mission.coord) continue
+        if (mission.state !== 'done') continue
+        const pl = mission.plan
+        if (!pl?.finalLocalId || pl.finalLocalId === 'fail' || pl.telegramSent) continue
+        if (telegramRoy.current.has(mission.id)) continue
+        const members = g.members.filter((m) => m !== 'user' && m !== 'main')
+        const leaderId = mission.coord ? mission.who : g.leaderId && members.includes(g.leaderId) ? g.leaderId : members[0]
+        const leader = agents.find((a) => a.id === leaderId)
+        if (!leader || !leader.telegramBot) continue
+        telegramRoy.current.add(mission.id)
+        const markSent = (gs: RoyGroup[], ok: boolean, note: string) =>
+          gs.map((gr) =>
+            gr.id === g.id
+              ? addLog(
+                  { ...gr, tasks: gr.tasks.map((x) => (x.id === mission.id ? { ...x, plan: { ...pl, telegramSent: true } } : x)) },
+                  ok ? '📨' : '⚠️',
+                  note,
+                )
+              : gr,
+          )
+        void (async () => {
+          try {
+            const kids = g.tasks.filter((x) => x.parentId === mission.id)
+            const runs = [...(mission.runs ?? []), ...kids.flatMap((k) => k.runs ?? [])]
+            const finalRun = mission.runs?.find((r) => r.localId === pl.finalLocalId)
+            const text = `📬 Рой «${g.name}» — задача «${mission.title}» выполнена\n\n${finalRun?.report ?? '(финальный ответ не получен)'}`
+            const files = [...new Set(runs.flatMap((r) => (r.files ?? []).map((f) => f.path).filter(Boolean)))]
+            const res = await window.electronAPI.royTelegramReport({ agentId: leader.id, text, files })
+            setRoyGroups((gs) =>
+              res?.ok
+                ? markSent(gs, true, `отчёт отправлен в Telegram (бот ${leader.name ?? leader.id}): ${mission.title}`)
+                : markSent(gs, false, `Telegram-отчёт не отправлен: ${res?.error ?? 'ошибка'} (${mission.title})`),
+            )
+          } catch (err) {
+            setRoyGroups((gs) => markSent(gs, false, `ошибка telegram-отчёта: ${String(err)} (${mission.title})`))
+          } finally {
+            telegramRoy.current.delete(mission.id)
           }
         })()
       }
@@ -2325,6 +2433,8 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                 setRoyGroups((gs) => gs.filter((g) => g.id !== id))
                 setRoyOpenId((cur) => (cur === id ? null : cur))
               }}
+              onAvatar={(gr) => void royAvatarPick(gr.id)}
+              onEmblem={(gr) => setRoyEmblemG(gr)}
             />
 
             {/* v0.9.16: акцентный пункт «Задачи» — между агентами и разделами */}
@@ -2401,6 +2511,8 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                     modelOptions={modelOptions}
                     onSetModel={(agentId, model) => void setAgentModel(agentId, model)}
                     onOpenPath={(p, l) => void openRoyDiskFile({ id: p, label: l ?? p, emoji: '📄', kind: 'file', path: p })}
+                    onRework={(taskId, files, comment) => void royRework(royOpenGroup.id, taskId, files, comment)}
+                    onAvatarAgent={(id) => void royAvatarPick(id)}
                   />
                 </div>
               )}
@@ -2731,6 +2843,16 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
         {/* v0.9.34: рой-оверлеи — создание группы и просмотр файла Диска */}
         {royCreateOpen && (
           <RoyCreateModal onCreate={royCreate} onClose={() => setRoyCreateOpen(false)} />
+        )}
+        {royEmblemG && (
+          <RoyEmblemModal
+            g={royEmblemG}
+            onSave={(emoji, grad) => {
+              setRoyGroups((gs) => gs.map((gr) => (gr.id === royEmblemG?.id ? { ...gr, emoji, grad } : gr)))
+              setRoyEmblemG(null)
+            }}
+            onClose={() => setRoyEmblemG(null)}
+          />
         )}
         {royFileNode && (
           <RoyFileViewer

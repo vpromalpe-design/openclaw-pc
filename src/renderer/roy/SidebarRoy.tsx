@@ -1,8 +1,10 @@
 import { useState, useMemo } from 'react'
-import { ChevronRight, HardDrive, Pencil, Plus, Rocket, Trash2, Users, X } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { ChevronRight, HardDrive, Image as ImageIcon, Pencil, Plus, Rocket, Trash2, Users, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { RoyGroup, RoyDiskNode } from './types'
 import { GRADS } from './data'
+import { useRoyAvatars, AvatarImg } from './avatar'
 
 /* ── Sidebar: «Группы» — list of roy groups under «Агенты» ───────────── */
 
@@ -13,6 +15,10 @@ export interface RoyGroupsListProps {
   onCreate: () => void
   onRename: (id: string, name: string) => void
   onRemove: (id: string) => void
+  /** v0.9.42: сменить аватар группы (картинка с диска) */
+  onAvatar: (g: RoyGroup) => void
+  /** v0.9.42: сменить эмблему/цвет группы */
+  onEmblem: (g: RoyGroup) => void
 }
 
 /** Small inline editor used for «rename» (double-click on a group row). */
@@ -33,10 +39,24 @@ function InlineName({ g, onDone }: { g: RoyGroup; onDone: (name: string) => void
   )
 }
 
-export function RoyGroupsList({ groups, activeId, onOpen, onCreate, onRename, onRemove }: RoyGroupsListProps) {
+export function RoyGroupsList({ groups, activeId, onOpen, onCreate, onRename, onRemove, onAvatar, onEmblem }: RoyGroupsListProps) {
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [menuId, setMenuId] = useState<string | null>(null)
+  const [menu, setMenu] = useState<{ g: RoyGroup; x: number; y: number; up: boolean } | null>(null)
+  const avatars = useRoyAvatars()
   const membersOf = (g: RoyGroup) => g.members.length
+
+  const openMenu = (e: React.MouseEvent, g: RoyGroup) => {
+    e.stopPropagation()
+    if (menu && menu.g.id === g.id) {
+      setMenu(null)
+      return
+    }
+    const r = e.currentTarget.getBoundingClientRect()
+    const up = r.bottom + 190 > window.innerHeight
+    setMenu({ g, x: r.right - 6, y: up ? r.top - 6 : r.bottom + 6, up })
+  }
+
+  const groupAvatar = (g: RoyGroup) => avatars[g.id]
 
   return (
     <div className="shell-side-group roy-groups">
@@ -68,7 +88,13 @@ export function RoyGroupsList({ groups, activeId, onOpen, onCreate, onRename, on
               }}
               title="Открыть арену (двойной клик — переименовать)"
             >
-              <span className={cn('rg-av', g.grad)}>{g.emoji}</span>
+              <AvatarImg
+                avatarPath={groupAvatar(g)}
+                emoji={g.emoji}
+                grad={g.grad}
+                alt={g.name}
+                className="rg-av"
+              />
               {editingId === g.id ? (
                 <InlineName g={g} onDone={(name) => { setEditingId(null); onRename(g.id, name) }} />
               ) : (
@@ -83,36 +109,53 @@ export function RoyGroupsList({ groups, activeId, onOpen, onCreate, onRename, on
                     type="button"
                     className="rg-more"
                     title="Меню группы"
-                    onClick={(e) => { e.stopPropagation(); setMenuId(menuId === g.id ? null : g.id) }}
+                    onClick={(e) => openMenu(e, g)}
                   >
                     ⋯
                   </button>
-                  {menuId === g.id && (
-                    <div className="rg-menu" onClick={(e) => e.stopPropagation()}>
-                      <button type="button" onClick={() => { setMenuId(null); setEditingId(g.id) }}>
-                        <Pencil size={13} /> Переименовать
-                      </button>
-                      <button type="button" onClick={() => { setMenuId(null); onOpen(g.id) }}>
-                        <Rocket size={13} /> Открыть арену
-                      </button>
-                      <button
-                        type="button"
-                        className="danger"
-                        onClick={() => {
-                          setMenuId(null)
-                          if (window.confirm(`Удалить группу «${g.name}»? Участники-агенты останутся.`)) onRemove(g.id)
-                        }}
-                      >
-                        <Trash2 size={13} /> Удалить группу
-                      </button>
-                    </div>
-                  )}
                 </>
               )}
             </div>
           ))}
         </div>
       )}
+
+      {/* v0.9.42: меню группы — порталом в body, справа от кнопки (не обрезается скроллом) */}
+      {menu &&
+        createPortal(
+          <div
+            className={cn('rg-menu rg-menu-pop', menu.up && 'up')}
+            style={{ left: menu.x, top: menu.y }}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="rg-menu-back" onMouseDown={() => setMenu(null)} onClick={() => setMenu(null)} />
+            <button type="button" onClick={() => { const g = menu.g; setMenu(null); setEditingId(g.id) }}>
+              <Pencil size={13} /> Переименовать
+            </button>
+            <button type="button" onClick={() => { const g = menu.g; setMenu(null); onEmblem(g) }}>
+              🎨 Эмблема и цвет
+            </button>
+            <button type="button" onClick={() => { const g = menu.g; setMenu(null); onAvatar(g) }}>
+              <ImageIcon size={13} /> Сменить аватар
+            </button>
+            <button type="button" onClick={() => { const g = menu.g; setMenu(null); onOpen(g.id) }}>
+              <Rocket size={13} /> Открыть арену
+            </button>
+            <button
+              type="button"
+              className="danger"
+              onClick={() => {
+                const g = menu.g
+                setMenu(null)
+                if (window.confirm(`Удалить группу «${g.name}»? Участники-агенты останутся.`)) onRemove(g.id)
+              }}
+            >
+              <Trash2 size={13} /> Удалить группу
+            </button>
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }
@@ -134,14 +177,18 @@ function DiskNodeRow({ node, depth, onOpenFile, onDragFile }: { node: RoyDiskNod
       <div
         className={cn('roy-drow', isFolder && 'folder', depth === 0 && 'root')}
         style={{ paddingLeft: 6 + depth * 13 }}
-        draggable={!isFolder}
+        draggable
         onDragStart={(e) => onDragFile(e, node)}
         onDoubleClick={() => {
           if (isFolder) setOpen((o) => !o)
           else onOpenFile(node)
         }}
         onClick={() => isFolder && setOpen((o) => !o)}
-        title={isFolder ? node.label : `${node.label} — открыть (двойной клик)`}
+        title={
+          isFolder
+            ? `${node.label} — перетащи на арену как папку проекта или раскрой (клик)`
+            : `${node.label} — открыть (двойной клик)`
+        }
       >
         {isFolder ? (
           <span className="roy-dchev">{open ? '▾' : '▸'}</span>
@@ -170,7 +217,7 @@ export function RoyDiskButton({ fileCount, open, onToggle }: { fileCount: number
       type="button"
       className={cn('roy-disk-btn', open && 'open')}
       onClick={onToggle}
-      title={open ? 'Закрыть диск' : 'Открыть диск — файлы для агентов (перетаскивай на арену)'}
+      title={open ? 'Закрыть диск' : 'Открыть диск — файлы и папки для агентов (перетаскивай на арену)'}
     >
       <span className="roy-disk-btn-ic"><HardDrive size={15} strokeWidth={1.9} /></span>
       <span className="roy-disk-btn-t">Диск</span>
@@ -193,7 +240,7 @@ export function RoyDiskDrawer({ open, roots, onOpenFile, onDragFile, onClose }: 
     <div className="roy-disk-drawer">
       <div className="roy-disk-drawer-head">
         <span className="roy-disk-drawer-title"><HardDrive size={14} /> Диск</span>
-        <span className="roy-disk-drawer-sub">{fileCount} файлов — тяни на арену</span>
+        <span className="roy-disk-drawer-sub">{fileCount} файлов — тяни на арену (папки тоже)</span>
         <button type="button" className="roy-disk-drawer-x" title="Закрыть диск" onClick={onClose}>
           <X size={16} />
         </button>
@@ -204,7 +251,7 @@ export function RoyDiskDrawer({ open, roots, onOpenFile, onDragFile, onClose }: 
         ))}
       </div>
       <div className="roy-disk-note">
-        💡 тяни файл на арену, чтобы раздать агентам · двойной клик — открыть
+        💡 тяни файл или папку на арену, чтобы раздать агентам · двойной клик по файлу — открыть
       </div>
     </div>
   )

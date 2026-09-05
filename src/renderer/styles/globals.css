@@ -2289,3 +2289,102 @@ body {
   font: 9.5px/1.4 'SF Mono', Consolas, monospace; color: var(--text-3);
   padding: 0 14px 8px; word-break: break-all;
 }
+
+/* ── v0.9.42–44: аватары, меню группы, голос, доработка, telegram ── */
+
+/* Аватар-картинка/эмодзи в кружке (AvatarImg) */
+.roy-avimg,
+.roy-avemoji {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 100%; height: 100%; border-radius: inherit; overflow: hidden; flex: none;
+}
+.roy-avimg img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block; }
+.roy-avemoji { font-size: 20px; }
+
+/* RoyFace: картинка / telegram-глиф / эмодзи (кружки по месту) */
+.roy-face-img {
+  width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block;
+  background: rgba(0, 0, 0, 0.25);
+}
+.roy-face-tg { width: 62%; height: 62%; color: #229ed9; }
+.roy-tg-glyph { display: block; }
+
+/* бейдж TG у имени в карточках */
+.rac-tg {
+  display: inline-flex; align-items: center; margin-left: 6px; padding: 1px 6px;
+  font-size: 9px; font-weight: 800; font-style: normal; letter-spacing: 0.4px;
+  border-radius: 6px; color: #fff; background: #229ed9;
+  vertical-align: 1px; text-transform: uppercase;
+}
+
+/* папка на арене (drag с Диска) */
+.rf-kind {
+  position: absolute; left: 8px; bottom: 6px; font-size: 9px; font-weight: 700;
+  letter-spacing: 0.5px; text-transform: uppercase; color: #ffd60a;
+  background: rgba(255, 159, 10, 0.16); border: 1px solid rgba(255, 159, 10, 0.35);
+  padding: 1px 6px; border-radius: 7px;
+}
+
+/* свежий отчёт главного — точка */
+.rl-fresh-dot {
+  width: 9px; height: 9px; border-radius: 50%; background: #30d158; flex: none;
+  box-shadow: 0 0 10px rgba(48, 209, 88, 1); animation: roy-blink 1.3s ease-in-out infinite;
+}
+
+/* обёртка textarea + микрофон (mission/broadcast/доработка) */
+.rm-ta-wrap { display: flex; align-items: flex-end; gap: 7px; }
+.rm-ta-wrap .rm-textarea { min-width: 0; flex: 1; }
+
+/* зелёная пульсация кнопки отчёта (карточка главного) */
+.pulse-green { animation: pulse-green 1.6s ease-in-out infinite; }
+@keyframes pulse-green {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(48, 209, 88, 0.55); }
+  50% { box-shadow: 0 0 0 5px rgba(48, 209, 88, 0.12); }
+}
+
+/* ── v0.9.43: секция «Доработать» в окне отчёта ── */
+.rrw-files { display: flex; flex-direction: column; gap: 4px; max-height: 18vh; overflow-y: auto; }
+.rrw-file {
+  display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+  border-radius: 11px; border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03); color: var(--text-2);
+  cursor: pointer; font-size: 12px; user-select: none;
+}
+.rrw-file:hover { background: rgba(255, 255, 255, 0.08); }
+.rrw-file input { accent-color: #30d158; margin: 0; }
+.rrw-file span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rrw-file.on { border-color: rgba(48, 209, 88, 0.5); background: rgba(48, 209, 88, 0.1); color: var(--text); }
+.rm-none-links { font-size: 11.5px; color: var(--text-3); padding: 2px 2px 0; }
+
+/* ── v0.9.42: меню группы ⋯ (портал, fixed) ── */
+.rg-menu-pop {
+  position: fixed; z-index: 200; min-width: 178px; padding: 6px;
+  border-radius: 14px;
+  background: rgba(18, 26, 48, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(30px) saturate(180%);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.rg-menu-item {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 7px 10px; border-radius: 9px; border: 0; cursor: pointer;
+  background: transparent; color: var(--text-2); font-size: 12.5px; text-align: left;
+  font-family: inherit;
+}
+.rg-menu-item:hover { background: rgba(10, 132, 255, 0.18); color: var(--text); }
+.rg-menu-item.danger:hover { background: rgba(255, 69, 58, 0.22); color: #ff8a80; }
+
+/* ── микрофон у полей (MicDictate) ── */
+.roy-mic {
+  width: 34px; height: 34px; flex: none; border-radius: 11px; border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06); color: var(--text-2); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.roy-mic:hover { border-color: rgba(10, 132, 255, 0.6); color: var(--text); }
+.roy-mic.rec { border-color: rgba(255, 69, 58, 0.7); color: #ff453a; animation: roy-blink 1.1s ease-in-out infinite; }
+.roy-mic.busy { border-color: rgba(255, 159, 10, 0.7); color: #ff9f0a; }
+.roy-mic.err { border-color: rgba(255, 69, 58, 0.7); color: #ff453a; }
+.roy-mic.compact { width: 27px; height: 27px; border-radius: 9px; }
+.roy-mic.compact svg { width: 14px; height: 14px; }

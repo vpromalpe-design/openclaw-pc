@@ -128,6 +128,15 @@ export const IPC_ROY_READ = 'roy:read' as const
 /** v0.9.39: создать/найти папку проекта (workspace/projects/<title>) */
 export const IPC_ROY_PROJECT_CREATE = 'roy:projectCreate' as const
 
+/** v0.9.42: показать путь в проводнике (showItemInFolder) */
+export const IPC_ROY_SHOW_IN_FOLDER = 'roy:showInFolder' as const
+
+/** v0.9.42: выбрать картинку-аватар с диска и скопировать в userData/avatars */
+export const IPC_ROY_AVATAR_SAVE = 'roy:avatarSave' as const
+
+/** v0.9.44: отправить финальный отчёт задачи в Telegram (бот агента-лидера) */
+export const IPC_ROY_TELEGRAM_REPORT = 'roy:telegramReport' as const
+
 /** Tasks board: add a cron job (schedule a task) */
 export const IPC_CRON_ADD = 'cron:add' as const
 
@@ -464,6 +473,9 @@ export const IPC_INVOKE_CHANNELS = [
   IPC_ROY_TREE,
   IPC_ROY_READ,
   IPC_ROY_PROJECT_CREATE,
+  IPC_ROY_SHOW_IN_FOLDER,
+  IPC_ROY_AVATAR_SAVE,
+  IPC_ROY_TELEGRAM_REPORT,
   IPC_CRON_LIST,
   IPC_CRON_ADD,
   IPC_CRON_RUN,

@@ -254,6 +254,12 @@ export interface ElectronAPI {
   royRead: (opts: { path: string }) => Promise<{ ok: boolean; content?: string; error?: string; binary?: boolean }>
   /** Создать/найти папку проекта по названию задачи */
   royProjectCreate: (opts: { title: string }) => Promise<{ ok: boolean; dir?: string; error?: string }>
+  /** Показать файл/папку в проводнике (Windows Explorer, showItemInFolder) */
+  royShowInFolder: (path: string) => Promise<{ ok: boolean; error?: string }>
+  /** Выбрать картинку с диска → копия в userData/avatars → путь для показа */
+  royAvatarSave: (opts: { id: string }) => Promise<{ ok: boolean; path?: string; error?: string }>
+  /** v0.9.44: отчёт задачи в Telegram от имени бота агента (sendMessage + sendDocument) */
+  royTelegramReport: (opts: { agentId: string; text: string; files?: string[] }) => Promise<{ ok: boolean; error?: string }>
   onTasksLocalChanged: (callback: () => void) => () => void
   cronList: () => Promise<{ jobs: Array<Record<string, unknown>> }>
   cronAdd: (opts: {

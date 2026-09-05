@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import type { RoyDiskNode } from './types'
+import type { RoyDiskNode, RoyGroup } from './types'
 import { GRADS } from './data'
+import { MicDictate } from '../components/MicDictate'
 
 /* ── Create-group modal (sidebar «Группы» → ＋) ───────────────────────── */
 
@@ -35,15 +36,18 @@ export function RoyCreateModal({
         <div className="rm-target">Рой = несколько агентов + координатор. Добавь участников — первый станет главным (тумблер на арене).</div>
 
         <label className="rcy-label" htmlFor="roy-name">Название</label>
-        <input
-          id="roy-name"
-          className="roy-inline-name rcy-name"
-          placeholder="Например: Продакшн-рой"
-          value={name}
-          autoFocus
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && submit()}
-        />
+        <div className="roy-micwrap">
+          <input
+            id="roy-name"
+            className="roy-inline-name rcy-name"
+            placeholder="Например: Продакшн-рой"
+            value={name}
+            autoFocus
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && submit()}
+          />
+          <MicDictate onText={(t) => setName((v) => (v ? v + ' ' + t : t))} />
+        </div>
 
         <label className="rcy-label">Эмблема</label>
         <div className="rcy-emojis">
@@ -85,6 +89,72 @@ export function RoyCreateModal({
   )
 }
 
+/* ── v0.9.42: смена эмблемы/цвета существующей группы ────────────────── */
+
+export function RoyEmblemModal({
+  g,
+  onSave,
+  onClose,
+}: {
+  g: RoyGroup
+  onSave: (emoji: string, grad: string) => void
+  onClose: () => void
+}) {
+  const [emoji, setEmoji] = useState(g.emoji || '🐝')
+  const [grad, setGrad] = useState<string>(g.grad || 'g0')
+  const emojis = ['🐝', '🚀', '🛰', '🧠', '⚡', '🎯', '👾', '📡', '🦾', '🗂', '🦞', '🔬', '🎨', '📚', '💡']
+  const emojiPick = emojis.includes(emoji) ? emoji : emojis[0]
+
+  const submit = () => onSave(emojiPick, grad)
+
+  return (
+    <div className="roy-modal-back" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="roy-modal" style={{ width: 'min(480px, 94vw)' }}>
+        <div className="rm-head">
+          <div className="rm-title">🎨 {g.name} — эмблема и цвет</div>
+          <button type="button" className="rm-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="rcy-label">Эмблема</div>
+        <div className="rcy-emojis">
+          {emojis.map((em) => (
+            <button
+              key={em}
+              type="button"
+              className={cn('rcy-emoji', emojiPick === em && 'sel')}
+              onClick={() => setEmoji(em)}
+            >
+              {em}
+            </button>
+          ))}
+        </div>
+
+        <div className="rcy-label">Цвет</div>
+        <div className="rcy-grads">
+          {GRADS.map((g2, i) => (
+            <button
+              key={g2}
+              type="button"
+              className={cn('rcy-grad', g2, grad === g2 && 'sel')}
+              title={['синий', 'фиолет', 'розов', 'зелёный', 'янтарь', 'коралл'][i]}
+              onClick={() => setGrad(g2)}
+            >
+              <span className={cn('rcy-grad-dot', g2)} />
+            </button>
+          ))}
+        </div>
+
+        <div className="rm-foot">
+          <button type="button" className="roy-btn ghost" onClick={onClose}>Отмена</button>
+          <button type="button" className="roy-btn primary" onClick={submit}>
+            💾 Сохранить
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── File viewer window (double-click on a Disk file) ─────────────────── */
 
 export function RoyFileViewer({
@@ -108,7 +178,15 @@ export function RoyFileViewer({
   }
   const openInSystem = async () => {
     try {
-      if (node.path) await window.electronAPI.systemOpenPath(node.path)
+      if (!node.path) return
+      // v0.9.42: баг «не работает для файла с Диска» — показываем файл/папку
+      // в проводнике (showItemInFolder), а не открываем программой по умолчанию.
+      const res = await window.electronAPI.royShowInFolder(node.path)
+      if (!res.ok && res.error) {
+        // фолбек: старый способ (открыть ассоциированной программой)
+        const err2 = await window.electronAPI.systemOpenPath(node.path)
+        if (err2) window.alert(`Не удалось открыть в системе:\n${res.error}\n${err2}`)
+      }
     } catch {
       /* ignore */
     }
