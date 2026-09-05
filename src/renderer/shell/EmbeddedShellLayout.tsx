@@ -55,8 +55,8 @@ import { RoyGroupsList, RoyDiskButton, RoyDiskDrawer } from '../roy/SidebarRoy'
 import { RoyArenaView, RoyRightPanel } from '../roy/ArenaRoy'
 import type { RoyAgentRef } from '../roy/ArenaRoy'
 import { RoyCreateModal, RoyFileViewer } from '../roy/RoyUi'
-import { loadGroups, saveGroups, newGroup, renameGroup, buildDiskTree, diskFileContent, attachTaskRuns, applyRunResult } from '../roy/data'
-import type { RoyGroup, RoyTaskRun, RoyDiskNode } from '../roy/types'
+import { loadGroups, saveGroups, newGroup, renameGroup, attachTaskRuns, applyRunResult, parsePlanReport, addLog, uid, attachRunsToTask } from '../roy/data'
+import type { RoyGroup, RoyTask, RoyTaskRun, RoyDiskNode } from '../roy/types'
 
 const TIMEOUT_MS = 300_000
 
@@ -366,6 +366,21 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   const [royCreateOpen, setRoyCreateOpen] = useState(false)
   // v0.9.36: диск — кнопка + дровер
   const [royDiskOpen, setRoyDiskOpen] = useState(false)
+  // v0.9.39: «Диск» = реальное дерево workspace/projects из main (IPC roy:tree)
+  const [royDiskRoots, setRoyDiskRoots] = useState<RoyDiskNode[]>([])
+  const [royDiskReload, setRoyDiskReload] = useState(0)
+  const loadRoyDisk = useCallback(async () => {
+    try {
+      const res = await window.electronAPI.royTree()
+      if (res && Array.isArray(res.roots)) setRoyDiskRoots(res.roots)
+    } catch {
+      /* electron недоступен (dev) */
+    }
+  }, [])
+  useEffect(() => {
+    if (!royDiskOpen) return
+    void loadRoyDisk()
+  }, [royDiskOpen, royDiskReload, loadRoyDisk])
   useEffect(() => {
     if (!royDiskOpen) return
     const onKey = (e: KeyboardEvent) => {
@@ -374,20 +389,24 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [royDiskOpen])
-  const royDiskRoots = useMemo(
-    () =>
-      buildDiskTree(
-        royGroups,
-        agents.length,
-        royGroups.reduce((n, g) => n + g.tasks.length, 0),
-      ),
-    [royGroups, agents.length],
-  )
   const royDiskFileCount = useMemo(() => {
     const cnt = (ns: RoyDiskNode[]): number =>
       ns.reduce((n, x) => n + (x.kind === 'file' ? 1 : x.children ? cnt(x.children) : 0), 0)
     return cnt(royDiskRoots)
   }, [royDiskRoots])
+  // v0.9.39: просмотр реального файла диска (IPC roy:read)
+  const [royFileContent, setRoyFileContent] = useState('')
+  const openRoyDiskFile = useCallback(async (node: RoyDiskNode) => {
+    setRoyDiskOpen(false)
+    if (node.kind !== 'file' || !node.path) return
+    try {
+      const res = await window.electronAPI.royRead({ path: node.path })
+      setRoyFileContent(res.ok ? (res.content ?? '') : res.error ?? 'не удалось прочитать')
+      setRoyFileNode(node)
+    } catch {
+      setRoyFileNode(null)
+    }
+  }, [])
   const royDiskDrag = (e: React.DragEvent, node: RoyDiskNode) => {
     e.dataTransfer.effectAllowed = 'copy'
     e.dataTransfer.setData(
@@ -1255,53 +1274,115 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     [royOpenId],
   )
 
-  // v0.9.37: реальный запуск задачи роя — каждому адресату в его сессию задач
-  // (`agent:<id>:tasks` через IPC tasksDispatch mode:'now') + привязка runs.
+  // v0.9.39: реальный запуск задачи роя.
+  //  - Миссия (who='group', глава — агент): двухфазный протокол: папка проекта →
+  //    диспатч главному-координатору (вернёт план) → по плану спавнятся подзадачи.
+  //  - Обычная/подзадача: диспатч адресату (в его сессию задач) + привязка runs.
   const royRunTask = useCallback(
     async (groupId: string, taskId: string) => {
       const g = royGroups.find((x) => x.id === groupId)
       const t = g?.tasks.find((x) => x.id === taskId)
       if (!g || !t) return
       if (t.state !== 'wait') return
-      const targets = t.who === 'group' ? g.members : [t.who]
-      const real = targets.filter((w) => w !== 'user')
-      if (real.length === 0) return
       const nameOf = new Map(agents.map((a) => [a.id, a.name]))
-      const settled = await Promise.allSettled(
-        real.map(async (agentId) => {
-          const res = await window.electronAPI.tasksDispatch({
-            text: t.title,
-            agentId,
-            mode: 'now',
-            freq: 'once',
-          })
-          return { agentId, res }
-        }),
-      )
-      const runs: RoyTaskRun[] = settled.map((r) => {
-        if (r.status === 'rejected') {
-          return { agentId: '?', status: 'fail' as const, error: String(r.reason), startedAt: Date.now() }
-        }
-        const { agentId, res } = r.value
-        if (res?.ok) {
-          return {
-            agentId,
-            agentName: nameOf.get(agentId) ?? agentId,
-            localId: res.localTaskId,
-            runId: res.runId,
-            status: 'run' as const,
-            startedAt: Date.now(),
+      const members = g.members.filter((w) => w !== 'user' && w !== 'main')
+      const mission = t.who === 'group'
+      // папка проекта для задачи/миссии (на Диске: Проекты/<название>)
+      let projectDir = t.projectDir
+      let createdNow = false
+      if (!projectDir) {
+        try {
+          const pr = await window.electronAPI.royProjectCreate({ title: t.title })
+          if (pr.ok && pr.dir) {
+            projectDir = pr.dir
+            createdNow = true
+            setRoyDiskReload((n) => n + 1)
           }
+        } catch {
+          /* ignore */
         }
-        return {
-          agentId,
-          agentName: nameOf.get(agentId) ?? agentId,
-          status: 'fail' as const,
-          error: res?.error ?? 'dispatch failed',
-          startedAt: Date.now(),
+      }
+      if (createdNow && projectDir) void window.electronAPI.systemOpenPath(projectDir).catch(() => undefined)
+
+      const dispatchOne = async (agentId: string, text: string) => {
+        try {
+          const res = await window.electronAPI.tasksDispatch({ text, agentId, mode: 'now', freq: 'once' })
+          if (res?.ok) {
+            return { agentId, agentName: nameOf.get(agentId) ?? agentId, localId: res.localTaskId, runId: res.runId, status: 'run' as const, startedAt: Date.now() }
+          }
+          return { agentId, agentName: nameOf.get(agentId) ?? agentId, status: 'fail' as const, error: res?.error ?? 'dispatch failed', startedAt: Date.now() }
+        } catch (err) {
+          return { agentId, agentName: nameOf.get(agentId) ?? agentId, status: 'fail' as const, error: String(err), startedAt: Date.now() }
         }
-      })
-      setRoyGroups((gs) => gs.map((gr) => (gr.id === groupId ? attachTaskRuns(gr, taskId, runs) : gr)))
+      }
+
+      if (mission) {
+        // ── МИССИЯ: глава-агент планирует → подзадачи исполнителям ──
+        const leader = g.head === 'main' ? (g.leaderId && members.includes(g.leaderId) ? g.leaderId : members[0]) : null
+        if (leader && members.length > 1) {
+          const roster = members.map((m) => `${m}${nameOf.get(m) ? ` (${nameOf.get(m)})` : ''}`).join(', ')
+          const prompt =
+            `📋 МИССИЯ ДЛЯ КООРДИНАТОРА. Ты — главный агент роя. НЕ создавай файлы и НЕ запускай субагентов — сначала только продумай план.\n\n` +
+            `Задача: «${t.title}»\n` +
+            `Состав роя (доступны только эти агенты, обращайся по id): ${roster}\n\n` +
+            `Подумай: из каких подзадач состоит задача, кому какую поручить по ролям, каких ролей/агентов не хватает.\n` +
+            `Верни ОДНО сообщение: сначала 1-2 предложения размышлений, затем строго JSON-блок: ` +
+            `{"tasks":[{"to":"<agentId из состава>","what":"<конкретная подзадача>","file":"<имя файла, который создаст>"}]}` +
+            (members.length > 1 ? ` Если нужны агенты, которых нет в составе — добавь после tasks поле "need":["роль — зачем"].` : '') +
+            ` Подзадач должно быть не больше ${members.length - 1}, каждому агенту — одна.`
+          const run = await dispatchOne(leader, prompt)
+          const runOk = run as RoyTaskRun
+          setRoyGroups((gs) =>
+            gs.map((gr) => {
+              if (gr.id !== groupId) return gr
+              const upd: RoyTask = {
+                ...t,
+                state: runOk.status === 'run' ? 'run' : 'done',
+                projectDir,
+                runs: [runOk],
+                plan: runOk.status === 'run' ? { status: 'run', localId: runOk.localId } : { status: 'fail', error: runOk.error },
+              }
+              return addLog(
+                { ...gr, tasks: gr.tasks.map((x) => (x.id === taskId ? upd : x)) },
+                runOk.status === 'run' ? '👑' : '⚠️',
+                runOk.status === 'run' ? `миссия ушла координатору ${nameOf.get(leader) ?? leader}: ${t.title} — ждём план` : `не удалось запустить координатора: ${t.title}`,
+              )
+            }),
+          )
+        } else {
+          // глава — Дамир или в рое один агент: рассылка всем участникам как раньше
+          const runs: RoyTaskRun[] = []
+          for (const agentId of members) {
+            const text = projectDir ? `${t.title}\n\n📁 Папка проекта (работай там, создавай файлы только в ней): ${projectDir}` : t.title
+            runs.push(await dispatchOne(agentId, text))
+          }
+          setRoyGroups((gs) => gs.map((gr) => (gr.id === groupId ? attachTaskRuns(gr, taskId, runs) : gr)))
+        }
+        return
+      }
+
+      // ── обычная задача (агенту / подзадача по плану) ──
+      const targets = [t.who].filter((w) => w !== 'user' && w !== 'main' && w !== 'group')
+      if (targets.length === 0) return
+      const runs: RoyTaskRun[] = []
+      for (const agentId of targets) {
+        const text = projectDir ? `${t.title}\n\n📁 Папка проекта (работай там, создавай файлы только в ней): ${projectDir}` : t.title
+        runs.push(await dispatchOne(agentId, text))
+      }
+      setRoyGroups((gs) =>
+        gs.map((gr) =>
+          gr.id === groupId
+            ? (() => {
+                const base = attachTaskRuns(gr, taskId, runs)
+                // у подзадачи миссии — проставить папку проекта
+                if (projectDir && t.parentId) {
+                  return { ...base, tasks: base.tasks.map((x) => (x.id === taskId ? { ...x, projectDir } : x)) }
+                }
+                return base
+              })()
+            : gr,
+        ),
+      )
     },
     [royGroups, agents],
   )
@@ -1338,17 +1419,256 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
       return any ? next : gs
     })
   }, [tasksData.tasks])
+
+  // v0.9.39: единичный диспатч задачи агенту (переиспользуется при раздаче подзадач)
+  const royDispatchOne = useCallback(
+    async (agentId: string, text: string): Promise<RoyTaskRun> => {
+      const nameOf = new Map(agents.map((a) => [a.id, a.name]))
+      try {
+        const res = await window.electronAPI.tasksDispatch({ text, agentId, mode: 'now', freq: 'once' })
+        if (res?.ok) {
+          return { agentId, agentName: nameOf.get(agentId) ?? agentId, localId: res.localTaskId, runId: res.runId, status: 'run' as const, startedAt: Date.now() }
+        }
+        return { agentId, agentName: nameOf.get(agentId) ?? agentId, status: 'fail' as const, error: res?.error ?? 'dispatch failed', startedAt: Date.now() }
+      } catch (err) {
+        return { agentId, agentName: nameOf.get(agentId) ?? agentId, status: 'fail' as const, error: String(err), startedAt: Date.now() }
+      }
+    },
+    [agents],
+  )
+
+  // v0.9.39: план координатора пришёл (succeeded) → создаём и раздаём подзадачи
+  const spawningRoy = useRef<Set<string>>(new Set())
+  const roySpawnFromPlan = useCallback(
+    async (groupId: string, missionId: string, planText: string) => {
+      if (spawningRoy.current.has(missionId)) return
+      spawningRoy.current.add(missionId)
+      try {
+        const g0 = royGroups.find((x) => x.id === groupId)
+        const mission = g0?.tasks.find((x) => x.id === missionId)
+        if (!g0 || !mission || !mission.plan) return
+        const members = g0.members.filter((m) => m !== 'user' && m !== 'main')
+        const leader = g0.leaderId && members.includes(g0.leaderId) ? g0.leaderId : members[0]
+        const doers = members.filter((m) => m !== leader)
+        const nameOf = new Map(agents.map((a) => [a.id, a.name]))
+        const body = planText.replace(/```(?:json)?/gi, '').replace(/```/g, '')
+        const needMatch = /"need"\s*:\s*\[([\s\S]*?)\]/.exec(body)
+        const needNote = needMatch
+          ? needMatch[1].split(',').map((s) => s.replace(/["'[\]]/g, '').trim()).filter(Boolean)
+          : []
+        const items = parsePlanReport(planText)
+        const itemsOk = items && items.length > 0
+        const used = new Set<string>()
+        const assign = (toRaw: string): string | null => {
+          if (!toRaw) return null
+          const byId = members.includes(toRaw) ? toRaw : null
+          const byName = byId ? null : agents.find((a) => a.id === toRaw || a.name === toRaw)?.id ?? null
+          const hit = byId ?? byName
+          if (!hit || !doers.includes(hit) || used.has(hit)) return null
+          used.add(hit)
+          return hit
+        }
+        const planned: Array<{ who: string; what: string; file?: string }> = []
+        const unknownRoles: string[] = []
+        if (itemsOk) {
+          for (const it of items ?? []) {
+            if (it.to === leader) continue
+            const who = assign(it.to)
+            if (!who) {
+              unknownRoles.push(it.to)
+              continue
+            }
+            planned.push({ who, what: it.what, file: it.file })
+          }
+        }
+        // план не распознан/все роли вне состава/пуст → раздать миссию всем исполнителям
+        if (planned.length === 0) {
+          planned.length = 0
+          unknownRoles.length = 0
+          for (const d of doers) planned.push({ who: d, what: mission.title })
+        }
+        if (planned.length === 0) {
+          setRoyGroups((gs) =>
+            gs.map((gr) =>
+              gr.id === groupId
+                ? addLog(gr, '⚠️', `по плану координатора некому раздавать — в рое только ${nameOf.get(leader ?? '') ?? leader}: ${mission.title}`)
+                : gr,
+            ),
+          )
+          return
+        }
+        const created: RoyTask[] = []
+        const runResults: Array<{ taskId: string; run: RoyTaskRun }> = []
+        for (const p of planned) {
+          const subId = uid('task')
+          const dirNote = mission.projectDir ? `Папка проекта (создавай файлы ТОЛЬКО здесь): ${mission.projectDir}` : ''
+          const fileNote = p.file ? `Файл, который нужно создать: ${p.file}` : ''
+          const prompt = `🎯 Задача проекта «${mission.title}» — твоя часть от координатора:\n${p.what}\n\n${dirNote}\n${fileNote}\nВыполни самостоятельно, без субагентов. В конце верни ОДНО финальное сообщение: что сделал + список созданных файлов.`
+          const run = await royDispatchOne(p.who, prompt)
+          created.push({ id: subId, who: p.who, title: p.what.slice(0, 160), state: 'wait', ts: Date.now(), parentId: missionId, projectDir: mission.projectDir })
+          runResults.push({ taskId: subId, run })
+        }
+        const whoList = planned.map((p) => nameOf.get(p.who) ?? p.who).join(', ')
+        setRoyGroups((gs) =>
+          gs.map((gr) => {
+            if (gr.id !== groupId) return gr
+            let g2 = gr
+            const missionUpd: RoyTask = {
+              ...mission,
+              plan: { status: 'done', localId: mission.plan?.localId, report: planText, dispatched: true },
+            }
+            g2 = { ...g2, tasks: g2.tasks.map((x) => (x.id === missionId ? missionUpd : x)) }
+            const fresh: RoyTask[] = []
+            for (const c of created) {
+              const r = runResults.find((rr) => rr.taskId === c.id)
+              const withRun = r ? attachRunsToTask(c, [r.run]) : c
+              fresh.push(withRun)
+            }
+            g2 = { ...g2, tasks: [...fresh, ...g2.tasks] }
+            g2 = addLog(g2, '👑', `план координатора: подзадачи розданы → ${whoList}`)
+            if (itemsOk) {
+              g2 = addLog(g2, '📋', `роли по плану: ${planned.map((p) => `${nameOf.get(p.who) ?? p.who}${p.file ? ` → ${p.file}` : ''}`).join(' · ')}`)
+            } else {
+              g2 = addLog(g2, '📋', 'план не распознан как JSON — задача роздана участникам целиком')
+            }
+            if (needNote.length > 0) g2 = addLog(g2, '💡', `координатор предлагает добавить агентов: ${needNote.join('; ')}`)
+            if (unknownRoles.length > 0) g2 = addLog(g2, '⚠️', `в плане роли вне состава роя: ${unknownRoles.join(', ')}`)
+            return g2
+          }),
+        )
+      } finally {
+        spawningRoy.current.delete(missionId)
+      }
+    },
+    [royGroups, agents, royDispatchOne],
+  )
+
+  // план координатора завершён в реестре → запустить раздачу подзадач
+  useEffect(() => {
+    const locals = tasksData.tasks
+    if (!locals || locals.length === 0) return
+    for (const g of royGroups) {
+      for (const t of g.tasks) {
+        if (t.who !== 'group' || !t.plan || t.plan.status !== 'run' || !t.plan.localId || t.plan.dispatched) continue
+        const loc = locals.find((l) => l.id === t.plan?.localId)
+        if (!loc || loc.status !== 'succeeded') continue
+        void roySpawnFromPlan(g.id, t.id, loc.answer ?? '')
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasksData.tasks])
+
+  // v0.9.39: миссия завершена, когда все её подзадачи — done
+  useEffect(() => {
+    setRoyGroups((gs) => {
+      let any = false
+      const next = gs.map((g) => {
+        let g2 = g
+        for (const mission of g2.tasks) {
+          if (mission.who !== 'group' || mission.state !== 'run' || !mission.plan?.dispatched) continue
+          const kids = g2.tasks.filter((x) => x.parentId === mission.id)
+          if (kids.length === 0) continue
+          if (kids.every((k) => k.state === 'done')) {
+            any = true
+            g2 = addLog({ ...g2, tasks: g2.tasks.map((x) => (x.id === mission.id ? { ...x, state: 'done' } : x)) }, '🏁', `миссия завершена: ${mission.title}`)
+          }
+        }
+        return g2
+      })
+      return any ? next : gs
+    })
+  }, [royGroups])
+
+  // v0.9.39: прикрепить реальные файлы папки проекта к завершённым запускам
+  const fileScanning = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    const want: Array<{ groupId: string; taskId: string; dir: string; runs: RoyTaskRun[] }> = []
+    for (const g of royGroups) {
+      for (const t of g.tasks) {
+        if (!t.projectDir || !t.runs) continue
+        const pending = t.runs.filter((r) => r.status === 'done' && !r.files)
+        if (pending.length === 0) continue
+        want.push({ groupId: g.id, taskId: t.id, dir: t.projectDir, runs: pending })
+      }
+    }
+    if (want.length === 0) return
+    let cancelled = false
+    void (async () => {
+      let tree: RoyDiskNode[] = []
+      try {
+        const res = await window.electronAPI.royTree()
+        tree = res?.roots ?? []
+      } catch {
+        return
+      }
+      if (cancelled) return
+      const filesOfDir = (dirPath: string): RoyDiskNode[] => {
+        const walk = (n: RoyDiskNode | undefined): RoyDiskNode[] => {
+          if (!n) return []
+          if (n.kind === 'folder' && n.path === dirPath) return (n.children ?? []).filter((c) => c.kind === 'file')
+          for (const c of n.children ?? []) {
+            const hit = walk(c)
+            if (hit.length > 0) return hit
+          }
+          return []
+        }
+        for (const root of tree) {
+          const hit = walk(root)
+          if (hit.length > 0) return hit
+        }
+        return []
+      }
+      setRoyGroups((gs) => {
+        let any = false
+        const next = gs.map((g) => {
+          if (!want.some((w) => w.groupId === g.id)) return g
+          let g2 = g
+          for (const w of want) {
+            if (w.groupId !== g.id) continue
+            const files = filesOfDir(w.dir)
+            if (files.length === 0) continue
+            const t = g2.tasks.find((x) => x.id === w.taskId)
+            if (!t || !t.runs) continue
+            const runs = t.runs.map((r) => {
+              if (r.status !== 'done' || r.files) return r
+              const key = `${w.taskId}:${r.localId ?? r.agentId}`
+              if (fileScanning.current.has(key)) return r
+              // файлы, созданные в окне работы агента (и чуть раньше/позже)
+              const from = (r.startedAt ?? Date.now()) - 180_000
+              const to = (r.endedAt ?? Date.now()) + 120_000
+              const owned = files
+                .filter((f) => typeof f.mtimeMs === 'number' && f.mtimeMs >= from && f.mtimeMs <= to)
+                .map((f) => ({ path: f.path ?? '', label: f.label, emoji: f.emoji, size: f.size, mtimeMs: f.mtimeMs }))
+              if (owned.length === 0) return r
+              fileScanning.current.add(key)
+              any = true
+              return { ...r, files: owned }
+            })
+            if (runs.some((r, i) => r !== t.runs![i])) g2 = { ...g2, tasks: g2.tasks.map((x) => (x.id === w.taskId ? { ...x, runs } : x)) }
+          }
+          return g2
+        })
+        return any ? next : gs
+      })
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [royGroups])
   const royRemoveAgentRef = useCallback(
     (agent: RoyAgentRef) => {
       const full = agents.find((a) => a.id === agent.id)
       if (full && !full.isDefault) void handleRemoveAgent(full)
-      // Вычистить агента из участников/связей всех групп.
+      // Вычистить агента из участников/связей всех групп (+коррекция лидера).
       setRoyGroups((gs) =>
-        gs.map((g) => ({
-          ...g,
-          members: g.members.filter((m) => m !== agent.id),
-          files: g.files.map((f) => ({ ...f, to: f.to.filter((t) => t !== agent.id) })),
-        })),
+        gs.map((g) => {
+          const members = g.members.filter((m) => m !== agent.id)
+          const needRelead = g.head === 'main' && (g.leaderId === agent.id || !members.includes(g.leaderId ?? ''))
+          const files = g.files.map((f) => ({ ...f, to: f.to.filter((t) => t !== agent.id) }))
+          return needRelead
+            ? { ...g, members, files, head: members.length > 0 ? 'main' : 'user', leaderId: members[0] }
+            : { ...g, members, files }
+        }),
       )
     },
     [agents, handleRemoveAgent],
@@ -1906,10 +2226,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
           <RoyDiskDrawer
             open={royDiskOpen}
             roots={royDiskRoots}
-            onOpenFile={(node) => {
-              setRoyDiskOpen(false)
-              setRoyFileNode(node)
-            }}
+            onOpenFile={(node) => void openRoyDiskFile(node)}
             onDragFile={royDiskDrag}
             onClose={() => setRoyDiskOpen(false)}
           />
@@ -1933,6 +2250,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                     onClose={() => setRoyOpenId(null)}
                     modelOptions={modelOptions}
                     onSetModel={(agentId, model) => void setAgentModel(agentId, model)}
+                    onOpenPath={(p, l) => void openRoyDiskFile({ id: p, label: l ?? p, emoji: '📄', kind: 'file', path: p })}
                   />
                 </div>
               )}
@@ -2063,6 +2381,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                 agents={agents}
                 onPatch={royPatch}
                 onRunTask={(taskId) => void royRunTask(royOpenGroup.id, taskId)}
+                onOpenPath={(p, l) => void openRoyDiskFile({ id: p, label: l ?? p, emoji: '📄', kind: 'file', path: p })}
               />
             ) : activePanel === 'tasks' ? (
               <TasksDetailPanel
@@ -2234,7 +2553,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
         {royFileNode && (
           <RoyFileViewer
             node={royFileNode}
-            content={diskFileContent(royFileNode, royGroups)}
+            content={royFileContent}
             onClose={() => setRoyFileNode(null)}
           />
         )}

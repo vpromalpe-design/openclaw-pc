@@ -83,6 +83,9 @@ import {
   IPC_TASKS_LOCAL_SET_STATUS,
   IPC_TASKS_RESUME,
   IPC_TASKS_RESOLVE_FILES,
+  IPC_ROY_TREE,
+  IPC_ROY_READ,
+  IPC_ROY_PROJECT_CREATE,
   IPC_CRON_LIST,
   IPC_CRON_ADD,
   IPC_CRON_RUN,
@@ -397,6 +400,90 @@ function wizardStateForModelConfig(modelConfig: ModelConfig): WizardState {
 
 export function registerIpcHandlers(deps: IpcHandlerDeps): void {
   const { gatewayManager } = deps
+
+  // ─── v0.9.39: helpers реального «Диска» роя (workspace + projects) ───────
+  const ROY_SKIP = new Set(['.git', 'node_modules', '.DS_Store'])
+  const ROY_MAX_NODES = 600
+  const ROY_MAX_DEPTH = 5
+
+  const royNode = (
+    dir: string,
+    depth: number,
+    budget: { n: number },
+  ): { id: string; label: string; emoji: string; kind: 'folder' | 'file'; path?: string; size?: number; mtimeMs?: number; children?: unknown[] } | null => {
+    if (budget.n <= 0) return null
+    let st
+    try {
+      st = fs.statSync(dir)
+    } catch {
+      return null
+    }
+    const label = path.basename(dir) || dir
+    if (st.isFile()) {
+      budget.n -= 1
+      return {
+        id: dir,
+        label,
+        emoji: royFileEmoji(label),
+        kind: 'file',
+        path: dir,
+        size: st.size,
+        mtimeMs: st.mtimeMs,
+      }
+    }
+    budget.n -= 1
+    const node: { id: string; label: string; emoji: string; kind: 'folder' | 'file'; path?: string; size?: number; mtimeMs?: number; children?: unknown[] } = {
+      id: dir,
+      label,
+      emoji: '📁',
+      kind: 'folder',
+      path: dir,
+      mtimeMs: st.mtimeMs,
+      children: [],
+    }
+    if (depth <= 0) return node
+    let entries: fs.Dirent[] = []
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true })
+    } catch {
+      return node
+    }
+    const dirs: fs.Dirent[] = []
+    const files: fs.Dirent[] = []
+    for (const e of entries) {
+      if (ROY_SKIP.has(e.name) || e.name.startsWith('.openclaw')) continue
+      if (e.isDirectory()) dirs.push(e)
+      else if (e.isFile()) files.push(e)
+    }
+    dirs.sort((a, b) => a.name.localeCompare(b.name))
+    files.sort((a, b) => a.name.localeCompare(b.name))
+    const kids: typeof node[] = []
+    for (const d of [...dirs, ...files]) {
+      if (budget.n <= 0) break
+      const child = royNode(path.join(dir, d.name), depth - 1, budget)
+      if (child) kids.push(child)
+    }
+    if (kids.length > 0) node.children = kids
+    return node
+  }
+
+  const royFileEmoji = (name: string): string => {
+    const n = name.toLowerCase()
+    if (n.endsWith('.md')) return n.startsWith('soul') || n.startsWith('agent') ? '🧠' : '📝'
+    if (n.endsWith('.html') || n.endsWith('.htm')) return '🌐'
+    if (n.endsWith('.css')) return '🎨'
+    if (n.endsWith('.js') || n.endsWith('.ts') || n.endsWith('.tsx')) return '⚙️'
+    if (n.endsWith('.json')) return '🧾'
+    if (n.endsWith('.txt')) return '📄'
+    if (n.endsWith('.png') || n.endsWith('.jpg') || n.endsWith('.jpeg') || n.endsWith('.gif') || n.endsWith('.webp')) return '🖼'
+    if (n.endsWith('.exe') || n.endsWith('.msi')) return '📦'
+    if (n.endsWith('.log')) return '🗒'
+    if (n.endsWith('.csv')) return '📊'
+    return '📎'
+  }
+
+  const royWorkspace = (): string => path.join(deps.getUserDataDir(), 'workspace')
+  const royProjects = (): string => path.join(royWorkspace(), 'projects')
 
   ipcMain.handle(
     IPC_GATEWAY_START,
@@ -1308,6 +1395,93 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
         }
       }
       return { resolved }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_ROY_TREE,
+    wrapHandler('ROY_TREE', () => {
+      const workspaceDir = royWorkspace()
+      const projectsDir = royProjects()
+      const budget = { n: ROY_MAX_NODES }
+      const roots: Array<{ id: string; label: string; emoji: string; kind: 'folder' | 'file'; path?: string; size?: number; mtimeMs?: number; children?: unknown[]; info?: string }> = []
+      if (fs.existsSync(projectsDir)) {
+        const p = royNode(projectsDir, ROY_MAX_DEPTH - 1, budget)
+        roots.push({
+          id: 'projects',
+          label: 'Проекты',
+          emoji: '🗂️',
+          kind: 'folder',
+          path: projectsDir,
+          children: p?.children ?? [],
+          info: (p?.children?.length ?? 0) === 0 ? 'проектов ещё нет — запусти Задачу группе' : undefined,
+        })
+      } else {
+        roots.push({ id: 'projects', label: 'Проекты', emoji: '🗂️', kind: 'folder', path: projectsDir, children: [], info: 'проектов ещё нет — запусти Задачу группе' })
+      }
+      if (fs.existsSync(workspaceDir)) {
+        const w = royNode(workspaceDir, ROY_MAX_DEPTH - 1, budget)
+        roots.push({
+          id: 'workspace',
+          label: 'Workspace',
+          emoji: '💼',
+          kind: 'folder',
+          path: workspaceDir,
+          children: (w?.children ?? []).filter((c) => !(c as { label?: string }).label?.startsWith('projects')),
+          info: undefined,
+        })
+      } else {
+        roots.push({ id: 'workspace', label: 'Workspace', emoji: '💼', kind: 'folder', path: workspaceDir, children: [], info: 'пусто' })
+      }
+      return { workspaceDir, projectsDir, roots }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_ROY_READ,
+    wrapHandler('ROY_READ', async (payload: unknown): Promise<{ ok: boolean; content?: string; error?: string; binary?: boolean }> => {
+      const raw = validatePlainObject(payload, 'roy:read')
+      const filePath = typeof raw.path === 'string' && raw.path.trim() ? raw.path.trim() : ''
+      if (!filePath) return { ok: false, error: 'path required' }
+      try {
+        if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return { ok: false, error: 'файл не найден' }
+        const size = fs.statSync(filePath).size
+        if (size > 1024 * 1024) return { ok: false, error: 'файл больше 1 МБ — открой его в системе' }
+        const buf = fs.readFileSync(filePath)
+        // бинарный? ищем NUL в первых байтах
+        const sample = buf.subarray(0, 4096)
+        if (sample.includes(0)) return { ok: false, binary: true, error: 'бинарный файл — открой в системе' }
+        return { ok: true, content: buf.toString('utf8').slice(0, 60_000) }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) }
+      }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_ROY_PROJECT_CREATE,
+    wrapHandler('ROY_PROJECT_CREATE', (payload: unknown): { ok: boolean; dir?: string; error?: string } => {
+      const raw = validatePlainObject(payload, 'roy:projectCreate')
+      const title = typeof raw.title === 'string' ? raw.title.trim() : ''
+      if (!title) return { ok: false, error: 'title required' }
+      // имя папки: убираем недопустимые для Windows символы, сохраняя кириллицу
+      const slug = title
+        .replace(/[<>:"\\|?*]/g, ' ')
+        .split('')
+        .map((ch) => (ch.charCodeAt(0) < 32 ? ' ' : ch))
+        .join('')
+        .replace(/\.+$/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 60)
+        || 'task'
+      const dir = path.join(royProjects(), slug)
+      try {
+        fs.mkdirSync(dir, { recursive: true })
+        return { ok: true, dir }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) }
+      }
     }),
   )
 

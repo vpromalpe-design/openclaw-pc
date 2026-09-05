@@ -15,11 +15,13 @@ export interface RoyTaskRun {
   error?: string
   startedAt: number
   endedAt?: number
+  /** v0.9.39: реальные файлы, созданные агентом (абсолютные пути) */
+  files?: Array<{ path: string; label: string; emoji: string; size?: number; mtimeMs?: number }>
 }
 
 export interface RoyTask {
   id: string
-  /** Кому дана задача: agent id или 'group' (всему рою) */
+  /** Кому дана задача: agent id, 'group' (всему рою) или parentId-миссия */
   who: string
   title: string
   state: 'wait' | 'run' | 'done'
@@ -28,6 +30,19 @@ export interface RoyTask {
   runs?: RoyTaskRun[]
   /** v0.9.37: принято главным/Дамиром («Сделано») */
   accepted?: boolean
+  /** v0.9.39: подзадача миссии (миссия → главный → исполнители) */
+  parentId?: string
+  /** v0.9.39: реальная папка проекта на диске (workspace/projects/...) */
+  projectDir?: string
+  /** v0.9.39: стадия плана миссии (who='group'): ждём план главного, план пришёл, роздан */
+  plan?: {
+    status: 'run' | 'done' | 'fail'
+    localId?: string
+    report?: string
+    error?: string
+    /** подзадачи уже розданы по плану (защита от повторов) */
+    dispatched?: boolean
+  }
 }
 
 export interface RoyLogRow {
@@ -53,10 +68,12 @@ export interface RoyGroup {
   name: string
   emoji: string
   grad: string
-  /** участники — agent id из списка агентов приложения */
+  /** участники — agent id из списка агентов приложения (без 'main'/'user') */
   members: string[]
-  /** кто глава: 'main' (агент-координатор) или 'user' */
+  /** кто глава: 'main' (агент-координатор = первый участник) или 'user' */
   head: 'main' | 'user'
+  /** v0.9.39: реальный лидер группы (агент-координатор), если head='main' */
+  leaderId?: string
   mission: string
   tasks: RoyTask[]
   log: RoyLogRow[]
@@ -73,4 +90,8 @@ export interface RoyDiskNode {
   children?: RoyDiskNode[]
   /** динамический info-текст (число групп/агентов/задач) */
   info?: string
+  /** v0.9.39: абсолютный путь (для открытия в системе / чтения) */
+  path?: string
+  size?: number
+  mtimeMs?: number
 }

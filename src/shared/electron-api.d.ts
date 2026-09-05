@@ -151,6 +151,21 @@ export interface LocalProgressPayload {
   variant?: string
 }
 
+/** v0.9.39: узел реального диска роя (возвращается IPC roy:tree) */
+export interface RoyDiskIpcNode {
+  id: string
+  label: string
+  emoji: string
+  kind: 'folder' | 'file'
+  /** абсолютный путь (file) или папка — для открытия/чтения */
+  path?: string
+  size?: number
+  mtimeMs?: number
+  children?: RoyDiskIpcNode[]
+  /** подпись под корнем, когда пусто (например «задач ещё не было») */
+  info?: string
+}
+
 /** Preload `electronAPI` surface */
 export interface ElectronAPI {
   // ─── Invoke channels ───────────────────────────────────────────────────────
@@ -227,6 +242,18 @@ export interface ElectronAPI {
   }>
   /** v0.9.27: resolve relative file names from task output into existing absolute paths */
   tasksResolveFiles: (opts: { names: string[] }) => Promise<{ resolved: Record<string, string> }>
+
+  // ─── v0.9.39: реальный Диск роя (workspace/projects) ─────────────────────
+  /** Дерево реального диска: workspace (файлы агентов + папки) и projects/ */
+  royTree: () => Promise<{
+    workspaceDir: string
+    projectsDir: string
+    roots: RoyDiskIpcNode[]
+  }>
+  /** Прочитать текстовый файл (≤ ~1 МБ) с диска роя */
+  royRead: (opts: { path: string }) => Promise<{ ok: boolean; content?: string; error?: string; binary?: boolean }>
+  /** Создать/найти папку проекта по названию задачи */
+  royProjectCreate: (opts: { title: string }) => Promise<{ ok: boolean; dir?: string; error?: string }>
   onTasksLocalChanged: (callback: () => void) => () => void
   cronList: () => Promise<{ jobs: Array<Record<string, unknown>> }>
   cronAdd: (opts: {

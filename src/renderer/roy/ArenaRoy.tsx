@@ -20,7 +20,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { visibleAssistantText } from '../../shared/visible-text'
-import type { RoyGroup, RoyTask, RoyLogRow, RoyFileCard } from './types'
+import type { RoyGroup, RoyTask, RoyTaskRun, RoyLogRow, RoyFileCard } from './types'
 import { activeTasks, nextTaskState, TASK_STATE, finishedRuns, hasReport, isLeaderTask } from './data'
 
 /* ── Small shared bits ─────────────────────────────────────────────────── */
@@ -153,9 +153,11 @@ export interface RoyArenaProps {
   onSetModel?: (agentId: string, model: string) => void
   /** v0.9.37: реальный запуск задачи у агентов (живой диспатч) */
   onRunTask?: (taskId: string) => void
+  /** v0.9.39: открыть реальный файл диска во вьюере */
+  onOpenPath?: (path: string, label?: string) => void
 }
 
-export function RoyArenaView({ group, agents, onPatch, onChat, onRemoveAgent, onClose, modelOptions, onSetModel, onRunTask }: RoyArenaProps) {
+export function RoyArenaView({ group, agents, onPatch, onChat, onRemoveAgent, onClose, modelOptions, onSetModel, onRunTask, onOpenPath }: RoyArenaProps) {
   const [modal, setModal] = useState<RoyModalKind>(null)
   const [missionText, setMissionText] = useState('')
   const [broadcastText, setBroadcastText] = useState('')
@@ -166,8 +168,9 @@ export function RoyArenaView({ group, agents, onPatch, onChat, onRemoveAgent, on
 
   const members = group.members
   const memberAgents = agents.filter((a) => members.includes(a.id))
-  const head = group.head === 'main' ? agents.find((a) => a.id === 'main') ?? memberAgents[0] : null
-  const headIsUser = group.head === 'user'
+  // v0.9.39: «главный» = РЕАЛЬНЫЙ агент (leaderId или первый участник), не фантом 'main'
+  const head = group.head === 'main' ? (memberAgents.find((a) => a.id === group.leaderId) ?? memberAgents[0] ?? null) : null
+  const headIsUser = group.head === 'user' || memberAgents.length === 0
   const running = activeTasks(group)
   const doneCount = group.tasks.filter((t) => t.state === 'done').length
   const totalTasks = group.tasks.length
@@ -218,7 +221,13 @@ export function RoyArenaView({ group, agents, onPatch, onChat, onRemoveAgent, on
   const addMember = useCallback(
     (agent: RoyAgentRef) => {
       if (group.members.includes(agent.id)) return
-      onPatch((g) => ({ ...g, members: [...g.members, agent.id] }))
+      onPatch((g) => {
+        if (g.members.includes(agent.id)) return g
+        const members = [...g.members, agent.id]
+        // первый участник при главе-«вы» становится координатором (можно вернуть «вы» тумблером)
+        const becomeHead = g.head === 'user' && members.length === 1
+        return { ...g, members, head: becomeHead ? 'main' : g.head, leaderId: becomeHead ? agent.id : g.leaderId }
+      })
       pushLog('＋', `участник добавлен: ${agent.name}`)
       setModal(null)
     },
@@ -226,15 +235,27 @@ export function RoyArenaView({ group, agents, onPatch, onChat, onRemoveAgent, on
   )
   const removeMember = useCallback(
     (agent: RoyAgentRef) => {
-      onPatch((g) => ({ ...g, members: g.members.filter((m) => m !== agent.id) }))
+      onPatch((g) => {
+        const members = g.members.filter((m) => m !== agent.id)
+        const needRelead = g.head === 'main' && (g.leaderId === agent.id || !members.includes(g.leaderId ?? ''))
+        return needRelead
+          ? { ...g, members, head: members.length > 0 ? 'main' : 'user', leaderId: members[0] }
+          : { ...g, members }
+      })
       pushLog('➖', `участник убран: ${agent.name}`)
       setModal(null)
     },
     [onPatch, pushLog],
   )
   const toggleHead = useCallback(() => {
-    onPatch((g) => ({ ...g, head: g.head === 'main' ? 'user' : 'main' }))
-  }, [onPatch])
+    onPatch((g) => {
+      const real = g.members.filter((m) => m !== 'main' && m !== 'user')
+      if (g.head === 'main') return { ...g, head: 'user', leaderId: undefined }
+      if (real.length === 0) return g // некому быть главным-агентом
+      return { ...g, head: 'main', leaderId: g.leaderId ?? real[0] }
+    })
+    pushLog('👑', 'глава — агент-координатор (первый участник)')
+  }, [onPatch, pushLog])
 
   const missionSet = group.mission.trim().length > 0
 
@@ -360,10 +381,11 @@ export function RoyArenaView({ group, agents, onPatch, onChat, onRemoveAgent, on
                 <button
                   type="button"
                   className={cn('rl-seg-btn', !headIsUser && 'on')}
-                  disabled={!headIsUser && !!head}
+                  disabled={!headIsUser ? !!head : members.length === 0}
+                  title={members.length === 0 ? 'Сначала добавь участников — первый станет главным' : undefined}
                   onClick={() => headIsUser && toggleHead()}
                 >
-                  <Bot size={12} /> агент main
+                  <Bot size={12} /> агент-координатор
                 </button>
               </div>
             </div>
@@ -571,6 +593,7 @@ export function RoyArenaView({ group, agents, onPatch, onChat, onRemoveAgent, on
             modelOptions={modelOptions}
             onSetModel={onSetModel}
             onRunTask={onRunTask}
+            onOpenPath={onOpenPath}
             onClose={() => setModal(null)}
           />
         )
@@ -590,6 +613,7 @@ function AgentCardModal({
   modelOptions,
   onSetModel,
   onRunTask,
+  onOpenPath,
   onClose,
 }: {
   agent: RoyAgentRef
@@ -600,6 +624,7 @@ function AgentCardModal({
   modelOptions?: Array<{ id: string; label: string }>
   onSetModel?: (agentId: string, model: string) => void
   onRunTask?: (taskId: string) => void
+  onOpenPath?: (path: string, label?: string) => void
   onClose: () => void
 }) {
   const [cmd, setCmd] = useState('')
@@ -686,7 +711,13 @@ function AgentCardModal({
             type="button"
             className="roy-btn ghost"
             onClick={() => {
-              onPatch((g) => ({ ...g, members: g.members.filter((m) => m !== a.id) }))
+              onPatch((g) => {
+                const members = g.members.filter((m) => m !== a.id)
+                const needRelead = g.head === 'main' && (g.leaderId === a.id || !members.includes(g.leaderId ?? ''))
+                return needRelead
+                  ? { ...g, members, head: members.length > 0 ? 'main' : 'user', leaderId: members[0] }
+                  : { ...g, members }
+              })
               pushLog('➖', `участник убран: ${a.name}`)
             }}
           >
@@ -851,7 +882,7 @@ function AgentCardModal({
         })}
       </div>
 
-      {reportTask && <RoyReportModal task={reportTask} onClose={() => setReportTask(null)} />}
+      {reportTask && <RoyReportModal task={reportTask} group={group} onOpenPath={onOpenPath} onClose={() => setReportTask(null)} />}
     </RoyModal>
   )
 }
@@ -880,9 +911,11 @@ export interface RoyRightProps {
   onPatch: (fn: (g: RoyGroup) => RoyGroup) => void
   /** v0.9.37: реальный запуск задачи у агентов */
   onRunTask?: (taskId: string) => void
+  /** v0.9.39: открыть реальный файл во вьюере */
+  onOpenPath?: (path: string, label?: string) => void
 }
 
-export function RoyRightPanel({ group, agents, onPatch, onRunTask }: RoyRightProps) {
+export function RoyRightPanel({ group, agents, onPatch, onRunTask, onOpenPath }: RoyRightProps) {
   const [showAll, setShowAll] = useState(false)
   const [logExpanded, setLogExpanded] = useState(true)
   const [newTask, setNewTask] = useState('')
@@ -981,7 +1014,7 @@ export function RoyRightPanel({ group, agents, onPatch, onRunTask }: RoyRightPro
                   <button
                     type="button"
                     className="rt-act"
-                    title={t.who === 'group' ? 'Разослать всем участникам' : 'Реально запустить у агента'}
+                    title={t.who === 'group' ? 'Запустить миссию: координатор составит план и раздаст участникам' : 'Реально запустить у агента'}
                     onClick={() => onRunTask(t.id)}
                   >
                     <Play size={12} />
@@ -1066,19 +1099,41 @@ export function RoyRightPanel({ group, agents, onPatch, onRunTask }: RoyRightPro
         })}
       </div>
 
-      {reportTask && <RoyReportModal task={reportTask} onClose={() => setReportTask(null)} />}
+      {reportTask && <RoyReportModal task={reportTask} group={group} onOpenPath={onOpenPath} onClose={() => setReportTask(null)} />}
     </div>
   )
 }
 
-/* ── Отчёт задачи (ответы агентов реального запуска, v0.9.37) ────────── */
+/* ── Отчёт задачи (v0.9.39): план координатора + кто что сделал + файлы ── */
 
-function RoyReportModal({ task, onClose }: { task: RoyTask; onClose: () => void }) {
+function RoyFilesChips({ files, onOpenPath }: { files?: RoyTaskRun['files']; onOpenPath?: (path: string, label?: string) => void }) {
+  if (!files || files.length === 0) return null
+  return (
+    <div className="roy-rep-files">
+      {files.map((f) => (
+        <button
+          key={f.path}
+          type="button"
+          className="roy-rep-file"
+          title={`${f.path}\n(нажми — открыть в просмотре)`}
+          onClick={() => onOpenPath?.(f.path, f.label)}
+        >
+          {f.emoji || '📄'} {f.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function RoyReportModal({ task, group, onOpenPath, onClose }: { task: RoyTask; group?: RoyGroup; onOpenPath?: (path: string, label?: string) => void; onClose: () => void }) {
   const runs = task.runs ?? []
   const answered = runs.filter((r) => r.report || r.error)
+  const mission = task.who === 'group'
+  const kids = mission && group ? group.tasks.filter((t) => t.parentId === task.id) : []
+  const leaderText = task.plan?.report ?? (runs.find((r) => r.report || r.error)?.report || runs.find((r) => r.error)?.error)
   return (
     <div className="roy-modal-back" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="roy-modal roy-rep" style={{ width: 'min(680px, 94vw)' }}>
+      <div className="roy-modal roy-rep" style={{ width: 'min(720px, 94vw)' }}>
         <div className="rm-head">
           <div className="rm-title">
             <FileText size={14} /> Отчёт: {task.title}
@@ -1086,27 +1141,73 @@ function RoyReportModal({ task, onClose }: { task: RoyTask; onClose: () => void 
           <button type="button" className="rm-close" onClick={onClose}>✕</button>
         </div>
         <div className="roy-rep-who">
-          задача → {task.who === 'group' ? 'РОЙ' : task.who} ·{' '}
-          {runs.length === 0 ? 'без реального запуска' : `${answered.length}/${runs.length} ответили`}
+          {mission
+            ? kids.length > 0
+              ? `миссия · координатор составил план и роздал ${kids.length} подзадач`
+              : `миссия · ${runs.length === 0 ? 'без реального запуска' : 'координатор думает…'}`
+            : `задача → ${task.who} · ${runs.length === 0 ? 'без реального запуска' : `${answered.length}/${runs.length} ответили`}`}
         </div>
-        <div className="roy-rep-list">
-          {runs.length === 0 && (
-            <div className="rm-none-links">задача отмечена вручную — реального ответа агентов нет.</div>
-          )}
-          {runs.map((r) => (
-            <div key={r.localId ?? r.agentId} className={cn('roy-rep-item', r.status)}>
-              <div className="roy-rep-h">
-                <span className="roy-rep-av">{royAgentEmoji(r.agentId)}</span>
-                <b>{r.agentName ?? r.agentId}</b>
-                <span className={cn('roy-rep-st', r.status)}>
-                  {r.status === 'done' ? '✓ ответил' : r.status === 'fail' ? '⚠ ошибка' : '… работает'}
-                </span>
-                {r.endedAt && <i>{timeHhMm(r.endedAt)}</i>}
-              </div>
-              <pre className="roy-rep-text">{(visibleAssistantText(r.report || r.error) || '—').trim()}</pre>
+
+        {mission && leaderText && (
+          <>
+            <div className="roy-rep-sec">🧠 План / размышления координатора</div>
+            <div className="roy-rep-leader">
+              <pre className="roy-rep-text">{(visibleAssistantText(leaderText) || '—').trim()}</pre>
             </div>
-          ))}
-        </div>
+          </>
+        )}
+
+        {mission && kids.length > 0 && (
+          <>
+            <div className="roy-rep-sec">🤝 Кто что сделал</div>
+            <div className="roy-rep-list">
+              {kids.map((k) => {
+                const done = k.state === 'done'
+                const kruns = k.runs ?? []
+                const kr = kruns.find((r) => r.status === 'done') ?? kruns[kruns.length - 1]
+                const text = kr && (kr.report || kr.error) ? visibleAssistantText(kr.report || kr.error) : null
+                return (
+                  <div key={k.id} className={cn('roy-rep-item', done ? 'done' : k.state)}>
+                    <div className="roy-rep-h">
+                      <span className="roy-rep-av">{royAgentEmoji(k.who)}</span>
+                      <b>{k.who}</b>
+                      <span className={cn('roy-rep-st', done ? 'done' : k.state)}>
+                        {done ? '✓ готово' : k.state === 'run' ? '… работает' : '⏳ в очереди'}
+                      </span>
+                      <span className="roy-rep-sub">{k.title}</span>
+                      {kr?.endedAt && <i>{timeHhMm(kr.endedAt)}</i>}
+                    </div>
+                    {text && <pre className="roy-rep-text">{(text as string).trim()}</pre>}
+                    <RoyFilesChips files={kr?.files} onOpenPath={onOpenPath} />
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )}
+
+        {!mission && (
+          <div className="roy-rep-list">
+            {runs.length === 0 && (
+              <div className="rm-none-links">задача отмечена вручную — реального ответа агентов нет.</div>
+            )}
+            {runs.map((r) => (
+              <div key={r.localId ?? r.agentId} className={cn('roy-rep-item', r.status)}>
+                <div className="roy-rep-h">
+                  <span className="roy-rep-av">{royAgentEmoji(r.agentId)}</span>
+                  <b>{r.agentName ?? r.agentId}</b>
+                  <span className={cn('roy-rep-st', r.status)}>
+                    {r.status === 'done' ? '✓ ответил' : r.status === 'fail' ? '⚠ ошибка' : '… работает'}
+                  </span>
+                  {r.endedAt && <i>{timeHhMm(r.endedAt)}</i>}
+                </div>
+                <pre className="roy-rep-text">{(visibleAssistantText(r.report || r.error) || '—').trim()}</pre>
+                <RoyFilesChips files={r.files} onOpenPath={onOpenPath} />
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="rm-foot">
           <button type="button" className="roy-btn primary" onClick={onClose}>Закрыть</button>
         </div>

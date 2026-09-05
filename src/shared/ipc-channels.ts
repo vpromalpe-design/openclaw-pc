@@ -119,6 +119,15 @@ export const IPC_CRON_LIST = 'cron:list' as const
 /** v0.9.27: resolve relative file names from task output into existing absolute paths */
 export const IPC_TASKS_RESOLVE_FILES = 'tasks:resolveFiles' as const
 
+/** v0.9.39: реальный «Диск» роя — дерево workspace (проекты + файлы агентов) */
+export const IPC_ROY_TREE = 'roy:tree' as const
+
+/** v0.9.39: прочитать текстовый файл с диска */
+export const IPC_ROY_READ = 'roy:read' as const
+
+/** v0.9.39: создать/найти папку проекта (workspace/projects/<title>) */
+export const IPC_ROY_PROJECT_CREATE = 'roy:projectCreate' as const
+
 /** Tasks board: add a cron job (schedule a task) */
 export const IPC_CRON_ADD = 'cron:add' as const
 
@@ -452,6 +461,9 @@ export const IPC_INVOKE_CHANNELS = [
   IPC_TASKS_GET,
   IPC_TASKS_CANCEL,
   IPC_TASKS_DISPATCH,
+  IPC_ROY_TREE,
+  IPC_ROY_READ,
+  IPC_ROY_PROJECT_CREATE,
   IPC_CRON_LIST,
   IPC_CRON_ADD,
   IPC_CRON_RUN,

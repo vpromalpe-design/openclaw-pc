@@ -76,7 +76,7 @@ export function RoyGroupsList({ groups, activeId, onOpen, onCreate, onRename, on
                   <span className="rg-body">
                     <span className="rg-name">{g.name}</span>
                     <span className="rg-sub">
-                      {membersOf(g)} уч. · лидер {g.head === 'main' ? 'main' : 'вы'}
+                      {membersOf(g)} уч. · глава {g.head === 'main' ? 'координатор' : 'вы'}
                     </span>
                   </span>
                   <button

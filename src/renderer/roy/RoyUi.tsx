@@ -32,7 +32,7 @@ export function RoyCreateModal({
           <button type="button" className="rm-close" onClick={onClose}>✕</button>
         </div>
 
-        <div className="rm-target">Рой = несколько агентов во главе с main. Арена появится в центре.</div>
+        <div className="rm-target">Рой = несколько агентов + координатор. Добавь участников — первый станет главным (тумблер на арене).</div>
 
         <label className="rcy-label" htmlFor="roy-name">Название</label>
         <input
@@ -106,6 +106,13 @@ export function RoyFileViewer({
       /* ignore */
     }
   }
+  const openInSystem = async () => {
+    try {
+      if (node.path) await window.electronAPI.systemOpenPath(node.path)
+    } catch {
+      /* ignore */
+    }
+  }
 
   return (
     <div className="roy-modal-back" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -116,14 +123,20 @@ export function RoyFileViewer({
             {node.info && <span className="roy-fv-info">{node.info}</span>}
           </div>
           <div className="roy-fv-actions">
+            {node.path && (
+              <button type="button" className="roy-btn" title="Открыть в проводнике" onClick={() => void openInSystem()}>
+                📂 Открыть в системе
+              </button>
+            )}
             <button type="button" className="roy-btn ghost" onClick={() => void copy()}>
               {copied ? '✓ Скопировано' : '⧉ Копировать'}
             </button>
             <button type="button" className="rm-close" onClick={onClose}>✕</button>
           </div>
         </div>
+        {node.path && <div className="roy-fv-path">{node.path}</div>}
         <pre className="roy-fv-content">{content}</pre>
-        <div className="roy-fv-foot">виртуальный файл · рой v0.9.34</div>
+        <div className="roy-fv-foot">{node.path ? 'реальный файл с диска · папка проекта/workspace' : 'рой v0.9.39'}</div>
       </div>
     </div>
   )

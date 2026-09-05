@@ -14,7 +14,18 @@ export function loadGroups(): RoyGroup[] {
     if (!raw) return []
     const parsed = JSON.parse(raw) as RoyGroup[]
     if (!Array.isArray(parsed)) return []
-    return parsed
+    // v0.9.39: миграция — убрать фантомов 'main'/'user' из участников,
+    // реальный лидер = первый участник (раньше head='main' был фантомом → ошибка dispatch)
+    return parsed.map((g) => {
+      const members = (g.members ?? []).filter((m) => m !== 'main' && m !== 'user')
+      const leaderId = members.length > 0 ? members[0] : undefined
+      return {
+        ...g,
+        members,
+        head: g.head === 'main' && members.length > 0 ? 'main' : 'user',
+        leaderId: g.head === 'main' ? leaderId : undefined,
+      }
+    })
   } catch {
     return []
   }
@@ -35,11 +46,11 @@ export function newGroup(name: string, emoji: string, grad: string): RoyGroup {
     name: name.trim() || 'Рой',
     emoji: emoji || '🐝',
     grad,
-    members: ['main'],
-    head: 'main',
+    members: [],
+    head: 'user',
     mission: '',
     tasks: [],
-    log: [{ id: uid('log'), ico: '🐝', text: 'группа создана — главный: main', ts: Date.now() }],
+    log: [{ id: uid('log'), ico: '🐝', text: 'группа создана — добавь агентов в участники (⋯ у группы); глава роя — ты' , ts: Date.now() }],
     files: [],
     createdAt: Date.now(),
   }
@@ -113,7 +124,7 @@ export function hasReport(t: RoyTask): boolean {
 
 /** Задача считается задачей «главного» (её результат отчитывают Дамиру). */
 export function isLeaderTask(t: RoyTask): boolean {
-  return t.who === 'main' || t.who === 'group'
+  return t.who === 'group'
 }
 
 /**
@@ -138,6 +149,15 @@ export function attachTaskRuns(g: RoyGroup, taskId: string, runs: RoyTaskRun[]):
     tasks: g.tasks.map((x) => (x.id === taskId ? { ...x, runs, state: nextState, accepted: false } : x)),
     log: [{ id: uid('log'), ico: allFail ? '⚠️' : '🚀', text: logText, ts: Date.now() }, ...g.log].slice(0, 80),
   }
+}
+
+/**
+ * v0.9.39: прикрепить запуски к ещё не добавленной в группу задаче
+ * (раздача подзадач по плану координатора). Если все запуски упали — done.
+ */
+export function attachRunsToTask(t: RoyTask, runs: RoyTaskRun[]): RoyTask {
+  const allFail = runs.length > 0 && runs.every((r) => r.status === 'fail')
+  return { ...t, runs, state: allFail ? 'done' : 'run' }
 }
 
 /**
@@ -190,17 +210,40 @@ export function applyRunResult(
 }
 
 export function setHead(g: RoyGroup, head: 'main' | 'user'): RoyGroup {
-  return addLog({ ...g, head }, head === 'main' ? '👑' : '👤', head === 'main' ? 'глава — агент main' : 'глава — вы')
+  const real = g.members.filter((m) => m !== 'main' && m !== 'user')
+  const effective = head === 'main' && real.length === 0 ? 'user' : head
+  const leaderId = effective === 'main' ? real[0] : undefined
+  const g2: RoyGroup = { ...g, head: effective, leaderId }
+  return addLog(
+    g2,
+    effective === 'main' ? '👑' : '👤',
+    effective === 'main'
+      ? `глава — агент-координатор: ${real[0] ?? '?'} (${g2.name})`
+      : 'глава — вы: раздаёте задачи вручную',
+  )
 }
 
 export function addMember(g: RoyGroup, agentId: string, agentName: string): RoyGroup {
   if (g.members.includes(agentId)) return g
-  return addLog({ ...g, members: [...g.members, agentId] }, '＋', `участник добавлен: ${agentName}`)
+  const members = [...g.members, agentId]
+  // если группа была без главы-агента и это первый участник — он становится координатором
+  const g2: RoyGroup = { ...g, members, head: g.head === 'user' && members.length === 1 ? 'main' : g.head, leaderId: g.head === 'user' && members.length === 1 ? agentId : g.leaderId }
+  return addLog(g2, '＋', `участник добавлен: ${agentName}${g2.head === 'main' && members.length === 1 ? ' — теперь он главный (координатор)' : ''}`)
 }
 
 export function removeMember(g: RoyGroup, agentId: string, agentName: string): RoyGroup {
-  if (agentId === 'main') return g
-  return addLog({ ...g, members: g.members.filter((m) => m !== agentId) }, '➖', `участник убран: ${agentName}`)
+  const members = g.members.filter((m) => m !== agentId)
+  const g2: RoyGroup = { ...g, members }
+  // если убрали лидера-координатора — главным снова становишься ты
+  if (g2.head === 'main' && g2.leaderId === agentId) {
+    g2.head = 'user'
+    g2.leaderId = undefined
+  }
+  if (g2.head === 'main' && (g2.leaderId === undefined || !members.includes(g2.leaderId))) {
+    g2.leaderId = members.length > 0 ? members[0] : undefined
+    if (g2.leaderId === undefined) g2.head = 'user'
+  }
+  return addLog(g2, '➖', `участник убран: ${agentName}`)
 }
 
 export function setMission(g: RoyGroup, mission: string): RoyGroup {
@@ -212,7 +255,7 @@ export function renameGroup(g: RoyGroup, name: string): RoyGroup {
 }
 
 export function removeGroup(g: RoyGroup): RoyGroup {
-  return { ...g, members: ['main'], tasks: [], files: [], log: addLog({ ...g, name: g.name }, '🗑', 'группа очищена').log.slice(0, 5) }
+  return { ...g, members: [], head: 'user', leaderId: undefined, tasks: [], files: [], log: addLog({ ...g, name: g.name }, '🗑', 'группа очищена').log.slice(0, 5) }
 }
 
 /* ── Файлы на арене (перетащены с Диска) ─────────────────────────────── */
@@ -252,7 +295,59 @@ export function linkFileTo(g: RoyGroup, fileId: string, agentId: string): RoyGro
 }
 
 export function labelOf(agentId: string): string {
-  return agentId === 'main' ? 'main' : agentId
+  return agentId
+}
+
+/**
+ * v0.9.39: распарсить план главного-координатора.
+ * Ждём JSON-блок вида { "tasks": [{ "to": "<agentId>", "what": "...", "file": "имя файла" }] }
+ * (или голый массив). Не нашлось — null (фолбэк: разослать всем).
+ */
+export interface PlanTaskItem {
+  to: string
+  what: string
+  file?: string
+}
+
+export function parsePlanReport(text: string | undefined): PlanTaskItem[] | null {
+  if (!text || !text.trim()) return null
+  // вырезаем ```json/``` обёртки
+  const body = text.replace(/```(?:json)?/gi, '').replace(/```/g, '')
+  const start = body.indexOf('{')
+  const arrStart = body.indexOf('[')
+  if (start === -1 && arrStart === -1) return null
+  const candidates: string[] = []
+  if (arrStart !== -1 && (start === -1 || arrStart < start)) {
+    const end = body.lastIndexOf(']')
+    if (end > arrStart) candidates.push(body.slice(arrStart, end + 1))
+  }
+  if (start !== -1) {
+    const end = body.lastIndexOf('}')
+    if (end > start) candidates.push(body.slice(start, end + 1))
+  }
+  for (const c of candidates) {
+    try {
+      const parsed = JSON.parse(c) as unknown
+      let list: unknown = parsed
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const obj = parsed as Record<string, unknown>
+        list = obj.tasks ?? obj.plan ?? obj.subtasks
+      }
+      if (!Array.isArray(list)) continue
+      const items: PlanTaskItem[] = list
+        .filter((x): x is Record<string, unknown> => !!x && typeof x === 'object')
+        .map((x) => ({
+          to: typeof x.to === 'string' ? x.to.trim() : typeof x.agent === 'string' ? x.agent.trim() : '',
+          what: typeof x.what === 'string' ? x.what.trim() : typeof x.task === 'string' ? x.task.trim() : typeof x.title === 'string' ? x.title.trim() : '',
+          file: typeof x.file === 'string' ? x.file.trim() : typeof x.filename === 'string' ? x.filename.trim() : undefined,
+        }))
+        .filter((x) => x.to && x.what)
+      if (items.length > 0) return items
+    } catch {
+      /* next candidate */
+    }
+  }
+  return null
 }
 
 /** Активные (работающие) задачи группы. */
