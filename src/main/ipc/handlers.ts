@@ -1473,7 +1473,9 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
         .replace(/\.+$/g, '')
         .replace(/\s+/g, ' ')
         .trim()
+        .replace(/[. ]+$/g, '')
         .slice(0, 60)
+        .replace(/[. ]+$/g, '')
         || 'task'
       const dir = path.join(royProjects(), slug)
       try {

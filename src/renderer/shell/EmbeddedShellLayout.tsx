@@ -60,6 +60,37 @@ import type { RoyGroup, RoyTask, RoyTaskRun, RoyDiskNode } from '../roy/types'
 
 const TIMEOUT_MS = 300_000
 
+/* ═══ v0.9.40 (Путь Б + «изучи файл»): эвристики роевых задач ═══ */
+
+/** Маркеры «создать артефакт/файл» — такой задаче нужна папка проекта. */
+const ROY_CREATE_INTENT_RE =
+  /(сделай|сделать|создай|создать|напиши|написать|сверстай|сверстать|собери|собрать|разработай|разработать|подготовь|подготовить|сформируй|построй|построить|почини|починить|исправь|исправить|переделай|переделать|добавь|добавить|нарисуй|нарисовать|сгенерируй|сгенерировать|настрой|настроить|установи|установить|запусти|запустить|разверни|сделайте|создайте|напишите)/i
+
+/** Маркеры «вопрос/изучи» — папку проекта не создаём, агент просто отвечает. */
+const ROY_QUESTION_RE =
+  /(изучи|прочитай|посмотри|объясни|расскажи|переведи|проверь|проанализируй|анализ|сравни|оцени|опиши|ответь|что (там|здесь|написано)|что это|резюмируй|подытожь|кратко|своё мнение)/i
+
+/** Привязаны ли к задаче файлы (общие или адресованные агенту). */
+function royHasAttach(g: RoyGroup, who: string): boolean {
+  return (g.files ?? []).some((f) => f.to.length === 0 || f.to.includes(who))
+}
+
+/** Агент — координатор (главный): подсказка в имени или лидер какой-либо группы. */
+function royIsCoordinator(agentId: string, agents: Array<{ id: string; name?: string }>, groups: RoyGroup[]): boolean {
+  const nm = (agents.find((a) => a.id === agentId)?.name ?? '').toLowerCase()
+  return nm.includes('главн') || nm.includes('координатор') || nm.includes('лидер') || groups.some((gr) => gr.leaderId === agentId)
+}
+
+/**
+ * Команда координатора для «Пути Б»: участники группы + все агенты приложения
+ * (чтобы Главный мог задействовать агентов даже вне своей группы), без него самого.
+ */
+function royCoordTeam(g: RoyGroup, leaderId: string, agents: Array<{ id: string }>): string[] {
+  const fromGroup = g.members.filter((m) => m !== 'user' && m !== 'main' && m !== leaderId)
+  const all = agents.map((a) => a.id).filter((id) => id !== leaderId)
+  return [...new Set([...fromGroup, ...all])]
+}
+
 /** Local-engine first-message banner auto-hide timeout (3 min). */
 const BANNER_AUTO_HIDE_MS = 180_000
 
@@ -1320,10 +1351,20 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
       const nameOf = new Map(agents.map((a) => [a.id, a.name]))
       const members = g.members.filter((w) => w !== 'user' && w !== 'main')
       const mission = t.who === 'group'
+      // ── v0.9.40: разбор адресата обычной задачи (до создания папки) ──
+      const targets0 = mission ? [] : [t.who].filter((w) => w !== 'user' && w !== 'main')
+      const who0 = targets0[0]
+      // «изучи файл»/вопрос: папку проекта НЕ создаём — агент просто отвечает
+      const artTask = !!who0 && ROY_CREATE_INTENT_RE.test(t.title)
+      const questionLike = !!who0 && !artTask && !t.parentId && (royHasAttach(g, who0) || ROY_QUESTION_RE.test(t.title))
+      // «Путь Б»: задача лично координатору (Главному) — он решает: сделать сам или вернуть план
+      const coordTask = !!who0 && !t.parentId && royIsCoordinator(who0, agents, royGroups)
+      const coordTeamArr = coordTask ? royCoordTeam(g, who0, agents) : []
+      const needProject = mission || artTask || (coordTask && coordTeamArr.length > 0)
       // папка проекта для задачи/миссии (на Диске: Проекты/<название>)
       let projectDir = t.projectDir
       let createdNow = false
-      if (!projectDir) {
+      if (!projectDir && needProject) {
         try {
           const pr = await window.electronAPI.royProjectCreate({ title: t.title })
           if (pr.ok && pr.dir) {
@@ -1397,11 +1438,52 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
       }
 
       // ── обычная задача (агенту / подзадача по плану) ──
-      const targets = [t.who].filter((w) => w !== 'user' && w !== 'main' && w !== 'group')
+      const targets = targets0
       if (targets.length === 0) return
+      if (coordTask && coordTeamArr.length > 0) {
+        // ── ПУТЬ Б: задача лично координатору — он сам решает: выполнить или дать план ──
+        const leader = who0
+        const roster = coordTeamArr.map((m) => `${m}${nameOf.get(m) ? ` (${nameOf.get(m)})` : ''}`).join(', ')
+        const prompt =
+          `📋 КООРДИНАТОРСКАЯ ЗАДАЧА. Ты — главный агент (координатор). Реши сам, как её выполнить.\n\n` +
+          `Задача: «${t.title}»\n` +
+          `Команда (агенты приложения, обращайся по id): ${roster}\n` +
+          `${projectDir ? `Папка проекта (если будут создаваться файлы — только здесь): ${projectDir}\n` : ''}` +
+          `${royAttachedNote(g, leader, true)}\n` +
+          `Вариант 1 — выполнить самому: просто сделай и верни ОДНО финальное сообщение с результатом и списком созданных файлов.\n` +
+          `Вариант 2 — командная работа: НЕ выполняй сам(а), продумай план и верни JSON-блок ` +
+          `{"tasks":[{"to":"<agentId>","what":"<подзадача>","file":"<имя файла>"}]}` +
+          ` — система сама раздаст подзадачи. Если нужны отсутствующие роли — добавь "need":["роль — зачем"]. Подзадач не больше ${coordTeamArr.length}, каждому агенту — одна.\n` +
+          `Верни ОДНО сообщение: результат ИЛИ JSON-план.`
+        const run = await dispatchOne(leader, prompt)
+        const runOk = run as RoyTaskRun
+        setRoyGroups((gs) =>
+          gs.map((gr) => {
+            if (gr.id !== groupId) return gr
+            const upd: RoyTask = {
+              ...t,
+              coord: true,
+              state: runOk.status === 'run' ? 'run' : 'done',
+              projectDir,
+              runs: [runOk],
+              plan: runOk.status === 'run' ? { status: 'run', localId: runOk.localId } : { status: 'fail', error: runOk.error },
+            }
+            return addLog(
+              { ...gr, tasks: gr.tasks.map((x) => (x.id === taskId ? upd : x)) },
+              runOk.status === 'run' ? '👑' : '⚠️',
+              runOk.status === 'run'
+                ? `задача ушла координатору ${nameOf.get(leader) ?? leader}: ${t.title} — ждём результат или план`
+                : `не удалось запустить координатора: ${t.title}`,
+            )
+          }),
+        )
+        return
+      }
       const runs: RoyTaskRun[] = []
       for (const agentId of targets) {
-        const text = `${t.title}${projectDir ? `\n\n📁 Папка проекта (работай там, создавай файлы только в ней): ${projectDir}` : ''}${royAttachedNote(g, agentId)}${dirContextNote(projectDir)}`
+        const fileNote = projectDir ? `\n\n📁 Папка проекта (работай там, создавай файлы только в ней): ${projectDir}` : ''
+        const answerNote = questionLike ? `\n\nЭто запрос на ответ/анализ: НЕ создавай папки проекта и лишние файлы — просто ответь.` : ''
+        const text = `${t.title}${fileNote}${answerNote}${royAttachedNote(g, agentId)}${dirContextNote(projectDir)}`
         runs.push(await dispatchOne(agentId, text))
       }
       setRoyGroups((gs) =>
@@ -1483,8 +1565,10 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
         const mission = g0?.tasks.find((x) => x.id === missionId)
         if (!g0 || !mission || !mission.plan) return
         const members = g0.members.filter((m) => m !== 'user' && m !== 'main')
-        const leader = g0.leaderId && members.includes(g0.leaderId) ? g0.leaderId : members[0]
-        const doers = members.filter((m) => m !== leader)
+        const isCoord = mission.coord === true
+        // координаторская задача (Путь Б): адресат = координатор, команда = группа + все агенты приложения
+        const leader = isCoord ? mission.who : g0.leaderId && members.includes(g0.leaderId) ? g0.leaderId : members[0]
+        const doers = isCoord ? royCoordTeam(g0, leader, agents).filter((m) => m !== leader) : members.filter((m) => m !== leader)
         const nameOf = new Map(agents.map((a) => [a.id, a.name]))
         const body = planText.replace(/```(?:json)?/gi, '').replace(/```/g, '')
         const needMatch = /"need"\s*:\s*\[([\s\S]*?)\]/.exec(body)
@@ -1518,6 +1602,21 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
         }
         // план не распознан/все роли вне состава/пуст → раздать миссию всем исполнителям
         if (planned.length === 0) {
+          if (isCoord) {
+            // координатор не дал JSON-план — он выполнил задачу сам (ответ уже в его отчёте)
+            setRoyGroups((gs) =>
+              gs.map((gr) =>
+                gr.id === groupId
+                  ? addLog(
+                      { ...gr, tasks: gr.tasks.map((x) => (x.id === missionId ? { ...x, plan: { status: 'done', localId: mission.plan?.localId, report: planText } } : x)) },
+                      '✅',
+                      `координатор выполнил задачу сам (JSON-план не потребовался): ${mission.title}`,
+                    )
+                  : gr,
+              ),
+            )
+            return
+          }
           planned.length = 0
           unknownRoles.length = 0
           for (const d of doers) planned.push({ who: d, what: mission.title })
@@ -1584,7 +1683,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     if (!locals || locals.length === 0) return
     for (const g of royGroups) {
       for (const t of g.tasks) {
-        if (t.who !== 'group' || !t.plan || t.plan.status !== 'run' || !t.plan.localId || t.plan.dispatched) continue
+        if ((t.who !== 'group' && !t.coord) || !t.plan || t.plan.status !== 'run' || !t.plan.localId || t.plan.dispatched) continue
         const loc = locals.find((l) => l.id === t.plan?.localId)
         if (!loc || loc.status !== 'succeeded') continue
         void roySpawnFromPlan(g.id, t.id, loc.answer ?? '')
@@ -1600,12 +1699,16 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
       const next = gs.map((g) => {
         let g2 = g
         for (const mission of g2.tasks) {
-          if (mission.who !== 'group' || mission.state !== 'run' || !mission.plan?.dispatched) continue
+          if ((mission.who !== 'group' && !mission.coord) || mission.state !== 'run' || !mission.plan?.dispatched) continue
           const kids = g2.tasks.filter((x) => x.parentId === mission.id)
           if (kids.length === 0) continue
           if (kids.every((k) => k.state === 'done')) {
             any = true
-            g2 = addLog({ ...g2, tasks: g2.tasks.map((x) => (x.id === mission.id ? { ...x, state: 'done' } : x)) }, '🏁', `миссия завершена: ${mission.title}`)
+            g2 = addLog(
+              { ...g2, tasks: g2.tasks.map((x) => (x.id === mission.id ? { ...x, state: 'done' } : x)) },
+              '🏁',
+              `${mission.who === 'group' ? 'миссия завершена' : 'координаторская задача выполнена'}: ${mission.title}`,
+            )
           }
         }
         return g2

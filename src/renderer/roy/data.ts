@@ -124,7 +124,7 @@ export function hasReport(t: RoyTask): boolean {
 
 /** Задача считается задачей «главного» (её результат отчитывают Дамиру). */
 export function isLeaderTask(t: RoyTask): boolean {
-  return t.who === 'group'
+  return t.who === 'group' || t.coord === true
 }
 
 /**
