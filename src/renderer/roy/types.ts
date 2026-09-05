@@ -44,6 +44,8 @@ export interface RoyTask {
     error?: string
     /** подзадачи уже розданы по плану (защита от повторов) */
     dispatched?: boolean
+    /** v0.9.41: финальный запрос-сводка координатору отправлен (localId его run) */
+    finalLocalId?: string
   }
 }
 

@@ -185,7 +185,10 @@ export function applyRunResult(
   )
   const changed = t.runs.some((r) => r.localId === localId && r.status !== upd.status)
   if (!changed) return g
-  const terminal = runs.every((r) => r.status === 'done' || r.status === 'fail')
+  // v0.9.41: план миссии/координатора получен → задачу НЕ закрываем (впереди исполнение + финальная сводка)
+  const planAwaiting = !!t.plan && t.plan.status === 'run' && !t.plan.dispatched && t.plan.localId === localId
+  const holdOpen = planAwaiting && upd.status === 'done' && !t.parentId && (t.who === 'group' || t.coord === true)
+  const terminal = !holdOpen && runs.every((r) => r.status === 'done' || r.status === 'fail')
   const prevState = t.state
   const nextState: RoyTask['state'] = terminal ? 'done' : prevState === 'wait' ? 'run' : prevState
   const doneN = runs.filter((r) => r.status === 'done').length

@@ -1363,21 +1363,17 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
       const needProject = mission || artTask || (coordTask && coordTeamArr.length > 0)
       // папка проекта для задачи/миссии (на Диске: Проекты/<название>)
       let projectDir = t.projectDir
-      let createdNow = false
       if (!projectDir && needProject) {
         try {
           const pr = await window.electronAPI.royProjectCreate({ title: t.title })
           if (pr.ok && pr.dir) {
             projectDir = pr.dir
-            createdNow = true
             setRoyDiskReload((n) => n + 1)
           }
         } catch {
           /* ignore */
         }
       }
-      if (createdNow && projectDir) void window.electronAPI.systemOpenPath(projectDir).catch(() => undefined)
-
       const dispatchOne = async (agentId: string, text: string) => {
         try {
           const res = await window.electronAPI.tasksDispatch({ text, agentId, mode: 'now', freq: 'once' })
@@ -1483,7 +1479,8 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
       for (const agentId of targets) {
         const fileNote = projectDir ? `\n\n📁 Папка проекта (работай там, создавай файлы только в ней): ${projectDir}` : ''
         const answerNote = questionLike ? `\n\nЭто запрос на ответ/анализ: НЕ создавай папки проекта и лишние файлы — просто ответь.` : ''
-        const text = `${t.title}${fileNote}${answerNote}${royAttachedNote(g, agentId)}${dirContextNote(projectDir)}`
+        const artNote = !questionLike && projectDir ? `\n\nСоздай нужные файлы РЕАЛЬНО инструментами (write/apply_patch/exec) в папке проекта и проверь, что они появились. Не пиши «готово», пока файлы не созданы.` : ''
+        const text = `${t.title}${fileNote}${answerNote}${artNote}${royAttachedNote(g, agentId)}${dirContextNote(projectDir)}`
         runs.push(await dispatchOne(agentId, text))
       }
       setRoyGroups((gs) =>
@@ -1608,7 +1605,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
               gs.map((gr) =>
                 gr.id === groupId
                   ? addLog(
-                      { ...gr, tasks: gr.tasks.map((x) => (x.id === missionId ? { ...x, plan: { status: 'done', localId: mission.plan?.localId, report: planText } } : x)) },
+                      { ...gr, tasks: gr.tasks.map((x) => (x.id === missionId ? { ...x, state: 'done', plan: { status: 'done', localId: mission.plan?.localId, report: planText, dispatched: true } } : x)) },
                       '✅',
                       `координатор выполнил задачу сам (JSON-план не потребовался): ${mission.title}`,
                     )
@@ -1625,7 +1622,11 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
           setRoyGroups((gs) =>
             gs.map((gr) =>
               gr.id === groupId
-                ? addLog(gr, '⚠️', `по плану координатора некому раздавать — в рое только ${nameOf.get(leader ?? '') ?? leader}: ${mission.title}`)
+                ? addLog(
+                    { ...gr, tasks: gr.tasks.map((x) => (x.id === missionId ? { ...x, state: 'done', plan: { status: 'done', localId: mission.plan?.localId, report: planText, dispatched: true } } : x)) },
+                    '⚠️',
+                    `по плану координатора некому раздавать — задача закрыта: ${mission.title}`,
+                  )
                 : gr,
             ),
           )
@@ -1637,7 +1638,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
           const subId = uid('task')
           const dirNote = mission.projectDir ? `Папка проекта (создавай файлы ТОЛЬКО здесь): ${mission.projectDir}` : ''
           const fileNote = p.file ? `Файл, который нужно создать: ${p.file}` : ''
-          const prompt = `🎯 Задача проекта «${mission.title}» — твоя часть от координатора:\n${p.what}\n\n${dirNote}${fileNote ? `\n${fileNote}` : ''}${royAttachedNote(g0, p.who)}${dirContextNote(mission.projectDir)}\nВыполни самостоятельно, без субагентов. В конце верни ОДНО финальное сообщение: что сделал + список созданных файлов.`
+          const prompt = `🎯 Задача проекта «${mission.title}» — твоя часть от координатора:\n${p.what}\n\n${dirNote}${fileNote ? `\n${fileNote}` : ''}${royAttachedNote(g0, p.who)}${dirContextNote(mission.projectDir)}\nВыполни самостоятельно, без субагентов. Создай файлы РЕАЛЬНО инструментами (write/apply_patch/exec) строго по указанному пути — не сообщай о создании файла, пока он реально не появился на диске. Если создать не можешь — честно напиши, что не смог(ла). В конце верни ОДНО финальное сообщение: что сделал + точный список созданных файлов.`
           const run = await royDispatchOne(p.who, prompt)
           created.push({ id: subId, who: p.who, title: p.what.slice(0, 160), state: 'wait', ts: Date.now(), parentId: missionId, projectDir: mission.projectDir })
           runResults.push({ taskId: subId, run })
@@ -1692,30 +1693,72 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasksData.tasks])
 
-  // v0.9.39: миссия завершена, когда все её подзадачи — done
+  // v0.9.41: ФАЗА 3 — все подзадачи завершены → сводка координатору → финальный ответ.
+  // Задача закрывается только после финального ответа координатора (или fail-диспатча сводки).
+  const finalizingRoy = useRef<Set<string>>(new Set())
   useEffect(() => {
-    setRoyGroups((gs) => {
-      let any = false
-      const next = gs.map((g) => {
-        let g2 = g
-        for (const mission of g2.tasks) {
-          if ((mission.who !== 'group' && !mission.coord) || mission.state !== 'run' || !mission.plan?.dispatched) continue
-          const kids = g2.tasks.filter((x) => x.parentId === mission.id)
-          if (kids.length === 0) continue
-          if (kids.every((k) => k.state === 'done')) {
-            any = true
-            g2 = addLog(
-              { ...g2, tasks: g2.tasks.map((x) => (x.id === mission.id ? { ...x, state: 'done' } : x)) },
-              '🏁',
-              `${mission.who === 'group' ? 'миссия завершена' : 'координаторская задача выполнена'}: ${mission.title}`,
+    const locals = tasksData.tasks
+    if (!locals || locals.length === 0) return
+    for (const g of royGroups) {
+      for (const mission of g.tasks) {
+        if ((mission.who !== 'group' && !mission.coord) || mission.state !== 'run' || !mission.plan?.dispatched || mission.plan.finalLocalId) continue
+        if (finalizingRoy.current.has(mission.id)) continue
+        const kids = g.tasks.filter((x) => x.parentId === mission.id)
+        if (kids.length === 0) continue
+        if (!kids.every((k) => k.state === 'done')) continue
+        const members = g.members.filter((m) => m !== 'user' && m !== 'main')
+        const leader = mission.coord ? mission.who : g.leaderId && members.includes(g.leaderId) ? g.leaderId : members[0]
+        if (!leader) continue
+        finalizingRoy.current.add(mission.id)
+        const nameOf = new Map(agents.map((a) => [a.id, a.name]))
+        void (async () => {
+          try {
+            const lines = kids.map((k) => {
+              const rep = k.runs?.find((r) => r.status === 'done' || r.status === 'fail')
+              const body = rep?.report || rep?.error || 'без отчёта'
+              return `— ${nameOf.get(k.who) ?? k.who}: ${body.slice(0, 800)}`
+            })
+            const prompt =
+              `📦 ЗАВЕРШЕНИЕ ЗАДАЧИ «${mission.title}». Исполнители отчитались:\n${lines.join('\n')}\n` +
+              (mission.projectDir ? `Папка проекта: ${mission.projectDir}\n` : '') +
+              `Проверь результат РЕАЛЬНО (открой папку и файлы инструментами read/exec; если файлы не созданы или неполные — доработай сам(а) или исправь).\n` +
+              `Затем верни ОДНО ФИНАЛЬНОЕ сообщение: что в итоге готово, где лежит (пути), список файлов, что не удалось. Это финальный ответ задачи — его увидит пользователь.`
+            const run = await royDispatchOne(leader, prompt)
+            setRoyGroups((gs) =>
+              gs.map((gr) => {
+                if (gr.id !== g.id) return gr
+                const t0 = gr.tasks.find((x) => x.id === mission.id)
+                if (!t0) return gr
+                if (!run.localId) {
+                  return addLog(
+                    { ...gr, tasks: gr.tasks.map((x) => (x.id === mission.id ? { ...x, state: 'done', plan: { status: 'done', localId: x.plan?.localId, report: x.plan?.report, error: x.plan?.error, dispatched: true, finalLocalId: 'fail' } } : x)) },
+                    '⚠️',
+                    `не удалось отправить сводку координатору (${run.error ?? 'dispatch failed'}) — задача закрыта: ${mission.title}`,
+                  )
+                }
+                return addLog(
+                  { ...gr, tasks: gr.tasks.map((x) => (x.id === mission.id ? { ...x, runs: [...(x.runs ?? []), run], plan: { status: 'done', localId: x.plan?.localId, report: x.plan?.report, error: x.plan?.error, dispatched: true, finalLocalId: run.localId } } : x)) },
+                  '📦',
+                  `исполнители завершили — сводка ушла координатору на финальный ответ: ${mission.title}`,
+                )
+              }),
             )
+          } catch (err) {
+            setRoyGroups((gs) =>
+              gs.map((gr) =>
+                gr.id === g.id
+                  ? addLog({ ...gr, tasks: gr.tasks.map((x) => (x.id === mission.id ? { ...x, state: 'done', plan: { status: 'done', localId: x.plan?.localId, report: x.plan?.report, error: x.plan?.error, dispatched: true, finalLocalId: 'fail' } } : x)) }, '⚠️', `ошибка финальной сводки: ${String(err)} — задача закрыта: ${mission.title}`)
+                  : gr,
+              ),
+            )
+          } finally {
+            finalizingRoy.current.delete(mission.id)
           }
-        }
-        return g2
-      })
-      return any ? next : gs
-    })
-  }, [royGroups])
+        })()
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [royGroups, tasksData.tasks])
 
   // v0.9.39: прикрепить реальные файлы папки проекта к завершённым запускам
   const fileScanning = useRef<Set<string>>(new Set())
