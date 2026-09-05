@@ -2209,37 +2209,6 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
               ))}
             </div>
 
-            <div className="shell-side-group">
-              <div className="shell-g-title">Сессии
-                <span className="plus" title="Все сеансы" onClick={() => openSection(MORE_SECTIONS[2])}>
-                  ＋
-                </span>
-              </div>
-              {sessions.length === 0 ? (
-                <div className="shell-sessions-none">нет активных сессий</div>
-              ) : (
-                <div className="shell-session-list">
-                {sessions.map((s) => (
-                  <button
-                    key={s.key}
-                    type="button"
-                    className="shell-session-item"
-                    title={s.lastMessagePreview ?? s.key}
-                    onClick={() => {
-                      setActiveSection('chat')
-                      onPanelChange('')
-                      setControlSession(s.key)
-                      setControlRoute('/chat')
-                    }}
-                  >
-                    <span className="t">{sessionLabel(s)}</span>
-                    <span className="tm">{formatSessionTime(s.updatedAt)}</span>
-                  </button>
-                ))}
-                </div>
-              )}
-            </div>
-
             {/* v0.9.36: «Диск» — кнопка, открывает дровер с деревом (файлы — на арену) */}
             <RoyDiskButton
               fileCount={royDiskFileCount}
@@ -2552,6 +2521,38 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
                 {engineRunning ? '⏹ Остановить движок' : '▶ Запустить движок'}
               </button>
             </div>
+
+            {/* v0.9.39 (Damir 14:18Z): «Сессии» переехали из левой колонки сюда —
+                в правую панель «Состояние», под кнопки соединения/движка */}
+            <div className="shell-sp-head">
+              <span className="t">Сессии</span>
+              <span className="plus" title="Все сеансы" onClick={() => openSection(MORE_SECTIONS[2])}>
+                ＋
+              </span>
+            </div>
+            {sessions.length === 0 ? (
+              <div className="shell-sessions-none">нет активных сессий</div>
+            ) : (
+              <div className="shell-session-list">
+                {sessions.map((s) => (
+                  <button
+                    key={s.key}
+                    type="button"
+                    className="shell-session-item"
+                    title={s.lastMessagePreview ?? s.key}
+                    onClick={() => {
+                      setActiveSection('chat')
+                      onPanelChange('')
+                      setControlSession(s.key)
+                      setControlRoute('/chat')
+                    }}
+                  >
+                    <span className="t">{sessionLabel(s)}</span>
+                    <span className="tm">{formatSessionTime(s.updatedAt)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
 
             <div className="shell-mini-links">
               <a onClick={handleOpenLogDir}>Журналы</a>

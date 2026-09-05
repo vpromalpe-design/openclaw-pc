@@ -543,12 +543,14 @@ body {
   justify-content: space-between;
   align-items: center;
 }
-.shell-g-title .plus {
+.shell-g-title .plus,
+.shell-sp-head .plus {
   cursor: pointer;
   font-size: 14px;
   color: var(--text-3);
 }
-.shell-g-title .plus:hover {
+.shell-g-title .plus:hover,
+.shell-sp-head .plus:hover {
   color: #0a84ff;
 }
 .shell-agent-item {
