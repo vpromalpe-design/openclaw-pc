@@ -61,6 +61,8 @@ export interface RoyFileCard {
   y: number
   /** агенты, которым «роздан» файл (связи-ниточки) */
   to: string[]
+  /** реальный путь файла на диске (v0.9.39: передаётся агенту в задании) */
+  path?: string
 }
 
 export interface RoyGroup {

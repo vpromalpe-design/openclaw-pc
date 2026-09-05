@@ -1930,6 +1930,10 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.2); box-shadow: 0 6px 18px rgba(2, 6, 18, 0.35);
   max-width: 240px;
 }
+.roy-file.openable { cursor: pointer; }
+.roy-file.openable:hover { border-color: rgba(10, 132, 255, 0.7); background: linear-gradient(180deg, rgba(10, 132, 255, 0.18), rgba(10, 132, 255, 0.06)); }
+.rac-detail-files { margin: 8px 0 2px; }
+.rac-detail-files .roy-rep-files { margin: 2px 0 0; }
 .rf-emoji { font-size: 13px; flex: none; }
 .rf-label { font-size: 11px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rf-to { font-size: 9px; color: #7cc0ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90px; }

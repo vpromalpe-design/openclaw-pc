@@ -274,13 +274,13 @@ export function RoyArenaView({ group, agents, onPatch, onChat, onRemoveAgent, on
     setBroadcastText('')
     setModal(null)
   }
-  const dropFileOnArena = (fileId: string, label: string, emoji: string) => {
+  const dropFileOnArena = (fileId: string, label: string, emoji: string, path?: string) => {
     onPatch((g) => {
       if (g.files.some((f) => f.fileId === fileId)) return g
       const n = g.files.length
       return {
         ...g,
-        files: [...g.files, { fileId, label, emoji, x: 30 + ((n % 5) * 46), y: 90 + Math.floor(n / 5) * 34, to: [] }],
+        files: [...g.files, { fileId, label, emoji, path, x: 30 + ((n % 5) * 46), y: 90 + Math.floor(n / 5) * 34, to: [] }],
         log: [
           { id: `l${Date.now().toString(36)}`, ico: '📎', text: `файл на арене: ${label}`, ts: Date.now() },
           ...g.log,
@@ -349,8 +349,8 @@ export function RoyArenaView({ group, agents, onPatch, onChat, onRemoveAgent, on
           try {
             const raw = e.dataTransfer.getData('application/x-roy-file')
             if (!raw) return
-            const f = JSON.parse(raw) as { fileId: string; label: string; emoji: string }
-            dropFileOnArena(f.fileId, f.label, f.emoji)
+            const f = JSON.parse(raw) as { fileId: string; label: string; emoji: string; path?: string }
+            dropFileOnArena(f.fileId, f.label, f.emoji, f.path)
           } catch {
             /* ignore */
           }
@@ -484,10 +484,11 @@ export function RoyArenaView({ group, agents, onPatch, onChat, onRemoveAgent, on
                 <div
                   key={f.fileId}
                   ref={(el) => { fileRefs.current[`file-${f.fileId}`] = el }}
-                  className="roy-file"
+                  className={cn('roy-file', f.path && 'openable')}
                   onMouseEnter={() => setHoverDelFile(f.fileId)}
                   onMouseLeave={() => setHoverDelFile(null)}
-                  title="Файл на арене — свяжи его с агентом в карточке агента"
+                  onClick={() => f.path && onOpenPath?.(f.path, f.label)}
+                  title={f.path ? `${f.path}\n(клик — открыть для просмотра)` : 'Файл на арене — свяжи его с агентом в карточке агента'}
                 >
                   <span className="rf-emoji">{f.emoji}</span>
                   <span className="rf-label">{f.label}</span>
@@ -797,6 +798,12 @@ function AgentCardModal({
                   {r.status === 'done' ? ' ✓' : r.status === 'fail' ? ' ⚠' : ' …'}
                 </span>
               ))}
+            </div>
+          )}
+          {sel.runs?.some((r) => r.files && r.files.length > 0) && (
+            <div className="rac-detail-files">
+              <div className="cd-label">Файлы задачи (создал/работал)</div>
+              {sel.runs.map((r) => (r.files && r.files.length > 0 ? <RoyFilesChips key={r.localId ?? r.agentId} files={r.files} onOpenPath={onOpenPath} /> : null))}
             </div>
           )}
           <div className="rac-detail-a">

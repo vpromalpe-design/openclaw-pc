@@ -411,7 +411,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     e.dataTransfer.effectAllowed = 'copy'
     e.dataTransfer.setData(
       'application/x-roy-file',
-      JSON.stringify({ fileId: node.id, label: node.label, emoji: node.emoji }),
+      JSON.stringify({ fileId: node.id, path: node.path ?? '', label: node.label, emoji: node.emoji }),
     )
   }
   // v0.9.34: рой-группы сохраняются в localStorage.
@@ -1274,6 +1274,39 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     [royOpenId],
   )
 
+  // v0.9.39: «связка файлов» агента — прикреплённые к нему файлы арены (+ общие).
+  // Вставляется в промпт задачи, чтобы агент понимал, с каким файлом работает.
+  const royAttachedNote = useCallback((g: RoyGroup, agentId: string, shared = false): string => {
+    const fs = (g.files ?? []).filter((f) => f.to.includes(agentId) || (shared && f.to.length === 0))
+    if (fs.length === 0) return ''
+    const lines = fs.map((f) => `- ${f.label}${f.path ? ` — ${f.path}` : ''}`)
+    return `\n\n📎 Прикреплённые к тебе файлы (связка):\n${lines.join('\n')}\nСначала открой и изучи их — пойми, что это и что с ними делать, потом выполняй задачу.`
+  }, [])
+  // v0.9.39: что уже лежит в папке проекта (снапшот по загруженному дереву диска).
+  const listDirFiles = useCallback(
+    (dir: string | undefined): string[] => {
+      if (!dir) return []
+      const out: string[] = []
+      const walk = (ns: RoyDiskNode[]) => {
+        for (const n of ns) {
+          if (n.kind === 'file' && n.path && n.path.toLowerCase().startsWith(dir.toLowerCase())) out.push(n.path)
+          if (n.children && n.children.length > 0) walk(n.children)
+        }
+      }
+      walk(royDiskRoots)
+      return out.sort()
+    },
+    [royDiskRoots],
+  )
+  const dirContextNote = useCallback(
+    (dir: string | undefined): string => {
+      const have = listDirFiles(dir)
+      if (have.length === 0) return ''
+      return `\n\n📂 Уже есть в папке проекта (посмотри, что сделано до тебя):\n${have.map((p) => `- ${p}`).join('\n')}`
+    },
+    [listDirFiles],
+  )
+
   // v0.9.39: реальный запуск задачи роя.
   //  - Миссия (who='group', глава — агент): двухфазный протокол: папка проекта →
   //    диспатч главному-координатору (вернёт план) → по плану спавнятся подзадачи.
@@ -1324,7 +1357,9 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
           const prompt =
             `📋 МИССИЯ ДЛЯ КООРДИНАТОРА. Ты — главный агент роя. НЕ создавай файлы и НЕ запускай субагентов — сначала только продумай план.\n\n` +
             `Задача: «${t.title}»\n` +
-            `Состав роя (доступны только эти агенты, обращайся по id): ${roster}\n\n` +
+            `Состав роя (доступны только эти агенты, обращайся по id): ${roster}\n` +
+            `${projectDir ? `Папка проекта (файлы создавать в ней): ${projectDir}\n` : ''}` +
+            `${royAttachedNote(g, leader, true)}\n` +
             `Подумай: из каких подзадач состоит задача, кому какую поручить по ролям, каких ролей/агентов не хватает.\n` +
             `Верни ОДНО сообщение: сначала 1-2 предложения размышлений, затем строго JSON-блок: ` +
             `{"tasks":[{"to":"<agentId из состава>","what":"<конкретная подзадача>","file":"<имя файла, который создаст>"}]}` +
@@ -1353,7 +1388,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
           // глава — Дамир или в рое один агент: рассылка всем участникам как раньше
           const runs: RoyTaskRun[] = []
           for (const agentId of members) {
-            const text = projectDir ? `${t.title}\n\n📁 Папка проекта (работай там, создавай файлы только в ней): ${projectDir}` : t.title
+            const text = `${t.title}${projectDir ? `\n\n📁 Папка проекта (работай там, создавай файлы только в ней): ${projectDir}` : ''}${royAttachedNote(g, agentId)}${dirContextNote(projectDir)}`
             runs.push(await dispatchOne(agentId, text))
           }
           setRoyGroups((gs) => gs.map((gr) => (gr.id === groupId ? attachTaskRuns(gr, taskId, runs) : gr)))
@@ -1366,7 +1401,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
       if (targets.length === 0) return
       const runs: RoyTaskRun[] = []
       for (const agentId of targets) {
-        const text = projectDir ? `${t.title}\n\n📁 Папка проекта (работай там, создавай файлы только в ней): ${projectDir}` : t.title
+        const text = `${t.title}${projectDir ? `\n\n📁 Папка проекта (работай там, создавай файлы только в ней): ${projectDir}` : ''}${royAttachedNote(g, agentId)}${dirContextNote(projectDir)}`
         runs.push(await dispatchOne(agentId, text))
       }
       setRoyGroups((gs) =>
@@ -1384,7 +1419,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
         ),
       )
     },
-    [royGroups, agents],
+    [royGroups, agents, dirContextNote, royAttachedNote],
   )
 
   // Мониторинг: ответы агентов из локального реестра задач → runs роя.
@@ -1503,7 +1538,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
           const subId = uid('task')
           const dirNote = mission.projectDir ? `Папка проекта (создавай файлы ТОЛЬКО здесь): ${mission.projectDir}` : ''
           const fileNote = p.file ? `Файл, который нужно создать: ${p.file}` : ''
-          const prompt = `🎯 Задача проекта «${mission.title}» — твоя часть от координатора:\n${p.what}\n\n${dirNote}\n${fileNote}\nВыполни самостоятельно, без субагентов. В конце верни ОДНО финальное сообщение: что сделал + список созданных файлов.`
+          const prompt = `🎯 Задача проекта «${mission.title}» — твоя часть от координатора:\n${p.what}\n\n${dirNote}${fileNote ? `\n${fileNote}` : ''}${royAttachedNote(g0, p.who)}${dirContextNote(mission.projectDir)}\nВыполни самостоятельно, без субагентов. В конце верни ОДНО финальное сообщение: что сделал + список созданных файлов.`
           const run = await royDispatchOne(p.who, prompt)
           created.push({ id: subId, who: p.who, title: p.what.slice(0, 160), state: 'wait', ts: Date.now(), parentId: missionId, projectDir: mission.projectDir })
           runResults.push({ taskId: subId, run })
@@ -1540,7 +1575,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
         spawningRoy.current.delete(missionId)
       }
     },
-    [royGroups, agents, royDispatchOne],
+    [royGroups, agents, royDispatchOne, royAttachedNote, dirContextNote],
   )
 
   // план координатора завершён в реестре → запустить раздачу подзадач
