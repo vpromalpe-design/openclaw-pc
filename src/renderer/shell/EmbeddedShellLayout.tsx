@@ -2506,6 +2506,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
             onOpenFile={(node) => void openRoyDiskFile(node)}
             onDragFile={royDiskDrag}
             onClose={() => setRoyDiskOpen(false)}
+            onMutated={() => setRoyDiskReload((v) => v + 1)}
           />
 
           {/* ── Center: embedded Control UI / panels ── */}

@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronRight, HardDrive, Image as ImageIcon, Pencil, Plus, Rocket, Trash2, Users, X } from 'lucide-react'
+import { ChevronRight, ClipboardPaste, Copy, FilePenLine, HardDrive, Image as ImageIcon, Pencil, Plus, Rocket, Trash2, Users, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { RoyGroup, RoyDiskNode } from './types'
 import { GRADS } from './data'
 import { useRoyAvatars, AvatarImg } from './avatar'
+import { royClipGet, royClipSet } from './fsclip'
 
 /* ── Sidebar: «Группы» — list of roy groups under «Агенты» ───────────── */
 
@@ -166,46 +167,173 @@ export interface RoyDiskProps {
   roots: RoyDiskNode[]
   onOpenFile: (node: RoyDiskNode) => void
   onDragFile: (e: React.DragEvent, node: RoyDiskNode) => void
+  /** v0.9.46: дерево изменилось (переименовали/удалили/вставили) — перечитать */
+  onMutated?: () => void
 }
 
-function DiskNodeRow({ node, depth, onOpenFile, onDragFile }: { node: RoyDiskNode; depth: number; onOpenFile: (node: RoyDiskNode) => void; onDragFile: (e: React.DragEvent, node: RoyDiskNode) => void }) {
+function DiskNodeRow({ node, depth, onOpenFile, onDragFile, onMutated }: { node: RoyDiskNode; depth: number; onOpenFile: (node: RoyDiskNode) => void; onDragFile: (e: React.DragEvent, node: RoyDiskNode) => void; onMutated?: () => void }) {
   const [open, setOpen] = useState(depth === 0)
+  const [ctx, setCtx] = useState<{ x: number; y: number } | null>(null)
+  const [renaming, setRenaming] = useState(false)
+  const [armDel, setArmDel] = useState(false)
   const isFolder = node.kind === 'folder'
+
+  const doMutate = (): void => {
+    if (onMutated) onMutated()
+  }
+
+  // ── операции ──
+  const doRename = async (name: string): Promise<void> => {
+    const v = name.trim()
+    if (!v || v === node.label || !node.path) return
+    const res = await window.electronAPI.royFsRename({ path: node.path, name: v })
+    if (res?.ok) doMutate()
+  }
+  const doDelete = async (): Promise<void> => {
+    if (!node.path) return
+    const res = await window.electronAPI.royFsDelete(node.path)
+    if (res?.ok) {
+      if (royClipGet()?.path === node.path) royClipSet(null)
+      doMutate()
+    }
+  }
+  const doCopy = (): void => {
+    royClipSet({ path: node.path ?? '', label: node.label, kind: node.kind })
+  }
+  const doPasteHere = async (): Promise<void> => {
+    const c = royClipGet()
+    if (!c || !node.path) return
+    const res = await window.electronAPI.royFsCopy({ src: c.path, destDir: node.path })
+    if (res?.ok) doMutate()
+  }
+
+  const clip = royClipGet()
+
+  const rowInner = (
+    <div
+      className={cn('roy-drow', isFolder && 'folder', depth === 0 && 'root')}
+      style={{ paddingLeft: 6 + depth * 13 }}
+      draggable
+      onDragStart={(e) => onDragFile(e, node)}
+      onDoubleClick={(e) => {
+        e.preventDefault()
+        if (isFolder) setOpen((o) => !o)
+        else onOpenFile(node)
+      }}
+      onClick={() => isFolder && setOpen((o) => !o)}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        setArmDel(false)
+        setRenaming(false)
+        setCtx({ x: e.clientX, y: e.clientY })
+      }}
+      title={
+        isFolder
+          ? `${node.label} — перетащи на арену как папку проекта, раскрой (клик); правый клик — меню`
+          : `${node.label} — открыть (двойной клик); правый клик — меню`
+      }
+    >
+      {isFolder ? (
+        <span className="roy-dchev">{open ? '▾' : '▸'}</span>
+      ) : (
+        <span className="roy-dchev" />
+      )}
+      <span className="roy-dico">{node.emoji}</span>
+      {renaming ? (
+        <input
+          className="roy-inline-name disk-rename"
+          defaultValue={node.label}
+          autoFocus
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={async (e) => {
+            e.stopPropagation()
+            if (e.key === 'Enter') {
+              const v = (e.target as HTMLInputElement).value
+              setRenaming(false)
+              void doRename(v)
+            }
+            if (e.key === 'Escape') setRenaming(false)
+          }}
+          onBlur={(e) => {
+            setRenaming(false)
+            void doRename(e.target.value)
+          }}
+        />
+      ) : (
+        <span className="roy-dname">{node.label}</span>
+      )}
+      {node.info && <span className="roy-dinfo">{node.info}</span>}
+    </div>
+  )
 
   return (
     <div>
-      <div
-        className={cn('roy-drow', isFolder && 'folder', depth === 0 && 'root')}
-        style={{ paddingLeft: 6 + depth * 13 }}
-        draggable
-        onDragStart={(e) => onDragFile(e, node)}
-        onDoubleClick={() => {
-          if (isFolder) setOpen((o) => !o)
-          else onOpenFile(node)
-        }}
-        onClick={() => isFolder && setOpen((o) => !o)}
-        title={
-          isFolder
-            ? `${node.label} — перетащи на арену как папку проекта или раскрой (клик)`
-            : `${node.label} — открыть (двойной клик)`
-        }
-      >
-        {isFolder ? (
-          <span className="roy-dchev">{open ? '▾' : '▸'}</span>
-        ) : (
-          <span className="roy-dchev" />
-        )}
-        <span className="roy-dico">{node.emoji}</span>
-        <span className="roy-dname">{node.label}</span>
-        {node.info && <span className="roy-dinfo">{node.info}</span>}
-      </div>
+      {rowInner}
       {isFolder && open && node.children && (
         <div>
           {node.children.map((c) => (
-            <DiskNodeRow key={c.id} node={c} depth={depth + 1} onOpenFile={onOpenFile} onDragFile={onDragFile} />
+            <DiskNodeRow key={c.id} node={c} depth={depth + 1} onOpenFile={onOpenFile} onDragFile={onDragFile} onMutated={onMutated} />
           ))}
         </div>
       )}
+
+      {/* v0.9.46: контекст-меню диска (правый клик) — порталом в body */}
+      {ctx &&
+        createPortal(
+          <div
+            className="rg-menu rg-menu-pop disk-ctx"
+            style={{ left: ctx.x, top: ctx.y }}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="rg-menu-back" onMouseDown={() => setCtx(null)} onClick={() => setCtx(null)} />
+            <button
+              type="button"
+              onClick={() => {
+                setCtx(null)
+                setRenaming(true)
+              }}
+            >
+              <FilePenLine size={13} /> Переименовать
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                doCopy()
+                setCtx(null)
+              }}
+            >
+              <Copy size={13} /> Копировать
+            </button>
+            {isFolder && clip && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCtx(null)
+                  void doPasteHere()
+                }}
+              >
+                <ClipboardPaste size={13} /> Вставить «{clip.label}»
+              </button>
+            )}
+            <button
+              type="button"
+              className={armDel ? 'danger' : ''}
+              onClick={() => {
+                if (!armDel) {
+                  setArmDel(true)
+                  return
+                }
+                setCtx(null)
+                void doDelete()
+              }}
+            >
+              <Trash2 size={13} /> {armDel ? 'Точно удалить?' : 'Удалить'}
+            </button>
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }
@@ -228,7 +356,7 @@ export function RoyDiskButton({ fileCount, open, onToggle }: { fileCount: number
 }
 
 /** Дровер-панель с деревом диска: закрывается крестиком, кликом по кнопке, Escape. */
-export function RoyDiskDrawer({ open, roots, onOpenFile, onDragFile, onClose }: RoyDiskProps & { open: boolean; onClose: () => void }) {
+export function RoyDiskDrawer({ open, roots, onOpenFile, onDragFile, onClose, onMutated }: RoyDiskProps & { open: boolean; onClose: () => void }) {
   const fileCount = useMemo(() => {
     const count = (ns: RoyDiskNode[]): number =>
       ns.reduce((n, x) => n + (x.kind === 'file' ? 1 : x.children ? count(x.children) : 0), 0)
@@ -247,11 +375,11 @@ export function RoyDiskDrawer({ open, roots, onOpenFile, onDragFile, onClose }: 
       </div>
       <div className="roy-disk-tree">
         {roots.map((r) => (
-          <DiskNodeRow key={r.id} node={r} depth={0} onOpenFile={onOpenFile} onDragFile={onDragFile} />
+          <DiskNodeRow key={r.id} node={r} depth={0} onOpenFile={onOpenFile} onDragFile={onDragFile} onMutated={onMutated} />
         ))}
       </div>
       <div className="roy-disk-note">
-        💡 тяни файл или папку на арену, чтобы раздать агентам · двойной клик по файлу — открыть
+        💡 тяни файл или папку на арену · двойной клик — открыть · правый клик — переименовать / копировать / вставить / удалить
       </div>
     </div>
   )

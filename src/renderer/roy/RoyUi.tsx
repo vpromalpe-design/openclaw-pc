@@ -4,7 +4,7 @@ import type { RoyDiskNode, RoyGroup } from './types'
 import { GRADS } from './data'
 import { MicDictate } from '../components/MicDictate'
 import { EMBLEM_KEYS, EmblemIcon, isEmblemKey } from './emblems'
-import { AvatarImg } from './avatar'
+import { AvatarImg, royAvatarUrl } from './avatar'
 import { getRoyRole, setRoyRole } from './roles'
 
 /* ── Create-group modal (sidebar «Группы» → ＋) ───────────────────────── */
@@ -85,7 +85,7 @@ export function RoyCreateModal({
         <div className="rcy-avatar">
           <span className={cn('rcy-avatar-prev', grad)}>
             {avatarSrc ? (
-              <img src={avatarSrc} alt="" draggable={false} />
+              <img src={royAvatarUrl(avatarSrc)} alt="" draggable={false} />
             ) : (
               <EmblemIcon k={emoji} size={22} strokeWidth={1.9} />
             )}

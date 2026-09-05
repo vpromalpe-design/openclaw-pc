@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { ShellLayout } from './ShellLayout'
 import { setRoyRole } from '../roy/roles'
+import { setAvatar, royAvatarUrl } from '../roy/avatar'
 
 export interface AgentSettingsViewProps {
   /** Back navigation when embedded in parent layout */
@@ -73,7 +74,12 @@ export function AgentSettingsView({ onBack, onAgentCreated }: AgentSettingsViewP
         // v0.9.45: роль в рое + аватар — сразу по id нового агента.
         if (role.trim()) setRoyRole(res.id, role.trim())
         if (avatarSrc) {
-          void window.electronAPI.royAvatarSave({ id: res.id, src: avatarSrc })
+          try {
+            const av = await window.electronAPI.royAvatarSave({ id: res.id, src: avatarSrc })
+            if (av?.ok && av.path) setAvatar(res.id, av.path)
+          } catch {
+            /* некритично — аватар можно задать позже */
+          }
         }
         // Give the user a moment to see «Создан ✓», then open the new agent.
         setTimeout(() => onAgentCreated?.(res.id!), 700)
@@ -119,7 +125,7 @@ export function AgentSettingsView({ onBack, onAgentCreated }: AgentSettingsViewP
           <div className="flex items-center gap-3">
             {avatarSrc ? (
               <img
-                src={avatarSrc}
+                src={royAvatarUrl(avatarSrc)}
                 alt=""
                 className="h-14 w-14 rounded-full border border-border object-cover"
               />

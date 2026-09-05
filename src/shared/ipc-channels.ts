@@ -137,6 +137,19 @@ export const IPC_ROY_AVATAR_SAVE = 'roy:avatarSave' as const
 /** v0.9.44: отправить финальный отчёт задачи в Telegram (бот агента-лидера) */
 export const IPC_ROY_TELEGRAM_REPORT = 'roy:telegramReport' as const
 
+/** v0.9.46: переименовать файл/папку диска */
+export const IPC_ROY_FS_RENAME = 'roy:fsRename' as const
+
+/** v0.9.46: удалить файл/папку диска (рекурсивно) */
+export const IPC_ROY_FS_DELETE = 'roy:fsDelete' as const
+
+/** v0.9.46: скопировать файл/папку в папку назначения */
+export const IPC_ROY_FS_COPY = 'roy:fsCopy' as const
+
+/** v0.9.46: системный буфер обмена — чтение/запись текста (правый клик в полях ввода) */
+export const IPC_CLIPBOARD_READ = 'app:clipboardRead' as const
+export const IPC_CLIPBOARD_WRITE = 'app:clipboardWrite' as const
+
 /** Tasks board: add a cron job (schedule a task) */
 export const IPC_CRON_ADD = 'cron:add' as const
 

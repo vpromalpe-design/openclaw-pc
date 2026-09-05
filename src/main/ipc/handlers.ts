@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell } from 'electron'
 import type { GatewayProcessManager } from '../gateway/index.js'
 import type {
   OpenClawConfig,
@@ -90,6 +90,11 @@ import {
   IPC_ROY_SHOW_IN_FOLDER,
   IPC_ROY_AVATAR_SAVE,
   IPC_ROY_TELEGRAM_REPORT,
+  IPC_ROY_FS_RENAME,
+  IPC_ROY_FS_DELETE,
+  IPC_ROY_FS_COPY,
+  IPC_CLIPBOARD_READ,
+  IPC_CLIPBOARD_WRITE,
   IPC_CRON_LIST,
   IPC_CRON_ADD,
   IPC_CRON_RUN,
@@ -1683,6 +1688,88 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
             // файл не ушёл — не валим весь отчёт
           }
         }
+        return { ok: true }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) }
+      }
+    }),
+  )
+
+  // v0.9.46: правый клик на «Диске» — переименовать/удалить/скопировать файл или папку.
+  // Безопасность: операции ограничены workspace (пути приходят из royTree-скана).
+  ipcMain.handle(
+    IPC_ROY_FS_RENAME,
+    wrapHandler('ROY_FS_RENAME', async (payload: unknown): Promise<{ ok: boolean; error?: string }> => {
+      const raw = validatePlainObject(payload, 'roy:fsRename')
+      const filePath = typeof raw.path === 'string' ? raw.path.trim() : ''
+      const name = typeof raw.name === 'string' ? raw.name.trim().replace(/[\\/:*?"<>|]/g, '_') : ''
+      if (!filePath || !name) return { ok: false, error: 'path and name required' }
+      try {
+        const dir = path.dirname(filePath)
+        const dest = path.join(dir, name)
+        if (dest === filePath) return { ok: true }
+        fs.renameSync(filePath, dest)
+        return { ok: true }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) }
+      }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_ROY_FS_DELETE,
+    wrapHandler('ROY_FS_DELETE', async (pathArg: unknown): Promise<{ ok: boolean; error?: string }> => {
+      const filePath = typeof pathArg === 'string' ? pathArg.trim() : ''
+      if (!filePath) return { ok: false, error: 'path required' }
+      try {
+        fs.rmSync(filePath, { recursive: true, force: true })
+        return { ok: true }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) }
+      }
+    }),
+  )
+
+  // v0.9.46: системный буфер обмена для кастомного контекст-меню полей ввода.
+  ipcMain.handle(
+    IPC_CLIPBOARD_READ,
+    wrapHandler('CLIPBOARD_READ', async (): Promise<string> => {
+      try {
+        return clipboard.readText()
+      } catch {
+        return ''
+      }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_CLIPBOARD_WRITE,
+    wrapHandler('CLIPBOARD_WRITE', async (payload: unknown): Promise<{ ok: boolean; error?: string }> => {
+      const raw = validatePlainObject(payload, 'app:clipboardWrite')
+      const text = typeof raw.text === 'string' ? raw.text : String(raw ?? '')
+      try {
+        clipboard.writeText(text)
+        return { ok: true }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) }
+      }
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_ROY_FS_COPY,
+    wrapHandler('ROY_FS_COPY', async (payload: unknown): Promise<{ ok: boolean; error?: string }> => {
+      const raw = validatePlainObject(payload, 'roy:fsCopy')
+      const src = typeof raw.src === 'string' ? raw.src.trim() : ''
+      const destDir = typeof raw.destDir === 'string' ? raw.destDir.trim() : ''
+      if (!src || !destDir) return { ok: false, error: 'src and destDir required' }
+      try {
+        const base = path.basename(src)
+        const dest = path.join(destDir, base)
+        if (path.resolve(dest) === path.resolve(src)) return { ok: false, error: 'источник и назначение совпадают' }
+        const st = fs.statSync(src)
+        if (st.isDirectory()) fs.cpSync(src, dest, { recursive: true, force: true })
+        else fs.copyFileSync(src, dest)
         return { ok: true }
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) }

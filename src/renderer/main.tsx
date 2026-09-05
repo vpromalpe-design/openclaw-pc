@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import { initI18n } from './i18n'
+import { setupInputContextMenu } from './lib/input-ctx-menu'
 import './styles/globals.css'
 
 // Debug: if this prints, the shell renderer loaded
@@ -15,6 +16,8 @@ async function applyStartupTheme(): Promise<void> {
 }
 
 async function bootstrap(): Promise<void> {
+  // v0.9.46: правый клик + Вставить в любом поле ввода (весь UI, включая мастер)
+  setupInputContextMenu()
   await Promise.all([initI18n(), applyStartupTheme()])
   createRoot(document.getElementById('root')!).render(
     <StrictMode>

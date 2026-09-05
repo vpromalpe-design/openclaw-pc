@@ -68,6 +68,14 @@ export function useRoyAvatars(): AvatarMap {
   return useSyncExternalStore(subscribe, read, read)
 }
 
+/** v0.9.46: голый путь (C:\... или /home/...) → file:// URL для <img>. */
+export function royAvatarUrl(p: string): string {
+  if (!p) return ''
+  if (/^(file|https?|data|blob):/i.test(p)) return p
+  const norm = p.replace(/\\/g, '/')
+  return 'file:///' + encodeURI(norm.replace(/^\/+/, '')).replace(/#/g, '%23')
+}
+
 /**
  * Картинка-аватар с фолбэком на эмодзи (и градиент-кружком).
  * Если avatarPath нет — рендерится эмодзи в кружке (как раньше).
@@ -88,7 +96,7 @@ export function AvatarImg({
   if (avatarPath) {
     return (
       <span className={`roy-avimg ${grad ?? ''} ${className ?? ''}`}>
-        <img src={avatarPath} alt={alt ?? ''} draggable={false} />
+        <img src={royAvatarUrl(avatarPath)} alt={alt ?? ''} draggable={false} />
       </span>
     )
   }

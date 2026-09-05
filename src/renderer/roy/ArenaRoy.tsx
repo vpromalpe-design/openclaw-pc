@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils'
 import { visibleAssistantText } from '../../shared/visible-text'
 import type { RoyGroup, RoyTask, RoyTaskRun, RoyLogRow, RoyFileCard } from './types'
 import { activeTasks, nextTaskState, TASK_STATE, finishedRuns, hasReport, isLeaderTask } from './data'
-import { useRoyAvatars } from './avatar'
+import { useRoyAvatars, royAvatarUrl } from './avatar'
 import { useRoyRoles } from './roles'
 import { RoyRoleForm } from './RoyUi'
 import { EmblemIcon, isEmblemKey } from './emblems'
@@ -89,7 +89,7 @@ export function RoyFace({
   avatarPath?: string
 }) {
   if (avatarPath) {
-    return <img className="roy-face-img" src={avatarPath} alt="" draggable={false} />
+    return <img className="roy-face-img" src={royAvatarUrl(avatarPath)} alt="" draggable={false} />
   }
   if (telegramBot) {
     return <TelegramGlyph className="roy-face-tg" />
@@ -378,7 +378,7 @@ export function RoyArenaView({ group, agents, onPatch, onChat, onRemoveAgent, on
         <div className="rh-left">
           <div className={cn('rh-av', group.grad)}>
             {avatars[group.id] ? (
-              <img className="roy-face-img" src={avatars[group.id]} alt="" draggable={false} />
+              <img className="roy-face-img" src={royAvatarUrl(avatars[group.id])} alt="" draggable={false} />
             ) : isEmblemKey(group.emoji) ? (
               <EmblemIcon k={group.emoji} size={22} strokeWidth={1.9} />
             ) : (
@@ -1260,7 +1260,8 @@ function RoyModal({ title, onClose, children, big }: { title: string; onClose: (
           <div className="rm-title">{title}</div>
           <button type="button" className="rm-close" onClick={onClose}>✕</button>
         </div>
-        {children}
+        {/* v0.9.46: контент в своей скролл-области — при переполнении прокручивается */}
+        <div className="roy-modal-scroll">{children}</div>
       </div>
     </div>
   )
@@ -1598,6 +1599,7 @@ function RoyReportModal({
           </div>
           <button type="button" className="rm-close" onClick={onClose}>✕</button>
         </div>
+        <div className="roy-rep-body">
         <div className="roy-rep-who">
           {mission
             ? kids.length > 0
@@ -1700,6 +1702,8 @@ function RoyReportModal({
             </div>
           </>
         )}
+
+        </div>
 
         <div className="rm-foot">
           {canRework && (
