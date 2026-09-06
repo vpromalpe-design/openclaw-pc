@@ -158,17 +158,30 @@ namespace OpenClawSetup
 
         private void Post(string cmd, Dictionary<string, object?>? payload = null)
         {
-            // Window may already be closing (e.g. a late progress tick after "finish") —
-            // posting to a shut-down dispatcher throws and can kill the app mid-log.
-            if (Dispatcher.HasShutdownStarted || !IsLoaded) return;
+            // Safe from any thread: Dispatcher/DispatcherObject.Dispatcher may be read
+            // cross-thread. NOTE: do NOT touch IsLoaded/CoreWebView2 here — those are
+            // DispatcherObjects and throw InvalidOperationException off the UI thread.
+            if (Dispatcher.HasShutdownStarted) return;
             var obj = new Dictionary<string, object?> { ["cmd"] = cmd };
             if (payload != null)
                 foreach (var kv in payload) obj[kv.Key] = kv.Value;
             var json = JsonSerializer.Serialize(obj);
-            if (Dispatcher.CheckAccess())
-                Web.CoreWebView2.PostWebMessageAsJson(json);
-            else
-                Dispatcher.Invoke(() => Web.CoreWebView2.PostWebMessageAsJson(json));
+            try
+            {
+                if (Dispatcher.CheckAccess())
+                    PostInner(json);
+                else
+                    Dispatcher.Invoke(() => PostInner(json));
+            }
+            catch (Exception ex) { App.Log("post: " + ex.GetType().Name); }
+        }
+
+        private void PostInner(string json)
+        {
+            // Runs on the UI thread; window may already be closing (late progress tick
+            // after "finish") — then the view is gone and posting is a no-op.
+            if (!IsLoaded || Web?.CoreWebView2 == null) return;
+            Web.CoreWebView2.PostWebMessageAsJson(json);
         }
 
         private static bool GetBool(JsonElement root, string name, bool def)
