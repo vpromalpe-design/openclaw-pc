@@ -1,0 +1,14 @@
+<Window x:Class="OpenClawSetup.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="OpenClaw PC — Setup"
+        Width="760" Height="540"
+        WindowStyle="None" ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        Background="#070B18"
+        ShowInTaskbar="True">
+    <Grid>
+        <wv2:WebView2 x:Name="Web" />
+    </Grid>
+</Window>

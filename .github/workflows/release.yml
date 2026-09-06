@@ -181,7 +181,9 @@ jobs:
       - verify
       - build_control_ui
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref_name, 'v')
-    runs-on: [self-hosted, windows, x64]
+    # v1.0.0+: GitHub-hosted runner (self-hosted legionpc is offline). NSIS + wrapper are both built here;
+    # the single-file distribution (wrapper + embedded NSIS core) is assembled and smoke-tested in this job.
+    runs-on: windows-latest
     permissions:
       contents: write
     # Режим SignPath: при vars.USE_SIGNPATH=true собирается неподписанный пакет; иначе подпись через CSC_LINK
@@ -331,6 +333,61 @@ jobs:
             sha256sum "$file" > "$file.sha256"
           done
 
+      # ── Single-file distribution (v1.0.0): wrapper (WPF+WebView2, .NET 8 self-contained)
+      # with the NSIS core appended to its own body. RunInstaller falls back to a side-by-side
+      # core.exe in dev layouts; the shipped artifact needs nothing next to it.
+      - name: Setup .NET 8 (wrapper build)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build Setup wrapper (OpenClaw-PC-Setup single-file)
+        shell: pwsh
+        run: |
+          dotnet publish installer/InstallerUI.csproj -c Release -r win-x64 -o dist-wrapper
+          $w = Get-ChildItem dist-wrapper/OpenClaw-PC-Setup.exe
+          Write-Host "wrapper: $($w.Length) bytes, version $($w.VersionInfo.FileVersion)"
+          if ($w.Length -lt 10MB) { Write-Error "wrapper too small: $($w.Length)"; exit 1 }
+
+      - name: Pack single-file installer (wrapper + NSIS core)
+        id: pack-single
+        shell: bash
+        run: |
+          CORE=$(find dist -name 'OpenClaw-PC-Setup-*.exe' -type f | head -1)
+          if [ -z "$CORE" ]; then echo "error: NSIS exe not found in dist"; exit 1; fi
+          TAG="${{ inputs.tag || github.ref_name }}"
+          VERSION="${TAG#v}"; VERSION="${VERSION%%+*}"
+          SINGLE="dist/OpenClaw-PC-$VERSION.exe"
+          python installer/pack-single.py dist-wrapper/OpenClaw-PC-Setup.exe "$CORE" "$SINGLE"
+          python installer/pack-single.py --check "$SINGLE"
+          sha256sum "$SINGLE" > "$SINGLE.sha256"
+          echo "single_exe=$SINGLE" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test single-file installer (extract + silent install to temp)
+        shell: pwsh
+        env:
+          OPENCLAW_SETUP_AUTOTEST: '1'
+        run: |
+          $single = "${{ steps.pack-single.outputs.single_exe }}"
+          if (-not (Test-Path $single)) { Write-Error "single exe missing: $single"; exit 1 }
+          $log = Join-Path $env:TEMP 'OpenClawSetup\crash.log'
+          Remove-Item $log -ErrorAction SilentlyContinue
+          $p = Start-Process -FilePath (Resolve-Path $single) -PassThru
+          $deadline = (Get-Date).AddMinutes(10)
+          while ((Get-Date) -lt $deadline -and -not $p.HasExited) { Start-Sleep -Seconds 5 }
+          if (-not $p.HasExited) { Write-Host 'smoke: process still running, killing'; Stop-Process -Id $p.Id -Force }
+          else { Write-Host "smoke: wrapper exited code=$($p.ExitCode)" }
+          if (-not (Test-Path $log)) { Write-Error "smoke: no crash.log at $log"; exit 1 }
+          $content = Get-Content $log -Raw
+          Write-Host '── crash.log ──'
+          Write-Host $content
+          if ($content -match 'extract: done' -and $content -match 'install: DONE') {
+            Write-Host 'SMOKE OK: payload extracted, NSIS install completed'
+          } else {
+            Write-Error 'smoke FAILED: missing extract: done / install: DONE markers in crash.log'
+            exit 1
+          }
+
       - name: Generate latest.yml for electron-updater
         id: gen-yml
         shell: bash
@@ -374,8 +431,8 @@ jobs:
           name: ${{ inputs.tag || github.ref_name }}
           body_path: dist/release-body.md
           files: |
-            dist/OpenClaw-PC-Setup-*.exe
-            dist/OpenClaw-PC-Setup-*.exe.sha256
+            dist/*.exe
+            dist/*.sha256
             ${{ steps.gen-yml.outputs.yml_file }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
