@@ -40,7 +40,19 @@ Your conversations, agents and files never leave your computer unless you connec
 
 ## 🖼 Screenshots
 
-| Setup wizard | Gateway dashboard | Installer (user scope) |
+Real screenshots of the **v1.0.0 setup wizard** (same UI that ships inside the single `.exe`):
+
+| Step 1 · Welcome & language | Step 2 · What you get |
+|:---:|:---:|
+| ![Setup wizard — welcome](resources/screenshot-wizard-1.png) | ![Setup wizard — benefits](resources/screenshot-wizard-2.png) |
+
+| Step 3 · Install folder | Step 4 · Installing |
+|:---:|:---:|
+| ![Setup wizard — install location](resources/screenshot-wizard-3.png) | ![Setup wizard — progress](resources/screenshot-wizard-4.png) |
+
+| Step 5 · Done |
+|:---:|
+| ![Setup wizard — finished](resources/screenshot-wizard-5.png) |
 
 
 ## 🚀 Quick start
