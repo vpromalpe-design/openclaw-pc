@@ -2628,7 +2628,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
 
             {/* v0.9.11: mode switch — «Агентская задача | Просто текст» lives in
                 its own strip BELOW the chat frame (was floating over the chat
-                text / Control UI composer — Damir bug report). */}
+                text / Control UI composer — bug report). */}
             {!royOpenGroup && showControlUIIframe && !hasActivePanel && inChat && (
               <div className="shell-mode-strip">
                 <div className="shell-mode-switch">
