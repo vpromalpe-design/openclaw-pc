@@ -221,7 +221,7 @@ function sessionLabel(s: ShellSessionRow): string {
   if (s.displayName) return s.displayName
   if (s.derivedTitle) return s.derivedTitle
   const key = s.key ?? ''
-  // agent:main:main → «Чат · main», telegram:@Gazdamir → «@Gazdamir»
+  // agent:main:main → «Чат · main», telegram:@botuser → «@botuser»
   const agentMatch = key.match(/^agent:([^:]+)/)
   if (agentMatch) return `Чат · ${agentMatch[1]}`
   const tgMatch = key.match(/^telegram:(.+)$/)
@@ -2147,7 +2147,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
             <div className="shell-brand-ic">🦞</div>
             <div className="shell-brand-name">
               OpenClaw PC
-              <small>v{shellVersion || '0.9.0'}</small>
+              <small>v{shellVersion || '1.0.0'}</small>
             </div>
           </div>
 

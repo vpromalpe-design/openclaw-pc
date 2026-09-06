@@ -3,226 +3,135 @@
 </p>
 
 <h1 align="center">OpenClaw PC</h1>
-<p align="center">OpenClaw PC — Windows desktop app and installer for OpenClaw</p>
 
 <p align="center">
-  <strong>Your private AI assistant, running entirely on your PC.</strong><br />
-  One-click install of <strong>local AI models</strong> that run 100% offline via the built-in llama.cpp engine — no cloud, no subscription, no data leaving your computer. Cloud providers (Anthropic, OpenAI, Google, DeepSeek…) also supported.
+  <strong>Your private AI assistant — fully on your PC. One file, no cloud, no subscription.</strong><br />
+  Windows desktop app + smart installer in a <strong>single executable</strong>.
 </p>
 
 <p align="center">
-  <a href="https://github.com/vpromalpe-design/openclaw-pc/releases/latest">
-    <img src="https://img.shields.io/github/v/release/vpromalpe-design/openclaw-pc?style=flat-square&color=2563eb&label=latest+release" alt="Latest release" />
-  </a>
-  <a href="https://github.com/vpromalpe-design/openclaw-pc/actions/workflows/ci.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/vpromalpe-design/openclaw-pc/ci.yml?style=flat-square&label=ci" alt="CI" />
-  </a>
-  <a href="https://github.com/vpromalpe-design/openclaw-pc/releases">
-    <img src="https://img.shields.io/github/downloads/vpromalpe-design/openclaw-pc/total?style=flat-square&color=16a34a&label=downloads" alt="Downloads" />
-  </a>
-  <a href="LICENSE">
-    <img src="https://img.shields.io/github/license/vpromalpe-design/openclaw-pc?style=flat-square" alt="License" />
-  </a>
+  <a href="https://github.com/vpromalpe-design/openclaw-pc/releases/latest"><img src="https://img.shields.io/github/v/release/vpromalpe-design/openclaw-pc?style=flat-square&color=2563eb&label=release" alt="Release" /></a>
+  <a href="https://github.com/vpromalpe-design/openclaw-pc/releases"><img src="https://img.shields.io/github/downloads/vpromalpe-design/openclaw-pc/total?style=flat-square&color=16a34a&label=downloads" alt="Downloads" /></a>
+  <img src="https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-0A84FF?style=flat-square" alt="Platform" />
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/vpromalpe-design/openclaw-pc?style=flat-square" alt="License" /></a>
+  <img src="https://img.shields.io/badge/state-v1.0.0%20final-30D158?style=flat-square" alt="State" />
 </p>
 
-<p align="center">
-  <img src="resources/demo.gif" alt="OpenClaw PC Demo running on Windows" width="720" />
-</p>
+<hr />
 
-<p align="center">
-  ⭐ &nbsp;If this project helps you, <strong>please give it a star</strong> — it takes 2 seconds and means a lot!&nbsp; ⭐
-</p>
+**OpenClaw PC** is a complete, self-contained desktop environment for private AI agents on Windows.
+It installs everything it needs and runs agents, local models, voice and a Telegram bridge — **100% on your machine**.
+Your conversations, agents and files never leave your computer unless you connect a cloud provider yourself.
+
+> 🚀 **v1.0.0 — final release.** One single `.exe` file contains the whole product: interactive setup wizard + full application payload.
 
 ---
 
-**Language:** English · 简体中文 · Русский
+## ✨ Highlights
 
----
+- 🧠 **Runs fully offline** — built-in local inference engine (llama.cpp) with GGUF models; no account, no cloud, no data leaving the PC. Works on a laptop with no internet at all.
+- 🗣️ **Voice input** — dictation via local offline whisper.cpp, Google Speech or OpenAI Whisper (your choice).
+- 🤖 **Real agent tasks** — create tasks for AI agents, watch them work step by step, pause / resume / delete, collect created files with one click, manage a shared agent disk.
+- 🐝 **Agent groups («swarms»)** — organize agents into teams with a leader, assign missions, watch live activity.
+- 📱 **Telegram bridge** — connect your own bot: talk to your agents from your phone anywhere.
+- 🎨 **Liquid Glass UI** — signature dark glassmorphism design, animations and sound feedback, 3 languages (English / Русский / 中文).
+- 📦 **Single-file installer** — one exe = wizard + payload. Works on clean Windows 10/11 (x64).
+- 🔒 **Security hardened** — sandboxed renderer, strict IPC sender validation, locked-down CSP, no telemetry.
 
-## What is this?
+## 🖼 Screenshots
 
-**OpenClaw PC** packages the OpenClaw runtime into a standard Windows install experience, with **local AI models as the headline feature**: download one `.exe`, finish a setup wizard, and your assistant is up and running — completely offline if you want it to be.
+| Setup wizard | Gateway dashboard | Installer (user scope) |
+|---|---|---|
+| ![Setup wizard](resources/screenshot-setup-wizard.png) | ![Gateway dashboard](resources/screenshot-gateway-dashboard.png) | ![Installer user scope](resources/screenshot-installer-user-scope.png) |
 
-- 🖥️ **Local models first** — install open-source models (Qwen 2.5 GGUF) with one click; they run 100% on this PC via the bundled llama.cpp engine. Free, private, works without internet.
-- 🔌 **Cloud providers when you need them** — Anthropic, OpenAI, Google, DeepSeek and more, one-click API key setup.
-- 🤖 **Full AI agent runtime** — the OpenClaw gateway with Telegram and other channels, all managed from a native desktop shell.
+## 🚀 Quick start
 
-If you've been searching for *how to install OpenClaw on Windows*, *how to run OpenClaw locally*, or an **OpenClaw Windows installer** with a GUI, this is it.
+1. Go to **[Releases](https://github.com/vpromalpe-design/openclaw-pc/releases/latest)** and download **`OpenClaw-PC-1.0.0.exe`** — the single self-contained file (the full NSIS installer is also published for in-app auto-updates).
+2. Run it. The setup wizard guides you through: language → install folder → **AI model** → **Telegram bot** (optional) → voice → done.
+3. Pick a model:
+   - **Cloud (no install):** Anthropic, OpenAI, Google, DeepSeek or any OpenAI-compatible endpoint — just paste an API key.
+   - **Local (fully offline):** point to a GGUF file (or let the wizard download one) — the built-in engine runs it locally.
+4. Click **Launch** — your private AI assistant is ready.
 
-## Quick Start
+> No admin rights required (per-user install), install path is freely selectable.
 
-1. Download the latest installer from [Releases](https://github.com/vpromalpe-design/openclaw-pc/releases/latest)
-2. Run the Windows setup (filename follows `package.json`, e.g. `OpenClaw-PC-Setup-0.9.0+openclaw.2026.7.1.exe`)
-3. Finish the setup wizard (provider → channel → gateway)
-4. Launch from Start Menu or Desktop shortcut
+## 🧩 What you get
 
-**System:** Windows 10/11 x64 · ~350 MB free space · Internet for API calls
-
-## OpenClaw PC v0.9.0
-
-- **Shell version:** `0.9.0+openclaw.2026.7.1` (semver + bundled OpenClaw pin in build metadata).
-- **Git release tag:** `v0.9.0+openclaw.2026.7.1` — same as `package.json` `version` with a `v` prefix (OpenClaw pin visible in the tag).
-- **Bundled OpenClaw (npm):** **2026.7.1** — same runtime as `npm install openclaw@2026.7.1`; pinned in [`package.json`](package.json) as `openclawBundleVersion`.
-- **Desktop highlights:** **v0.9.0** is the midpoint of development — from here the app is treated as a fresh project: clean navigation (Chat · Models · Telegram · Voice + ⋯), unified icon set, three UI languages (Русский / English / 简体中文), no legacy code. Full history: [CHANGELOG](CHANGELOG.md).
-
-### Upstream OpenClaw 2026.4.2 (summary)
-
-Full notes: [openclaw/openclaw **v2026.4.2**](https://github.com/openclaw/openclaw/releases/tag/v2026.4.2) · [npm release digest](https://newreleases.io/project/npm/openclaw/release/2026.4.2).
-
-**Breaking (this bump)**
-
-- **Plugins / xAI:** Move **`x_search`** settings from legacy core **`tools.web.x_search.*`** to plugin-owned **`plugins.entries.xai.config.xSearch.*`**; standardize auth on **`plugins.entries.xai.config.webSearch.apiKey`** / **`XAI_API_KEY`**. Migrate with **`openclaw doctor --fix`** ([#59674](https://github.com/openclaw/openclaw/pull/59674)).
-- **Plugins / web fetch:** Move Firecrawl **`web_fetch`** config from **`tools.web.fetch.firecrawl.*`** to **`plugins.entries.firecrawl.config.webFetch.*`**. Migrate with **`openclaw doctor --fix`** ([#59465](https://github.com/openclaw/openclaw/pull/59465)).
-
-**Notable for desktop / loopback users (fixes in this train)**
-
-- **Gateway / exec loopback:** Restores legacy-role fallback for empty paired-device token maps so local exec and node clients avoid **pairing-required** failures after **2026.3.31** ([#59092](https://github.com/openclaw/openclaw/issues/59092)).
-- **Agents / subagents:** Admin-only subagent gateway calls pin to **`operator.admin`** so **`sessions_spawn`** no longer fails loopback scope-upgrade pairing ([#59555](https://github.com/openclaw/openclaw/issues/59555)).
-
-**Still in effect from earlier pins (e.g. 2026.3.31)**
-
-- **Nodes / exec:** No duplicated `nodes.run` shell wrapper; use **`exec host=node`** and **`nodes invoke`** where appropriate.
-- **Plugin SDK:** Prefer **`openclaw/plugin-sdk/*`**; legacy shims are deprecated.
-- **Channels / hooks:** `hooks.mappings[].channel` accepts runtime plugin ids (see upstream OpenClaw docs).
-- **Qwen / Doctor / channels:** See [v2026.3.31](https://github.com/openclaw/openclaw/releases/tag/v2026.3.31) and [v2026.3.28](https://github.com/openclaw/openclaw/releases/tag/v2026.3.28) for earlier breaking and large trains.
-
-**Tip (MiniMax 401):** MiniMax Anthropic-compatible endpoints expect **`x-api-key`**, not Bearer. This shell sets `authHeader: false` for MiniMax and migrates existing configs on load. Other third-party `anthropic-messages` hosts may still need `authHeader: true` where documented.
-
-Older desktop releases are listed in [CHANGELOG.md](CHANGELOG.md).
-
-## Compatibility with upstream OpenClaw (bundled `2026.4.2`)
-
-Each release **pins** the bundled OpenClaw npm version in root [`package.json`](package.json) (`openclawBundleVersion`). `pnpm run download-openclaw` installs that exact version (unless you override with a CLI arg or `OPENCLAW_DESKTOP_BUNDLE_VERSION`). For local packaging, run `download-openclaw` before `prepare-bundle`. The committed [`resources/bundle-manifest.json`](resources/bundle-manifest.json) is informational only — **the bundled version is whatever `prepare-bundle` writes to `bundledOpenClawVersion`.**
-
-- **Runtime:** Bundled portable Node.js **22.16.0** (`pnpm run download-node`), matching upstream `openclaw.mjs` / `engines` (**Node ≥ 22.16**).
-- **State & config:** Same as upstream: `%USERPROFILE%\.openclaw`, main config `openclaw.json`. Use **`OPENCLAW_*`** env vars (`CLAWDBOT_*` / `MOLTBOT_*`, `.moltbot`, etc. were removed upstream).
-- **Control UI:** The npm package does not ship `dist/control-ui/`; we fetch GitHub tag **`v<version>`** sources (`ui/` plus repo-root `src/`, etc.) and run Vite. CI builds static assets on Linux and merges them into the Windows installer.
-- **Embedded console auth:** For **local** gateways (not `remote`), the shell auto-maintains `gateway.controlUi.allowInsecureAuth` and `dangerouslyDisableDeviceAuth` in `openclaw.json` so OpenClaw **2026.3.x** Control UI works inside the Electron iframe (see [CHANGELOG 0.6.1](CHANGELOG.md)). If you switch to remote gateway or hand-edit these keys, follow upstream docs.
-- **Bundled plugin list:** Upstream ships built-in channel/provider plugins under **`dist/extensions/*`**; the desktop shell scans that path and still falls back to legacy top-level `extensions/`.
-- **Breaking changes:** Plugin SDK (`openclaw/plugin-sdk/*`), browser/install behavior, and other breaking items are covered in [upstream OpenClaw releases](https://github.com/openclaw/openclaw/releases) and [upstream docs](https://docs.openclaw.ai/) for the version you ship. Installer-only users usually need no action; **custom/third-party plugin** authors should follow upstream migration guides.
-
-*Same section in Chinese: [README.zh-CN.md](./README.zh-CN.md).*
-
-## Features
-
-| | |
+| Area | Description |
 |---|---|
-| 🔽 **One-click installer** | Native Windows `.exe` installer — no `npm install` or system-wide Node.js needed |
-| ⚡ **Bundled runtime** | Ships with portable Node.js + OpenClaw so first launch is instant |
-| 🧙 **Guided setup wizard** | Step-by-step configuration for model provider, channel, and gateway |
-| 🔄 **In-app updates** | Built-in updater via GitHub Releases; rollback to any previous version |
-| 🪟 **Native Windows shell** | Start Menu, Desktop shortcut, system tray, and auto-start support |
-| 🌐 **50+ providers** | OpenAI, Claude, Gemini, DeepSeek, Kuae, and more |
-| 💬 **Multi-channel** | Telegram, Discord, Slack, WhatsApp, and more |
-| 🌍 **Multi-language UI** | English, 简体中文, Русский |
+| **Chat & agents** | Direct chat (plain text or agent mode), multiple agents with roles and custom avatars, per-agent models, reasoning control |
+| **Tasks** | Task registry with live status: running / paused / done — each task has output, terminal summary, created files, and questions back to you |
+| **Models** | Cloud providers with priority & auto-fallback, local GGUF + built-in llama.cpp engine, connection test button |
+| **Telegram** | Wizard-configured bot: token, proxy (http/socks5), allow-list; agents answer in Telegram |
+| **Voice** | Mic dictation everywhere, offline (whisper.cpp) or online (Google / OpenAI) |
+| **Gateway** | Full OpenClaw gateway status, one-click restart, diagnostics |
+| **Security** | Sandboxed Electron renderer (`sandbox: true`, context isolation), IPC sender validation, CSP without wildcards, signed-commit workflow |
+| **Updates** | In-app auto-updates straight from GitHub Releases (stable channel) |
 
-## Ecosystem
+## 📜 Version history (highlights)
+
+Full per-version details: **[CHANGELOG.md](CHANGELOG.md)**
+
+- **1.0.0 (2026-09-06) — FINAL**: single-file distribution (installer packed into one exe), avatar fix (data-URL rendering, works with any Windows user profile), universal compatibility pass, public open-source release.
+- **0.9.46–0.9.47**: avatar/emblem pickers fixed for non-ASCII user profiles (file:// blocked by webSecurity → images now embedded as data URLs); input context menus; last UI polish.
+- **0.9.34–0.9.45**: agent groups («swarms») with arena view & SVG connection lines; shared agent disk with copy/paste; agent roles injected into prompts; file links from task answers.
+- **0.9.22–0.9.30**: hybrid task registry (shell-side, survives restarts), reliable answer parsing, "created files" blocks with path resolution, voice dictation inside tasks.
+- **0.9.17–0.9.21**: wizard rebuilt (language sidebar, skip, voice step with 3 providers, settings moved to ⚙️), sounds, security hardening (CVE fixes, IPC hardening, sandbox).
+- **0.9.8–0.9.15**: dark Liquid Glass design finalized, step indicator, models page with priority & fallback.
+- **0.9.0**: agent-task / plain-text switcher, local engine toggle, model-scope cleanup, full Liquid Glass port.
+- **0.8.5–0.8.7**: standalone distribution groundwork — deepseek-direct provider pattern, Telegram wizard, Russian localization, models page, local GGUF support.
+
+## ⚙️ System requirements
+
+- Windows 10 (1809+) or Windows 11, **x64**
+- [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) (evergreen; ships with Windows 11 and most Windows 10 installs via Edge)
+- ~600 MB free disk for the app; more for local models
+- 8 GB RAM recommended (2 GB minimum for chat with cloud models; local models scale with their size)
+- No admin rights needed
+
+## 🔧 Tech
+
+- **Shell:** Electron 41 — hardened (sandbox, context isolation, no node integration in renderer)
+- **Core:** [OpenClaw](https://github.com/agentkernel/openclaw) 2026.7.1 bundled runtime & gateway
+- **UI:** React 19 + Vite, custom Liquid Glass design system, i18n (en/ru/zh)
+- **Installer:** single-file WPF (.NET 8) wizard + embedded NSIS payload
+- **Local inference:** llama.cpp (GGUF), offline whisper.cpp for voice
+
+## 🗂 Repository layout
 
 ```
-         OpenClaw
-             |
-    ┌────────┴────────┐
-    │                 │
-  Desktop           GUI
-    │            Plugins
-Installer          ...
+src/main        Electron main process (window, IPC, gateway manager, security)
+src/preload     Context-isolated bridge (typed IPC)
+src/renderer    React UI: shell, wizard, models, tasks, groups, voice
+src/shared      Shared types & IPC channel definitions
+scripts         Build/verify tooling (bundle, versions, smoke tests)
+resources       Icons, installer assets, screenshots, license texts
 ```
 
-OpenClaw PC is a **community-maintained Windows distribution** for the OpenClaw ecosystem. Part of the OpenClaw ecosystem — not affiliated with the core project.
-
-## Download
-
-| | |
-|---|---|
-| **Release tag** | `v0.7.0+openclaw.2026.4.2` (equals `v` + `package.json` `version`) |
-| **Installer** | `OpenClaw-PC-Setup-0.7.0+openclaw.2026.4.2.exe` (see [Releases](https://github.com/vpromalpe-design/openclaw-pc/releases/latest) for exact asset) |
-| **Platform** | Windows 10/11 x64 |
-| **Includes** | Electron shell, portable Node.js, bundled OpenClaw |
-| **Extras** | SHA-256 checksum, `latest.yml` for in-app updates |
-
-**→ [github.com/vpromalpe-design/openclaw-pc/releases/latest](https://github.com/vpromalpe-design/openclaw-pc/releases/latest)**
-
-## Screenshots
-
-| Installer | Setup Wizard | Dashboard |
-| --- | --- | --- |
-| <img src="resources/screenshot-installer-user-scope.png" alt="Installer" width="260" /> | <img src="resources/screenshot-setup-wizard.png" alt="Setup Wizard" width="260" /> | <img src="resources/screenshot-gateway-dashboard.png" alt="Dashboard" width="260" /> |
-
-## FAQ
-
-<details>
-<summary><strong>How do I install OpenClaw on Windows?</strong></summary>
-
-Download the latest `OpenClaw-PC-Setup-*.exe` from the [latest release](https://github.com/vpromalpe-design/openclaw-pc/releases/latest) and run it. That's it — no `npm`, no system-wide Node.js, no terminal commands needed.
-</details>
-
-<details>
-<summary><strong>Do I need Node.js installed globally?</strong></summary>
-
-No. The installer ships with a portable Node.js runtime.
-</details>
-
-<details>
-<summary><strong>Where is user data stored?</strong></summary>
-
-- OpenClaw config: `%USERPROFILE%\.openclaw\openclaw.json`
-- Desktop config: `%APPDATA%\OpenClaw PC\config.json`
-- Logs: `%USERPROFILE%\.openclaw\`
-- Backups: `%USERPROFILE%\.openclaw\backups\`
-
-Uninstalling the app does not remove these by default.
-</details>
-
-<details>
-<summary><strong>How do updates work?</strong></summary>
-
-Desktop checks GitHub Releases and can download updates through the built-in updater. You can also download any older asset manually for rollback.
-</details>
-
-<details>
-<summary><strong>Do I need to delete `%USERPROFILE%\.openclaw` or <code>openclaw.json</code> before upgrading?</strong></summary>
-
-Usually no. After installing a newer build, launch the app once; it migrates `openclaw.json` on read and merges embedded Control UI flags on every save. Delete or reset only if the file is corrupt or you want a full clean slate (back up first).
-</details>
-
-<details>
-<summary><strong>What does the Kuae HTTPS proxy fix do?</strong></summary>
-
-When the bundled OpenClaw gateway inherits `HTTP(S)_PROXY`, some local proxies break TLS to Kuae's Coding Plan endpoint (`coding-plan-endpoint.kuaecloud.net`). Desktop merges `NO_PROXY` for both `.kuaecloud.net` domains so Kuae traffic goes direct while other providers still use your proxy. Set `OPENCLAW_SKIP_KUAE_NO_PROXY=1` to disable.
-</details>
-
-## Development
+## 🛠 Development
 
 ```bash
-git clone https://github.com/vpromalpe-design/openclaw-pc.git
-cd openclaw-pc
 pnpm install
-pnpm dev
+pnpm run dev              # run the shell against a local gateway
+pnpm run type-check       # tsc
+pnpm run lint             # eslint
+pnpm run package:win      # build the NSIS installer (Windows)
 ```
 
-**Prerequisites:** Node.js `>= 22.16.0` · `pnpm` · Windows 10/11
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/product-design.md](docs/product-design.md).
 
-**Common commands:**
-```bash
-pnpm type-check   # Type check
-pnpm build       # Build
-pnpm run package:prepare-deps   # download-node + download-openclaw (before installer)
-pnpm run prepare-bundle
-pnpm run package:win   # Output: dist/OpenClaw-PC-Setup-<version>.exe
-```
+## 🔒 Security
 
-**Bundled OpenClaw:** Pinned in `package.json` (`openclawBundleVersion`). After `prepare-bundle`, see `bundledOpenClawVersion` in [`resources/bundle-manifest.json`](resources/bundle-manifest.json) (currently **2026.4.2** for desktop **v0.7.0**). Local checks: `pnpm run check-openclaw-versions` (omit `OPENCLAW_SKIP_NPM_LATEST_CHECK` to also compare against npm `latest`).
+- Renderer runs with `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`.
+- All IPC calls validate their sender origin; no `postMessage` to `*`.
+- Strict Content-Security-Policy (no wildcard frame ancestors), hardened gateway response headers.
+- Local-first: nothing is sent anywhere unless you configure a cloud provider / Telegram bot yourself.
+- Vulnerable transitive deps are pinned via `pnpm.overrides` (ws, js-yaml, electron-updater toolchain).
 
-**Related docs:** [CHANGELOG.md](CHANGELOG.md) · [CONTRIBUTING.md](CONTRIBUTING.md)
+Found an issue? See [SECURITY.md](SECURITY.md) and [report it](https://github.com/vpromalpe-design/openclaw-pc/issues).
 
-## License
+## 📄 License
 
-[GPL-3.0](LICENSE)
+[GPL-3.0](LICENSE) · Copyright © 2026 OpenClaw PC Team.
 
----
-
-⭐ Star History · Contributors · Community
-
-<!-- SEO: OpenClaw PC, OpenClaw Windows, OpenClaw installer, OpenClaw Windows installer, OpenClaw desktop app,
-OpenClaw setup wizard, OpenClaw GUI, OpenClaw app for Windows, install OpenClaw on Windows, run OpenClaw locally,
-how to install openclaw, openclaw setup -->
+OpenClaw PC bundles [OpenClaw](https://github.com/agentkernel/openclaw) (GPL-3.0), a private-AI gateway runtime, and the llama.cpp inference engine.
