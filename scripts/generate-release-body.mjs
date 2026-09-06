@@ -24,24 +24,48 @@ function parseArgs(argv) {
   return args
 }
 
-/** Split changelog into sections: [{ version, date, body }] in file order. */
+/** Split changelog into sections: [{ version, date, body }] in file order.
+ *
+ * Accepts headers in any of these shapes:
+ *   ## [1.0.0] - (2026-09-06) — Title
+ *   ## 1.0.0 (2026-09-06) — Title
+ *   ## v0.9.26 — Title (2026-09-01)
+ *   ## v0.9.0 — Title
+ * Date is the first YYYY-MM-DD found in the header (or the section's first
+ * lines, up to 2), so tables stay clean even when the header has no date.
+ */
 function parseChangelog(text) {
+  const lines = text.split('\n')
   const sections = []
-  const re = /^## \[([^\]]+)\] - ([^\n]+)$/gm
-  let m
-  const headers = []
-  while ((m = re.exec(text)) !== null) {
-    headers.push({ version: m[1].trim(), date: m[2].trim(), headerStart: m.index, bodyStart: m.index + m[0].length })
+  let cur = null
+  const headerRe = /^##\s+(.*)$/
+  const versionRe = /^\[?v?(\d+\.\d+(?:\.\d+)?(?:[+][^\s]+)?)/
+  const dateRe = /(\d{4}-\d{2}-\d{2})/
+  for (const line of lines) {
+    const m = line.match(headerRe)
+    if (m) {
+      const vm = m[1].match(versionRe)
+      if (vm) {
+        let date = ''
+        const dm = m[1].match(dateRe)
+        if (dm) date = dm[1]
+        cur = { version: vm[1], date, body: [] }
+        sections.push(cur)
+      } else {
+        cur = null // section header without a version (e.g. an intro block)
+      }
+      continue
+    }
+    if (cur) {
+      // fallback: look for a date in the first two non-empty body lines
+      if (!cur.date) {
+        const dm = line.match(dateRe)
+        if (dm && cur.body.length < 3) cur.date = dm[1]
+      }
+      cur.body.push(line)
+    }
   }
-  for (let i = 0; i < headers.length; i++) {
-    const end = i + 1 < headers.length ? headers[i + 1].headerStart : text.length
-    sections.push({
-      version: headers[i].version,
-      date: headers[i].date,
-      body: text.slice(headers[i].bodyStart, end).trim(),
-    })
-  }
-  return sections
+  return sections.map((s) => ({ version: s.version, date: s.date, body: s.body.join('\n').trim() }))
 }
 
 /** Short one-line summary: first up to 3 bullets, cleaned and truncated. */
