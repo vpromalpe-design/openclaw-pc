@@ -35,7 +35,9 @@ function parseArgs(argv) {
  * lines, up to 2), so tables stay clean even when the header has no date.
  */
 function parseChangelog(text) {
-  const lines = text.split('\n')
+  // Normalize CRLF (Windows checkouts with autocrlf produce \r\n; '.' excludes
+  // \r, so '.*$' never matches a header ending in \r and no sections are found).
+  const lines = text.replace(/\r\n/g, '\n').split('\n')
   const sections = []
   let cur = null
   const headerRe = /^##\s+(.*)$/
