@@ -967,6 +967,7 @@
       autoDrift = false; gotProgress = true;
       doneIsError = false;
       try { sndPop(); } catch (e) {}
+      if (window.__onDone) { try { window.__onDone(); } catch (e) {} }
     }
     if (d.cmd === 'error') {
       if (pStep) pStep.innerHTML = '<span style="color:#FF453A">' + (d.line || 'Installation failed') + '</span>';

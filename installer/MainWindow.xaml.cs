@@ -21,6 +21,7 @@ namespace OpenClawSetup
         private readonly System.Windows.Forms.FolderBrowserDialog _fbd = new();
         private string? _installDir;
         private int _installing;
+        private bool Installing() => Interlocked.CompareExchange(ref _installing, 0, 0) == 1;
         private bool _desktopShortcut = true;
         private bool _startMenuShortcut = true;
         private bool _autoStart;
@@ -42,7 +43,10 @@ namespace OpenClawSetup
             SourceInitialized += (_, _) => ApplyRoundedCorners();
             Loaded += async (_, _) => await InitWebAsync();
 
-            // AUTOTEST (env OPENCLAW_SETUP_AUTOTEST=1): самопроверка цепочки C#->JS без кликов
+            // AUTOTEST (env OPENCLAW_SETUP_AUTOTEST=1): самопроверка цепочки C#->JS без кликов.
+            // Установка ~250 МБ занимает 60–120 c, поэтому завершающие клики НЕ привязаны к
+            // фиксированным таймингам: ждём реальное сообщение "done" (хук __onDone в ui.html)
+            // с polling-страховкой и watchdog на 240 c.
             if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("OPENCLAW_SETUP_AUTOTEST")))
             {
                 _ = Dispatcher.InvokeAsync(async () =>
@@ -52,12 +56,15 @@ namespace OpenClawSetup
                         await Task.Delay(3000);
                         App.Log("autotest: go(4) + install to temp");
                         await Web.CoreWebView2.ExecuteScriptAsync(
-                            "go(4); setTimeout(function(){ bridge('install', { path: 'C:\\\\Temp\\\\OpenClawSetup\\\\autotest', lang: 'ru', desktop: false, startMenu: false, autoStart: false }); }, 600);" +
-                            " setTimeout(function(){ var b = document.querySelector('.prog .btn-primary'); if (b) b.click(); }, 50000);" +
-                            " setTimeout(function(){ var l = document.querySelector('.fin .launch-opt'); var c = document.querySelector('.fin .launch-opt input'); var k = document.querySelector('.launch-opt .chk'); bridge('log', { msg: 'js: chk-before=' + (c ? c.checked : 'none') + ' vis=' + getComputedStyle(k, '::after').opacity }); if (l) l.click(); setTimeout(function(){ bridge('log', { msg: 'js: chk-after=' + (c ? c.checked : 'none') + ' vis=' + getComputedStyle(k, '::after').opacity }); }, 500); }, 51500);" +
-                            " setTimeout(function(){ var f = document.querySelector('.fin .btn-primary'); if (f) f.click(); }, 53500);" +
-                            " setTimeout(function(){ var a = document.querySelector('.screen.active'); var bf = document.querySelector('.bar-fill'); var b = document.querySelector('.prog .btn-primary'); var p = document.querySelector('.prog .p-step'); var sb = document.getElementById('sb-text'); bridge('log', { msg: 'probe-ui: ' + [a ? a.id : 'none', bf ? bf.style.width : '-', b ? (b.className + ' | ' + b.textContent + ' | disp=' + (b.style.display || 'auto')) : '-', p ? p.textContent : '-', sb ? sb.textContent : '-'].join(' | ') }); }, 13000);" +
-                            " setTimeout(function(){ var a = document.querySelector('.screen.active'); var bf = document.querySelector('.bar-fill'); var b = document.querySelector('.prog .btn-primary'); var p = document.querySelector('.prog .p-step'); var sb = document.getElementById('sb-text'); bridge('log', { msg: 'probe-ui2: ' + [a ? a.id : 'none', bf ? bf.style.width : '-', b ? (b.className + ' | ' + b.textContent + ' | disp=' + (b.style.display || 'auto')) : '-', p ? p.textContent : '-', sb ? sb.textContent : '-'].join(' | ') }); }, 49000);");
+                            "window.__installSent = false; go(4); setTimeout(function(){ bridge('install', { path: 'C:\\\\Temp\\\\OpenClawSetup\\\\autotest', lang: 'ru', desktop: false, startMenu: false, autoStart: false }); window.__installSent = true; }, 600);" +
+                            "window.__onDone = function(){ if (window.__onDoneFired) return; window.__onDoneFired = true; try { clearInterval(window.__doneTimer); } catch(e){};" + +
+                            " setTimeout(function(){ var b = document.querySelector('.prog .btn-primary'); if (b) b.click(); }, 300);" +
+                            " setTimeout(function(){ var a = document.querySelector('.screen.active'); var bf = document.querySelector('.bar-fill'); var b = document.querySelector('.prog .btn-primary'); var p = document.querySelector('.prog .p-step'); var sb = document.getElementById('sb-text'); bridge('log', { msg: 'probe-ui2: ' + [a ? a.id : 'none', bf ? bf.style.width : '-', b ? (b.className + ' | ' + b.textContent + ' | disp=' + (b.style.display || 'auto')) : '-', p ? p.textContent : '-', sb ? sb.textContent : '-'].join(' | ') }); }, 600);" +
+                            " setTimeout(function(){ var l = document.querySelector('.fin .launch-opt'); var c = document.querySelector('.fin .launch-opt input'); var k = document.querySelector('.launch-opt .chk'); bridge('log', { msg: 'js: chk-before=' + (c ? c.checked : 'none') + ' vis=' + getComputedStyle(k, '::after').opacity }); if (l) l.click(); setTimeout(function(){ bridge('log', { msg: 'js: chk-after=' + (c ? c.checked : 'none') + ' vis=' + getComputedStyle(k, '::after').opacity }); }, 500); }, 1200);" +
+                            " setTimeout(function(){ var f = document.querySelector('.fin .btn-primary'); if (f) f.click(); }, 2000); };" +
+                            "window.__doneTimer = setInterval(function(){ var b = document.querySelector('.prog .btn-primary'); if (window.__installSent && b && b.className.indexOf('waiting') < 0 && window.__onDone) { window.__onDone(); } }, 700);" +
+                            "setTimeout(function(){ try { clearInterval(window.__doneTimer); } catch(e){}; }, 240000);" +
+                            "setTimeout(function(){ var a = document.querySelector('.screen.active'); var bf = document.querySelector('.bar-fill'); var b = document.querySelector('.prog .btn-primary'); var p = document.querySelector('.prog .p-step'); var sb = document.getElementById('sb-text'); bridge('log', { msg: 'probe-ui: ' + [a ? a.id : 'none', bf ? bf.style.width : '-', b ? (b.className + ' | ' + b.textContent + ' | disp=' + (b.style.display || 'auto')) : '-', p ? p.textContent : '-', sb ? sb.textContent : '-'].join(' | ') }); }, 13000);");
                     }
                     catch (Exception ex) { App.Log($"autotest: {ex.Message}"); }
                 });
@@ -151,6 +158,9 @@ namespace OpenClawSetup
 
         private void Post(string cmd, Dictionary<string, object?>? payload = null)
         {
+            // Window may already be closing (e.g. a late progress tick after "finish") —
+            // posting to a shut-down dispatcher throws and can kill the app mid-log.
+            if (Dispatcher.HasShutdownStarted || !IsLoaded) return;
             var obj = new Dictionary<string, object?> { ["cmd"] = cmd };
             if (payload != null)
                 foreach (var kv in payload) obj[kv.Key] = kv.Value;
@@ -188,6 +198,7 @@ namespace OpenClawSetup
                     break;
                 case "close":
                     App.Log("msg: close");
+                    if (Installing()) { App.Log("close: ignored while installing"); break; }
                     Dispatcher.Invoke(Close);
                     break;
                 case "log":
@@ -222,6 +233,7 @@ namespace OpenClawSetup
                 }
                 case "finish":
                 {
+                    if (Installing()) { App.Log("finish: ignored while installing"); break; }
                     var launch = doc.RootElement.TryGetProperty("launch", out var la) && la.GetBoolean();
                     App.Log("finish: launch=" + launch);
                     if (launch && _installDir != null)
