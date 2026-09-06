@@ -10,7 +10,7 @@ import './styles/globals.css'
 console.info('[OpenClaw] Renderer started', typeof window.electronAPI !== 'undefined' ? '(IPC OK)' : '(IPC missing)')
 
 /**
- * v0.9.0: тёмная тема — единственная (светлая удалена по решению Дамира).
+ * v0.9.0: тёмная тема — единственная (светлая удалена по решению).
  */
 async function applyStartupTheme(): Promise<void> {
   document.documentElement.classList.add('dark')

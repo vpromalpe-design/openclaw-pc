@@ -602,7 +602,7 @@ export function TasksView({ agents = [], data, selected, onSelect, onOpenSession
 
   // v0.9.27: инициализация STT для голосового ввода задачи
   // v0.9.28: точная копия логики control-ui — готовность = enabled && whisper.installed
-  // (НЕ modelsInstalled.includes(model): у Дамира стоит другая модель, чем дефолтная base → кнопка была мертва)
+  // (НЕ modelsInstalled.includes(model): у пользователя стоит другая модель, чем дефолтная base → кнопка была мертва)
   useEffect(() => {
     let cancelled = false
     void window.electronAPI

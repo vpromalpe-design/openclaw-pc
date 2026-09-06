@@ -83,7 +83,7 @@ export interface ShellTelegramBotLink {
   accountId: string
   /** Linked agent id (auto-created when the bot was added) */
   agentId: string
-  /** Bot username with '@', e.g. '@gavrikos_bot' */
+  /** Bot username with '@', e.g. '@my_bot' */
   username: string
   /** Bot display name (first_name when known) */
   name?: string
@@ -247,7 +247,7 @@ export interface TelegramBotAccountRow {
   accountId: string
   /** True for the top-level/default bot */
   isDefault: boolean
-  /** Bot username for display, e.g. '@gavrikos_bot' (when known) */
+  /** Bot username for display, e.g. '@my_bot' (when known) */
   username?: string
   /** Bot display name (when known) */
   name?: string

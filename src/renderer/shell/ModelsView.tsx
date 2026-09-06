@@ -875,7 +875,7 @@ export function ModelsView({ onBack, onChanged }: ModelsViewProps) {
         </section>
 
         {/* Add provider — v0.9.23 (B): полный аналог мастера прямо на странице
-            «Модели» (по решению Дамира: страница должна позволять всё, что делает мастер). */}
+            «Модели» (по решению: страница должна позволять всё, что делает мастер). */}
         <section className="rounded-lg border border-border bg-card p-4" aria-label={t('shell.models.addAria')}>
           <div className="flex items-center gap-2 mb-1">
             <Plus className="w-4 h-4 text-muted-foreground" aria-hidden />

@@ -1295,7 +1295,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   // v0.9.12 (D1): the active tab drives what the chat canvas shows.
   const activeTabs = tabsByAgent[activeAgent] ?? []
   const activeTabId = activeTabByAgent[activeAgent] ?? activeTabs[0]?.id
-  // v0.9.24 (Damir): единый источник истины для отображения модели — модель
+  // v0.9.24 : единый источник истины для отображения модели — модель
   // АКТИВНОГО агента (agents.list[].model ?? дефолт). Раньше «Состояние» и
   // статусбар показывали только глобальную primary → рассинхрон.
   const activeAgentModel = agents.find((a) => a.id === activeAgent)?.model ?? primaryModel
@@ -1451,7 +1451,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
             }),
           )
         } else {
-          // глава — Дамир или в рое один агент: рассылка всем участникам как раньше
+          // глава — главный агент или в рое один агент: рассылка всем участникам как раньше
           const runs: RoyTaskRun[] = []
           for (const agentId of members) {
             const text = `${t.title}${royRoleNote(agentId)}${projectDir ? `\n\n📁 Папка проекта (работай там, создавай файлы только в ней): ${projectDir}` : ''}${royAttachedNote(g, agentId)}${dirContextNote(projectDir)}`
@@ -1825,7 +1825,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [royGroups, tasksData.tasks])
 
-  // v0.9.44: финальный отчёт миссии/координаторской задачи → в Telegram Дамиру.
+  // v0.9.44: финальный отчёт миссии/координаторской задачи → владельцу в Telegram.
   // Срабатывает, когда задача закрыта, финальный ответ координатора получен
   // и у главного агента настроен telegram-бот. Guard: plan.telegramSent.
   const telegramRoy = useRef<Set<string>>(new Set())
@@ -2196,7 +2196,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
             </div>
           </div>
 
-          {/* v0.9.12 (Damir 21:26Z): per-agent chat tabs live in the TOP BAR —
+          {/* v0.9.12 (21:26Z): per-agent chat tabs live in the TOP BAR —
               right of the agent pill, left of ＋ Новый чат. The standalone
               tab row under the top bar was removed. Each agent owns its own
               tabs: 1 pinned agent chat + N text chats. */}
@@ -2240,7 +2240,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
             className="shell-btn ghost"
             style={{ padding: '8px 16px' }}
             onClick={() => {
-              // v0.9.12 (Damir 21:26Z): top-bar button creates a new text tab for the active agent
+              // v0.9.12 (21:26Z): top-bar button creates a new text tab for the active agent
               if (!inChat) openSection(SECTIONS[0])
               newTextTab(activeAgent)
             }}
@@ -2800,7 +2800,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
               </button>
             </div>
 
-            {/* v0.9.39 (Damir 14:18Z): «Сессии» переехали из левой колонки сюда —
+            {/* v0.9.39 (14:18Z): «Сессии» переехали из левой колонки сюда —
                 в правую панель «Состояние», под кнопки соединения/движка */}
             <div className="shell-sp-head">
               <span className="t">Сессии</span>

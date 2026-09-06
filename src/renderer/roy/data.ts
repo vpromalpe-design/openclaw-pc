@@ -122,7 +122,7 @@ export function hasReport(t: RoyTask): boolean {
   return !!t.runs && t.runs.some((r) => (r.report && r.report.trim()) || (r.error && r.error.trim()))
 }
 
-/** Задача считается задачей «главного» (её результат отчитывают Дамиру). */
+/** Задача считается задачей «главного» (её результат отчитывают владельцу). */
 export function isLeaderTask(t: RoyTask): boolean {
   return t.who === 'group' || t.coord === true
 }

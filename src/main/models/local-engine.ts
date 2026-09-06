@@ -518,7 +518,7 @@ export function resolveEngineVariant(
   }
   // auto: prefer GPU, fall back to CPU when no supported GPU is present.
   // Do NOT trust the WMI/CIM GPU probe alone: on machines where the CIM
-  // provider is broken (observed on Damir's laptop) detectGpu() reports
+  // provider is broken (observed on a user's laptop) detectGpu() reports
   // "none" even with an NVIDIA GPU present, silently downgrading to the slow
   // CPU build. If a CUDA build is already on disk, prefer trying it — the
   // spawn path falls back to CPU if it does not become healthy.
@@ -807,7 +807,7 @@ function extractZip(zipPath: string, destDir: string): Promise<void> {
   return new Promise((resolve, reject) => {
     // Windows PowerShell Expand-Archive — always available on Windows.
     // Paths are passed via -EncodedCommand (UTF-16LE base64) so non-ASCII
-    // user paths (e.g. C:\Users\Дамир\) survive the round-trip intact.
+    // user paths (e.g. C:\Users\Пользователь\) survive the round-trip intact.
     const script =
       `Expand-Archive -LiteralPath '${zipPath.replace(/'/g, "''")}' ` +
       `-DestinationPath '${destDir.replace(/'/g, "''")}' -Force`
@@ -1311,7 +1311,7 @@ async function syncLocalContextWindow(
  * llama-server. Windows allows the double-bind on 18792, both processes
  * loaded the model into memory (~13 GB RSS each on a 16 GB laptop) and the
  * machine thrashed into the pagefile: the model "did not answer" for
- * minutes (observed twice on Damir's Legion with gemma4-v2 Q4_K_M).
+ * minutes (observed twice on a Legion laptop with gemma4-v2 Q4_K_M).
  */
 export function startLocalEngine(
   modelIdRaw: string,
@@ -1490,7 +1490,7 @@ async function startLocalEngineInner(
     // prompt (system + tools + history) reaches ~10k tokens, which fits with
     // the compaction reserve. 64k made the KV cache alone ≈ 13 GB of RSS —
     // on 16 GB laptops the engine thrashed into the pagefile and took
-    // minutes to emit a first token (observed on Damir's Legion with the
+    // minutes to emit a first token (observed on a Legion laptop with the
     // gemma4-v2 Q4_K_M 12B model).
     '-ctk',
     'q8_0',
@@ -1909,7 +1909,7 @@ export async function setLocalEngineMode(
  * Repair a corrupted `agents.defaults.workspace` in the config: when the path
  * was mangled by an ANSI read/write round-trip (e.g. editing openclaw.json
  * with PowerShell `Get-Content` without `-Encoding UTF8` — cyrillic paths
- * like `C:\Users\Дамир\...` turn into mojibake), the agent fails on every
+ * like `C:\Users\Пользователь\...` turn into mojibake), the agent fails on every
  * message with `ENOENT: mkdir '<mojibake>'`. Detect the mojibake signature
  * and fall back to the standard workspace path.
  */

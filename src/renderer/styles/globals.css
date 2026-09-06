@@ -4,7 +4,7 @@
    signature glass style design (v0.9.0, fixed 2026-08-23)
    Glassmorphism + iOS blue accent #0A84FF → #5E5CE6, capsule buttons,
    22px radii, SF Pro stack. Dark theme is the ONLY theme (v0.9.11:
-   light theme removed per Damir's decision 2026-08-25). Tokens are
+   light theme removed 2026-08-25). Tokens are
    declared on :root so the app is dark even without a .dark class.
    ──────────────────────────────────────────────────────────────────────────── */
 
@@ -627,7 +627,7 @@ body {
   border-radius: 50%;
   flex-shrink: 0;
 }
-/* v0.9.15 (Damir): зелёная точка-лампа в строке агента — горит всегда.
+/* v0.9.15 : зелёная точка-лампа в строке агента — горит всегда.
    idle = свободен (приглушённый зелёный), on = активен (яркий со свечением),
    busy = работает (мигает). */
 .a-status.on {
@@ -1051,7 +1051,7 @@ body {
   padding: 8px 10px 6px;
 }
 
-/* ── Chat tabs (v0.9.12, D1; relocated to top bar per Damir 21:26Z) ───────── */
+/* ── Chat tabs (v0.9.12, D1; relocated to top bar at 21:26Z) ───────── */
 .chat-tabs {
   flex-shrink: 0;
   display: flex;

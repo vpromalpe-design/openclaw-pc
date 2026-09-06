@@ -556,7 +556,7 @@ function ensureProviderSeedConfig(config: OpenClawConfig, state: WizardState): v
   // Match working openclaw.json: keep apiKey in models.providers.deepseek-direct alongside auth-profiles.
   // DeepSeek is emitted as a custom provider id so the desktop bundle never resolves the plugin-backed
   // `deepseek` catalog id (plugin not bundled; npm unavailable on end-user machines).
-  // v0.9.15 (Damir): do the same for EVERY API-key provider. The bundled runtime does not pick up
+  // v0.9.15 : do the same for EVERY API-key provider. The bundled runtime does not pick up
   // portable static auth-profiles.json for agent auth (subagent looks in its own sqlite auth store →
   // "No API key found for provider X"), so the wizard must persist the key in
   // models.providers[*].apiKey — exactly what the Models page Save button does (confirmed working

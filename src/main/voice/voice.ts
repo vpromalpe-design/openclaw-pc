@@ -49,7 +49,7 @@ function whisperDir(): string {
 }
 
 // whisper-cli (official Windows builds use ANSI CRT) crashes with 0xC0000409 on
-// non-ASCII paths (e.g. C:\Users\Дамир\...). Keep its inputs/outputs in an
+// non-ASCII paths (e.g. C:\Users\Пользователь\...). Keep its inputs/outputs in an
 // ASCII-only work dir and copy files there around each run.
 const ASCII_RE = /^[\x20-\x7E]*$/
 
@@ -102,7 +102,7 @@ function piperExe(): string {
 
 /**
  * sherpa-onnx converts its argv to ANSI on Windows, so it CANNOT open files
- * whose paths contain non-ASCII characters (e.g. C:\Users\Дамир\... becomes
+ * whose paths contain non-ASCII characters (e.g. C:\Users\Пользователь\... becomes
  * C:\Users\???\... and the model "does not exist"). We expose the real piper
  * dir through an ASCII junction (no admin rights needed) so every path passed
  * to the engine (model, tokens, espeak-ng-data, output wav) stays ASCII.

@@ -284,7 +284,7 @@ export class WindowManager {
 .shell-nav {
   display: none !important;
 }
-/* v0.9.24 (Damir): composer strip-down — у нижнего поля ввода убираем ВСЁ,
+/* v0.9.24 : composer strip-down — у нижнего поля ввода убираем ВСЁ,
    кроме самого поля и кнопки отправки: селектор модели (выбор — только в
    меню агента), скрепку прикрепления, чип настроек. Кнопку отправки
    (.chat-send-btn внутри .agent-chat__composer-actions) НЕ трогаем. */
