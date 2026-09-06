@@ -33,6 +33,7 @@ export function AgentSettingsView({ onBack, onAgentCreated }: AgentSettingsViewP
   const [modelOptions, setModelOptions] = useState<string[]>([])
   const [role, setRole] = useState('')
   const [avatarSrc, setAvatarSrc] = useState<string | null>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [saveError, setSaveError] = useState('')
 
@@ -76,7 +77,8 @@ export function AgentSettingsView({ onBack, onAgentCreated }: AgentSettingsViewP
         if (avatarSrc) {
           try {
             const av = await window.electronAPI.royAvatarSave({ id: res.id, src: avatarSrc })
-            if (av?.ok && av.path) setAvatar(res.id, av.path)
+            // v0.9.47: храним data URL — file:// картинки блокируются webSecurity
+            if (av?.ok && av.dataUrl) setAvatar(res.id, av.dataUrl)
           } catch {
             /* некритично — аватар можно задать позже */
           }
@@ -123,9 +125,9 @@ export function AgentSettingsView({ onBack, onAgentCreated }: AgentSettingsViewP
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium">Аватар</label>
           <div className="flex items-center gap-3">
-            {avatarSrc ? (
+            {avatarPreview || avatarSrc ? (
               <img
-                src={royAvatarUrl(avatarSrc)}
+                src={avatarPreview ?? royAvatarUrl(avatarSrc ?? '')}
                 alt=""
                 className="h-14 w-14 rounded-full border border-border object-cover"
               />
@@ -140,15 +142,28 @@ export function AgentSettingsView({ onBack, onAgentCreated }: AgentSettingsViewP
                 variant="outline"
                 size="sm"
                 onClick={() => {
+                  // v0.9.47: превью — data URL (file:// не грузится с openclaw-shell://)
                   void window.electronAPI
                     .royAvatarSave({})
-                    .then((r) => r.ok && r.picked && setAvatarSrc(r.picked))
+                    .then((r) => {
+                      if (!r.ok) return
+                      if (r.picked) setAvatarSrc(r.picked)
+                      if (r.dataUrl) setAvatarPreview(r.dataUrl)
+                    })
                 }}
               >
                 Выбрать картинку…
               </Button>
               {avatarSrc && (
-                <Button type="button" variant="ghost" size="sm" onClick={() => setAvatarSrc(null)}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setAvatarSrc(null)
+                    setAvatarPreview(null)
+                  }}
+                >
                   ✕ Убрать
                 </Button>
               )}

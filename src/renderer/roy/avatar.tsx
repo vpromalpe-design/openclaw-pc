@@ -68,6 +68,29 @@ export function useRoyAvatars(): AvatarMap {
   return useSyncExternalStore(subscribe, read, read)
 }
 
+/**
+ * v0.9.47: одноразовая миграция старых записей (голые пути C:\... или file://)
+ * в data URL через main (nativeImage). data URL уже хранят новые сохранения —
+ * их не трогаем. file:// значения не мигрируем (они и так не грузятся —
+ * webSecurity блокирует file:// с openclaw-shell://), но и не ломаем.
+ */
+export async function migrateLegacyAvatars(): Promise<void> {
+  const map = read()
+  const ids = Object.keys(map)
+  for (const id of ids) {
+    const v = map[id]
+    if (!v || /^(data|https?|blob):/i.test(v)) continue
+    try {
+      // file:///C:/... → C:/... (путь для main); голый путь C:\... — как есть
+      const p = v.startsWith('file:///') ? decodeURIComponent(v.slice(8)) : v
+      const res = await window.electronAPI.royAvatarRead({ path: p })
+      if (res?.ok && res.dataUrl) setAvatar(id, res.dataUrl)
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 /** v0.9.46: голый путь (C:\... или /home/...) → file:// URL для <img>. */
 export function royAvatarUrl(p: string): string {
   if (!p) return ''

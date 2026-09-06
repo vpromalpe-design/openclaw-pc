@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, nativeTheme, shell } from 'electron'
 import type { GatewayProcessManager } from '../gateway/index.js'
 import type {
   OpenClawConfig,
@@ -89,6 +89,7 @@ import {
   IPC_ROY_PROJECT_CREATE,
   IPC_ROY_SHOW_IN_FOLDER,
   IPC_ROY_AVATAR_SAVE,
+  IPC_ROY_AVATAR_READ,
   IPC_ROY_TELEGRAM_REPORT,
   IPC_ROY_FS_RENAME,
   IPC_ROY_FS_DELETE,
@@ -1620,15 +1621,52 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
     }),
   )
 
+  // v0.9.47: аватар-картинка → компактный data URL (PNG ≤220px).
+  // Хранить и показывать <img> как data: — иначе Chromium блокирует file://
+  // картинки со страниц openclaw-shell:// (webSecurity: local resource).
+  function avatarDataUrl(srcPath: string): string {
+    try {
+      const img = nativeImage.createFromPath(srcPath)
+      if (img.isEmpty()) return ''
+      const s = img.getSize()
+      const long = Math.max(s.width, s.height)
+      let use = img
+      if (long > 220) {
+        const k = 220 / long
+        use = img.resize({
+          width: Math.max(1, Math.round(s.width * k)),
+          height: Math.max(1, Math.round(s.height * k)),
+          quality: 'good',
+        })
+      }
+      return use.toDataURL()
+    } catch {
+      return ''
+    }
+  }
+
+  ipcMain.handle(
+    IPC_ROY_AVATAR_READ,
+    wrapHandler('ROY_AVATAR_READ', async (payload: unknown): Promise<{ ok: boolean; dataUrl?: string; error?: string }> => {
+      const raw = validatePlainObject(payload, 'roy:avatarRead')
+      const p = typeof raw.path === 'string' && raw.path.trim() ? raw.path.trim() : ''
+      if (!p || !fs.existsSync(p)) return { ok: false, error: 'file not found' }
+      const dataUrl = avatarDataUrl(p)
+      return dataUrl ? { ok: true, dataUrl } : { ok: false, error: 'cannot read image' }
+    }),
+  )
+
   ipcMain.handle(
     IPC_ROY_AVATAR_SAVE,
-    wrapHandler('ROY_AVATAR_SAVE', async (payload: unknown): Promise<{ ok: boolean; path?: string; picked?: string; error?: string }> => {
+    wrapHandler('ROY_AVATAR_SAVE', async (payload: unknown): Promise<{ ok: boolean; path?: string; dataUrl?: string; picked?: string; error?: string }> => {
       const raw = validatePlainObject(payload, 'roy:avatarSave')
       const id = typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim().replace(/[^\w-]/g, '_').slice(0, 60) : ''
-      // v0.9.45: два режима —
+      // v0.9.45: режимы —
       // 1) { id } — диалог выбора + копирование в userData/avatars/<id><ext>
       // 2) { id, src } — без диалога: копировать уже выбранный файл (создание группы/агента)
-      // 3) {} — pick-only: только диалог, вернуть путь без копирования (превью до создания)
+      // 3) {} — pick-only: только диалог, вернуть путь + dataUrl (превью до создания)
+      // v0.9.47: всегда возвращать dataUrl (ресайз nativeImage) — рендер через data:,
+      // т.к. file:// картинки блокируются webSecurity на origin openclaw-shell://.
       const preset = typeof raw.src === 'string' && raw.src.trim() ? raw.src.trim() : ''
       let src = preset
       if (!src) {
@@ -1640,14 +1678,15 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
         src = picked.canceled || picked.filePaths.length === 0 ? '' : picked.filePaths[0]
         if (!src) return { ok: false, error: 'отменено' }
       }
-      if (!id) return { ok: true, picked: src }
+      const dataUrl = avatarDataUrl(src)
+      if (!id) return { ok: true, picked: src, dataUrl: dataUrl || undefined }
       try {
         const ext = (path.extname(src) || '.png').toLowerCase().slice(0, 6)
         const avDir = path.join(deps.getUserDataDir(), 'avatars')
         fs.mkdirSync(avDir, { recursive: true })
         const dest = path.join(avDir, `${id}${ext}`)
         fs.copyFileSync(src, dest)
-        return { ok: true, path: dest }
+        return { ok: true, path: dest, dataUrl: dataUrl || undefined }
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) }
       }

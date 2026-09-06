@@ -256,8 +256,10 @@ export interface ElectronAPI {
   royProjectCreate: (opts: { title: string }) => Promise<{ ok: boolean; dir?: string; error?: string }>
   /** Показать файл/папку в проводнике (Windows Explorer, showItemInFolder) */
   royShowInFolder: (path: string) => Promise<{ ok: boolean; error?: string }>
-  /** Выбрать картинку с диска → копия в userData/avatars → путь для показа */
-  royAvatarSave: (opts: { id?: string; src?: string }) => Promise<{ ok: boolean; path?: string; picked?: string; error?: string }>
+  /** v0.9.47: выбрать картинку → копия в userData/avatars + data URL (ресайз) для показа */
+  royAvatarSave: (opts: { id?: string; src?: string }) => Promise<{ ok: boolean; path?: string; dataUrl?: string; picked?: string; error?: string }>
+  /** v0.9.47: прочитать картинку с диска → data URL (миграция старых путей) */
+  royAvatarRead: (opts: { path: string }) => Promise<{ ok: boolean; dataUrl?: string; error?: string }>
   /** v0.9.46: переименовать/удалить/скопировать файл или папку диска */
   royFsRename: (opts: { path: string; name: string }) => Promise<{ ok: boolean; error?: string }>
   royFsDelete: (path: string) => Promise<{ ok: boolean; error?: string }>

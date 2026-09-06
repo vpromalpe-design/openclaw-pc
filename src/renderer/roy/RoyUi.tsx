@@ -11,11 +11,11 @@ import { getRoyRole, setRoyRole } from './roles'
 
 const GRAD_NAMES = ['синий', 'фиолет', 'розов', 'зелёный', 'янтарь', 'коралл']
 
-/** Выбор картинки-аватара без копирования (для превью до создания группы). */
-async function pickAvatarImage(): Promise<string | null> {
+/** Выбор картинки-аватара без копирования: путь + data URL превью (для создания группы). */
+async function pickAvatarImage(): Promise<{ path: string; dataUrl: string } | null> {
   try {
     const res = await window.electronAPI.royAvatarSave({})
-    if (res?.ok && res.picked) return res.picked
+    if (res?.ok && res.picked) return { path: res.picked, dataUrl: res.dataUrl ?? '' }
     return null
   } catch {
     return null
@@ -51,6 +51,7 @@ export function RoyCreateModal({
   const [emoji, setEmoji] = useState<string>(EMBLEM_KEYS[0])
   const [grad, setGrad] = useState<string>('g0')
   const [avatarSrc, setAvatarSrc] = useState<string | null>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
 
   const submit = () => {
     if (!name.trim()) return
@@ -84,8 +85,8 @@ export function RoyCreateModal({
         <label className="rcy-label">Аватар (необязательно)</label>
         <div className="rcy-avatar">
           <span className={cn('rcy-avatar-prev', grad)}>
-            {avatarSrc ? (
-              <img src={royAvatarUrl(avatarSrc)} alt="" draggable={false} />
+            {avatarPreview || avatarSrc ? (
+              <img src={avatarPreview ?? royAvatarUrl(avatarSrc ?? '')} alt="" draggable={false} />
             ) : (
               <EmblemIcon k={emoji} size={22} strokeWidth={1.9} />
             )}
@@ -94,12 +95,21 @@ export function RoyCreateModal({
             type="button"
             className="roy-btn"
             title="Выбрать картинку с диска (jpg/png/webp)"
-            onClick={() => void pickAvatarImage().then((p) => p && setAvatarSrc(p))}
+            onClick={() =>
+              void pickAvatarImage().then((p) => {
+                if (!p) return
+                setAvatarSrc(p.path)
+                setAvatarPreview(p.dataUrl || null)
+              })
+            }
           >
             🖼 Выбрать картинку
           </button>
           {avatarSrc && (
-            <button type="button" className="roy-btn ghost" title="Убрать картинку — останется эмблема" onClick={() => setAvatarSrc(null)}>
+            <button type="button" className="roy-btn ghost" title="Убрать картинку — останется эмблема" onClick={() => {
+              setAvatarSrc(null)
+              setAvatarPreview(null)
+            }}>
               ✕ Убрать
             </button>
           )}

@@ -1312,10 +1312,11 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
   )
 
   // v0.9.42: аватар (агента/группы) — диалог выбора картинки → IPC → localStorage
+  // v0.9.47: храним data URL (file:// блокируется webSecurity на openclaw-shell://)
   const royAvatarPick = useCallback(async (id: string) => {
     try {
       const res = await window.electronAPI.royAvatarSave({ id })
-      if (res?.ok && res.path) setAvatar(id, res.path)
+      if (res?.ok) setAvatar(id, res.dataUrl ?? res.path ?? '')
     } catch {
       /* ignore */
     }
@@ -1978,10 +1979,11 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
       onPanelChange('')
       setActiveSection('chat')
       // v0.9.45: выбранная в мастере картинка копируется сразу под id группы
+      // v0.9.47: храним data URL (file:// блокируется webSecurity на openclaw-shell://)
       if (avatarSrc) {
         try {
           const res = await window.electronAPI.royAvatarSave({ id: g.id, src: avatarSrc })
-          if (res?.ok && res.path) setAvatar(g.id, res.path)
+          if (res?.ok) setAvatar(g.id, res.dataUrl ?? res.path ?? '')
         } catch {
           /* ignore */
         }
