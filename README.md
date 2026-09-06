@@ -41,8 +41,7 @@ Your conversations, agents and files never leave your computer unless you connec
 ## 🖼 Screenshots
 
 | Setup wizard | Gateway dashboard | Installer (user scope) |
-|---|---|---|
-| ![Setup wizard](resources/screenshot-setup-wizard.png) | ![Gateway dashboard](resources/screenshot-gateway-dashboard.png) | ![Installer user scope](resources/screenshot-installer-user-scope.png) |
+
 
 ## 🚀 Quick start
 
